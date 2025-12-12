@@ -1,4 +1,4 @@
-import { define } from "../../utils.ts";
+import { define } from "@/utils.ts";
 import HomeView from "../../islands/admin/HomeView.tsx";
 import { DatabaseProvider } from "../../islands/admin/contexts/DatabaseContext.tsx";
 

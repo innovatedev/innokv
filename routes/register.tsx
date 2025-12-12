@@ -1,15 +1,22 @@
-import { define } from "../utils.ts";
+import { define } from "@/utils.ts";
 import { hash } from "@felix/argon2";
 import BrandHeader from "../components/BrandHeader.tsx";
+import { db } from "@/lib/db.ts";
 
 export const handler = define.handlers({
   async POST(ctx) {
     const form = await ctx.req.formData();
-    const username = form.get("username")?.toString();
+    const email = form.get("email")?.toString();
     const password = form.get("password")?.toString();
+    const confirmPassword = form.get("confirmPassword")?.toString();
 
-    if (!username || !password) {
-      ctx.state.flash("error", "Missing username or password");
+    if (!email || !password || !confirmPassword) {
+      ctx.state.flash("error", "Missing fields");
+      return ctx.redirect("/register");
+    }
+
+    if (password !== confirmPassword) {
+      ctx.state.flash("error", "Passwords do not match");
       return ctx.redirect("/register");
     }
 
@@ -18,9 +25,8 @@ export const handler = define.handlers({
       return ctx.redirect("/register");
     }
 
-    const kv = await Deno.openKv();
-    const existing = await kv.get(["users", username]);
-    if (existing.value) {
+    const existing = await db.users.findByPrimaryIndex("email", email);
+    if (existing) {
       ctx.state.flash("error", "User already exists");
       return ctx.redirect("/register");
     }
@@ -28,12 +34,25 @@ export const handler = define.handlers({
     // 1. Hash the password
     const passwordHash = await hash(password);
 
-    // 2. Save user to DB (Example using Deno KV)
-    const user = { username, passwordHash };
-    await kv.set(["users", username], user);
+    // 2. Save user to DB
+    const user = {
+      id: crypto.randomUUID(),
+      email,
+      passwordHash,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastLoginAt: new Date(),
+      permissions: [] as string[],
+    };
+
+    const commit = await db.users.add(user);
+    if (!commit.ok) {
+      ctx.state.flash("error", "Failed to create user");
+      return ctx.redirect("/register");
+    }
 
     // 3. Log them in
-    await ctx.state.login(username, { username });
+    await ctx.state.login(user.id, user);
 
     return ctx.redirect("/");
   },
@@ -72,11 +91,11 @@ export default define.page<typeof handler>((ctx) => {
             <form method="POST" class="flex flex-col gap-6">
               <div class="form-control">
                 <label class="label">
-                  <span class="label-text">Username</span>
+                  <span class="label-text">Email</span>
                 </label>
                 <input
-                  type="text"
-                  name="username"
+                  type="email"
+                  name="email"
                   class="input input-bordered input-sm"
                   required
                 />
@@ -93,19 +112,27 @@ export default define.page<typeof handler>((ctx) => {
                   required
                 />
               </div>
-              <div class="form-control mt-2 flex-row justify-end">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">Confirm Password</span>
+                </label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  class="input input-bordered input-sm"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div class="flex flex-row-reverse justify-between items-center mt-2">
                 <button type="submit" class="btn btn-primary btn-sm">
                   Register
                 </button>
+                <a href="/login" class="link link-primary text-sm">
+                  Login
+                </a>
               </div>
             </form>
-
-            <p class="mt-4 text-center text-sm">
-              Already have an account?{" "}
-              <a href="/login" class="link link-primary">
-                Login
-              </a>
-            </p>
           </div>
         </div>
       </div>

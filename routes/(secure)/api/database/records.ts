@@ -1,6 +1,6 @@
-import { DatabaseRepository } from "../../../lib/Database.ts";
-import { db as kvdex } from "../../../lib/db.ts";
-import { BaseRepository } from "../../../lib/BaseRepository.ts";
+import { DatabaseRepository } from "@/lib/Database.ts";
+import { db as kvdex } from "@/lib/db.ts";
+import { BaseRepository } from "@/lib/BaseRepository.ts";
 
 const db = new DatabaseRepository(kvdex);
 
@@ -13,10 +13,11 @@ export const handler = BaseRepository.handlers({
         throw new Error("Database ID is required");
       }
 
+      const database = await db.getDatabaseBySlugOrId(dbId);
       const pathInfo = ctx.url.searchParams.get("pathInfo") || "[]";
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
 
-      return db.getRecords(dbId, pathInfo, cursor);
+      return db.getRecords(database.id, pathInfo, cursor);
     }),
   POST: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
@@ -31,7 +32,8 @@ export const handler = BaseRepository.handlers({
         oldKey = wireOldKey.map((p: any) => db.parseKeyPart(p));
       }
 
-      return db.saveRecord(id, key, value, versionstamp, oldKey);
+      const database = await db.getDatabaseBySlugOrId(id);
+      return db.saveRecord(database.id, key, value, versionstamp, oldKey);
     }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
@@ -40,6 +42,7 @@ export const handler = BaseRepository.handlers({
       if (!wireKey) throw new Error("Key is required");
 
       const key = wireKey.map((p: any) => db.parseKeyPart(p));
-      return db.deleteRecord(id, key);
+      const database = await db.getDatabaseBySlugOrId(id);
+      return db.deleteRecord(database.id, key);
     }),
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { ApiKvEntry, ApiKvKey } from "../../../lib/types.ts";
+import { ApiKvEntry, ApiKvKey } from "@/lib/types.ts";
 
 export default function KvEntryForm({
   onSubmit,

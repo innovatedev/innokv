@@ -30,10 +30,12 @@ export const handler = define.middleware(async (ctx) => {
     throw new HttpError(403, "Forbidden");
   }
 
+  if (!ctx.state.user) {
+    return ctx.redirect("/login");
+  }
+
   // Admin Permission Check
   if (!checkPermissions("admin:database")) {
-    console.log(ctx.state.user, ctx.state);
-    return ctx.redirect("/login");
   }
 
   const repo = new DatabaseRepository(db);

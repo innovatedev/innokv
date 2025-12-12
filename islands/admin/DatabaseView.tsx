@@ -3,8 +3,8 @@ import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
 import KvEntryForm from "./forms/KvEntry.tsx";
 import { Signal, useSignal } from "@preact/signals";
-import { ApiKvEntry, ApiKvKeyPart, DbNode } from "../../lib/types.ts";
-import { KeyCodec } from "../../lib/KeyCodec.ts";
+import { ApiKvEntry, ApiKvKeyPart, DbNode } from "@/lib/types.ts";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
@@ -125,13 +125,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     initialStructure || null,
   );
 
-  useEffect(() => {
-    console.log("DatabaseView mounted", {
-      activeDatabase,
-      selectedDatabase: selectedDatabase.value,
-    });
-  }, [activeDatabase]);
-
   const createEntryRef = useRef<HTMLDialogElement>(null);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
   const selectedEntry = useSignal<ApiKvEntry | null>(null);
@@ -162,9 +155,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     // NOTE: If provided structure fits current DB, we use it. If not, fetch.
 
     // Actually simplicity: If initialStructure is provided, use it. But real-time updates?
-    api.getDatabase(selectedDatabase.value).then((structure) => {
-      setDbStructure(structure);
-    });
+    const target = activeDatabase?.slug || selectedDatabase.value;
+    if (target) {
+      api.getDatabase(target).then((structure) => {
+        setDbStructure(structure);
+      });
+    }
   }, [selectedDatabase.value]);
 
   useEffect(() => {
@@ -272,11 +268,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             const isActive = activeDatabase?.id === db.id;
 
             if (!isActive) {
-              console.log("Rendering sidebar link", {
-                id: db.id,
-                slug: db.slug,
-                href: `/${db.slug || db.id}`,
-              });
               return (
                 <li key={db.id}>
                   <a
@@ -444,12 +435,15 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               };
               const realKey = selectedEntry.value.key.map(convertValue);
 
-              api.deleteRecord(activeDatabase.id, realKey).then(() => {
+              api.deleteRecord(
+                activeDatabase.slug || activeDatabase.id,
+                realKey,
+              ).then(() => {
                 createEntryRef.current?.close();
                 if (pathInfo.value) pathInfo.value = [...pathInfo.value];
-                api.getDatabase(activeDatabase.id).then((s) =>
-                  setDbStructure(s)
-                );
+                api.getDatabase(activeDatabase.slug || activeDatabase.id).then((
+                  s,
+                ) => setDbStructure(s));
               }).catch((e: any) => alert(e.message));
             }}
             onSubmit={(data, form) => {
@@ -468,13 +462,15 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                 return p.value;
               };
               let oldKey: any[] | undefined;
-              if (selectedEntry.value) {oldKey = selectedEntry.value.key.map(
+              if (selectedEntry.value) {
+                oldKey = selectedEntry.value.key.map(
                   convertValue,
-                );}
+                );
+              }
               const versionstamp = selectedEntry.value?.versionstamp || null;
 
               api.saveRecord(
-                activeDatabase.id,
+                activeDatabase.slug || activeDatabase.id,
                 data.key,
                 data.value,
                 versionstamp,
@@ -482,9 +478,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               ).then(() => {
                 createEntryRef.current?.close();
                 if (pathInfo.value) pathInfo.value = [...pathInfo.value];
-                api.getDatabase(activeDatabase.id).then((s) =>
-                  setDbStructure(s)
-                );
+                api.getDatabase(activeDatabase.slug || activeDatabase.id).then((
+                  s,
+                ) => setDbStructure(s));
               }).catch((e: any) => alert(e.message));
             }}
           />

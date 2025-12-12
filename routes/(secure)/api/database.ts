@@ -1,6 +1,6 @@
-import { DatabaseRepository } from "../../lib/Database.ts";
-import { db as kvdex } from "../../lib/db.ts";
-import { BaseRepository } from "../../lib/BaseRepository.ts";
+import { DatabaseRepository } from "@/lib/Database.ts";
+import { db as kvdex } from "@/lib/db.ts";
+import { BaseRepository } from "@/lib/BaseRepository.ts";
 
 const db = new DatabaseRepository(kvdex);
 

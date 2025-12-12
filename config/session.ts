@@ -3,8 +3,8 @@ import {
   type SessionOptions,
 } from "@innovatedev/fresh-session";
 import { KvDexSessionStorage } from "./KvDexSessionStorage.ts";
-import type { State } from "../utils.ts";
-import { db } from "../lib/db.ts";
+import type { State } from "@/utils.ts";
+import { db } from "@/lib/db.ts";
 
 export const sessionConfig: SessionOptions = {
   // 7 days expiration, persistent in KV

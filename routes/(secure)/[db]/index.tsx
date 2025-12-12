@@ -1,8 +1,8 @@
-import { define } from "../../utils.ts";
-import { DatabaseRepository } from "../../lib/Database.ts";
-import { db } from "../../lib/db.ts";
-import DatabaseView from "../../islands/admin/DatabaseView.tsx";
-import { DatabaseProvider } from "../../islands/admin/contexts/DatabaseContext.tsx";
+import { define } from "@/utils.ts";
+import { DatabaseRepository } from "@/lib/Database.ts";
+import { db } from "@/lib/db.ts";
+import DatabaseView from "@/islands/admin/DatabaseView.tsx";
+import { DatabaseProvider } from "@/islands/admin/contexts/DatabaseContext.tsx";
 
 export default define.page(async function DatabasePage({ state, params }) {
   const { databases } = state.plugins.kvAdmin!;
@@ -22,7 +22,6 @@ export default define.page(async function DatabasePage({ state, params }) {
     // Fallback or error handling? We'll render empty structure and let client try or show error.
   }
 
-  console.log("DatabasePage Rendering", { resolvedDbId });
   return (
     <DatabaseProvider
       initialDatabases={databases}

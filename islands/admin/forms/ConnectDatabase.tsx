@@ -1,4 +1,4 @@
-import { Database } from "../../../lib/models.ts";
+import { Database } from "@/lib/models.ts";
 
 export default function ConnectDatabaseForm({
   onSubmit,

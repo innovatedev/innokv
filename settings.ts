@@ -1,0 +1,10 @@
+const settings = {
+  admin: {
+    emails: (Deno.env.get("ADMIN_EMAILS") ?? "")
+      .split(",")
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0),
+  },
+};
+
+export default settings;

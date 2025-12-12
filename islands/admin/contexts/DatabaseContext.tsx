@@ -1,10 +1,10 @@
 import { createContext, FunctionalComponent } from "preact";
 import { Signal, signal, useSignal } from "@preact/signals";
-import { Database } from "../../../lib/models.ts";
+import { Database } from "@/lib/models.ts";
 import { useEffect, useState } from "preact/hooks";
-import KvAdminClient from "../../../lib/KvAdminClient.ts";
-import { ApiKvEntry } from "../../../lib/types.ts";
-import { KeyCodec } from "../../../lib/KeyCodec.ts"; // Codec Updated
+import KvAdminClient from "@/lib/KvAdminClient.ts";
+import { ApiKvEntry } from "@/lib/types.ts";
+import { KeyCodec } from "@/lib/KeyCodec.ts"; // Codec Updated
 
 // Define the shape of the context
 interface DatabaseContextType<DB extends Database = Database> {
@@ -43,10 +43,6 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   initialDatabases,
   initialSelectedDatabase,
 }) => {
-  console.log("DatabaseProvider Init", {
-    initialSelectedDatabase,
-    initialDatabasesLen: initialDatabases?.length,
-  });
   const databases = useSignal(
     initialDatabases || defaultContext.databases.peek(),
   );
@@ -70,10 +66,6 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       initialSelectedDatabase &&
       selectedDatabase.peek() !== initialSelectedDatabase
     ) {
-      console.log("Syncing selectedDatabase from prop", {
-        from: selectedDatabase.peek(),
-        to: initialSelectedDatabase,
-      });
       selectedDatabase.value = initialSelectedDatabase;
     }
   }, [initialSelectedDatabase]);
@@ -82,17 +74,12 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     initialActive,
   );
 
-  useEffect(() => {
-    console.log("selectedDatabase changed to", selectedDatabase.value);
-    console.trace("selectedDatabase change trace");
-  }, [selectedDatabase.value]);
-
   const pathInfo = useSignal<{ value: string; type: string }[] | null>(null);
   const records = useSignal<ApiKvEntry[]>([]);
 
   useEffect(() => {
     // Initialize from URL
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(globalThis.location.search);
     const path = params.get("path");
 
     if (path) {
@@ -107,23 +94,25 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     }
 
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(globalThis.location.search);
       const path = params.get("path");
 
       if (path) {
         try {
           pathInfo.value = KeyCodec.decode(path);
-        } catch {}
+        } catch {
+          // ignore error
+        }
       } else {
         pathInfo.value = null;
       }
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    globalThis.addEventListener("popstate", handlePopState);
+    return () => globalThis.removeEventListener("popstate", handlePopState);
   }, []);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
+    const url = new URL(globalThis.location.href);
     let changed = false;
 
     // Removed db sync logic as we use routes now
@@ -142,7 +131,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     }
 
     if (changed) {
-      window.history.pushState({}, "", url.toString());
+      globalThis.history.pushState({}, "", url.toString());
     }
   }, [selectedDatabase.value, pathInfo.value]);
 
@@ -157,7 +146,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       // However, if we set pathInfo via setTimeout in init, it will override this null.
       if (
         pathInfo.peek() !== null &&
-        !new URLSearchParams(window.location.search).has("path")
+        !new URLSearchParams(globalThis.location.search).has("path")
       ) {
         // This check is flawed because URL updates separately.
         // Let's rely on the setTimeout in init to override this.
@@ -179,11 +168,15 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       return;
     }
 
+    const db = databases.value.find((d) =>
+      d.id === selectedDatabase.value || d.slug === selectedDatabase.value
+    );
+    const targetId = db?.slug || selectedDatabase.value || "";
+
     defaultContext.api.getRecords(
-      selectedDatabase.value,
+      targetId,
       pathInfo.value.map((info) => ({ type: info.type, value: info.value })),
     ).then((data) => {
-      console.log("Records", data);
       records.value = data;
     });
   }, [pathInfo.value]);

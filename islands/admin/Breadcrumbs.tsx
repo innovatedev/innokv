@@ -1,6 +1,6 @@
 import { Signal } from "@preact/signals";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ApiKvKeyPart, DbNode } from "../../lib/types.ts";
+import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 
 interface BreadcrumbsProps {

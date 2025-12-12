@@ -138,7 +138,6 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async connectDatabase(database: Database) {
-    console.log("Connecting to database", database);
     if (database.type === "file") {
       const { path } = database;
       if (!path) {
@@ -322,8 +321,6 @@ export class DatabaseRepository extends BaseRepository {
     const keys: Deno.KvKey = pathInfoParsed.map((info) =>
       this.parseKeyPart(info)
     );
-
-    console.log("Keys", keys);
 
     // List records with prefix
     const result = kv.list({ prefix: keys }, { cursor, limit: 100 });

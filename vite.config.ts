@@ -6,5 +6,8 @@ export default defineConfig({
   plugins: [fresh(), tailwindcss()],
   server: {
     port: 5177,
+    watch: {
+      ignored: ["**/data/**"],
+    },
   },
 });

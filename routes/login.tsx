@@ -1,42 +1,59 @@
-import { define } from "../utils.ts";
+import { define } from "@/utils.ts";
 import { verify } from "@felix/argon2";
 import BrandHeader from "../components/BrandHeader.tsx";
+import { db } from "@/lib/db.ts";
+import settings from "../settings.ts";
 
 export const handler = define.handlers({
   async POST(ctx) {
     const form = await ctx.req.formData();
-    const username = form.get("username")?.toString();
+    const email = form.get("email")?.toString();
     const password = form.get("password")?.toString();
 
-    if (username && password) {
-      // 1. Fetch user from DB (Example using Deno KV)
-
-      const kv = await Deno.openKv();
-      const userRes = await kv.get(["users", username]);
-      const user = userRes.value as
-        | { username: string; passwordHash: string }
-        | null;
+    if (email && password) {
+      // 1. Fetch user from DB
+      const user = await db.users.findByPrimaryIndex("email", email);
 
       if (!user) {
         // User not found (generic error for security)
-        ctx.state.flash("error", "Invalid username or password");
+        ctx.state.flash("error", "Invalid email or password");
         return ctx.redirect("/login");
       }
 
       // 2. Verify password
-      const isValid = await verify(user.passwordHash, password);
+      const isValid = await verify(user.value.passwordHash, password);
       if (!isValid) {
-        ctx.state.flash("error", "Invalid username or password");
+        ctx.state.flash("error", "Invalid email or password");
         return ctx.redirect("/login");
       }
 
-      // 3. Log user in (Rotation is handled automatically)
-      await ctx.state.login(username, { username });
+      // 3. Admin Permission Check & Update
+      const userData = user.value;
+      let permissions = userData.permissions;
+      let shouldUpdate = false;
+      const updates: Partial<typeof userData> = {
+        lastLoginAt: new Date(),
+      };
+
+      if (settings.admin.emails.includes(email) && !permissions.includes("*")) {
+        permissions = [...permissions, "*"];
+        updates.permissions = permissions;
+        shouldUpdate = true;
+      }
+
+      // Combine lastLoginAt update
+      const updatedUser = { ...userData, ...updates };
+
+      // Update DB if needed (or just always for lastLoginAt)
+      await db.users.update(user.id, updates);
+
+      // 4. Log user in (Rotation is handled automatically)
+      await ctx.state.login(user.id, updatedUser);
 
       return ctx.redirect("/");
     }
 
-    ctx.state.flash("error", "Invalid username or password");
+    ctx.state.flash("error", "Invalid email or password");
 
     return ctx.redirect("/login");
   },
@@ -75,12 +92,11 @@ export default define.page<typeof handler>((ctx) => {
             <form method="POST" class="flex flex-col gap-6">
               <div class="form-control">
                 <label class="label">
-                  <span class="label-text">Username</span>
+                  <span class="label-text">Email</span>
                 </label>
                 <input
-                  type="text"
-                  name="username"
-                  placeholder="Username"
+                  type="email"
+                  name="email"
                   class="input input-bordered input-sm"
                   required
                 />
@@ -92,24 +108,19 @@ export default define.page<typeof handler>((ctx) => {
                 <input
                   type="password"
                   name="password"
-                  placeholder="Password"
                   class="input input-bordered input-sm"
                   required
                 />
               </div>
-              <div class="form-control mt-2 flex-row justify-end">
+              <div class="flex flex-row-reverse justify-between items-center mt-2">
                 <button type="submit" class="btn btn-primary btn-sm">
                   Login
                 </button>
+                <a href="/register" class="link link-primary text-sm">
+                  Register
+                </a>
               </div>
             </form>
-
-            <p class="mt-4 text-center text-sm">
-              Don't have an account?{" "}
-              <a href="/register" class="link link-primary">
-                Register
-              </a>
-            </p>
           </div>
         </div>
       </div>
