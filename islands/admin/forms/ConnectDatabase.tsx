@@ -1,4 +1,5 @@
 import { Database } from "@/lib/models.ts";
+import { useState } from "preact/hooks";
 
 export default function ConnectDatabaseForm({
   onSubmit,
@@ -17,6 +18,8 @@ export default function ConnectDatabaseForm({
   error?: string;
   success?: string;
 }) {
+  const [dbType, setDbType] = useState<string>(database?.type || "memory");
+
   const doSubmit = (e: Event) => {
     if (onSubmit) {
       e.preventDefault();
@@ -128,6 +131,7 @@ export default function ConnectDatabaseForm({
       </label>
 
       {/* Connection Info */}
+      {/* Connection Info */}
       <div class="grid grid-cols-2 gap-4">
         <label class="form-control w-full">
           <div class="label pb-1">
@@ -136,7 +140,8 @@ export default function ConnectDatabaseForm({
           <select
             class="select select-bordered select-sm w-full"
             name="type"
-            defaultValue={database?.type || "memory"}
+            value={dbType}
+            onChange={(e) => setDbType((e.target as HTMLSelectElement).value)}
             required
           >
             <option value="memory">Memory</option>
@@ -144,35 +149,73 @@ export default function ConnectDatabaseForm({
             <option value="remote">Remote</option>
           </select>
         </label>
-        <label class="form-control w-full">
-          <div class="label pb-1">
-            <span class="label-text text-xs opacity-70">Mode</span>
-          </div>
-          <select
-            class="select select-bordered select-sm w-full"
-            name="mode"
-            defaultValue={database?.mode || "rw"}
-            required
-          >
-            <option value="r">Read Only</option>
-            <option value="rw">Read/Write</option>
-          </select>
-        </label>
+
+        {/* Hide Mode if creating new Memory DB (must be RW) */}
+        {!(dbType === "memory" && !database)
+          ? (
+            <label class="form-control w-full">
+              <div class="label pb-1">
+                <span class="label-text text-xs opacity-70">Mode</span>
+              </div>
+              <select
+                class="select select-bordered select-sm w-full"
+                name="mode"
+                defaultValue={database?.mode || "rw"}
+                required
+              >
+                <option value="r">Read Only</option>
+                <option value="rw">Read/Write</option>
+              </select>
+            </label>
+          )
+          : <input type="hidden" name="mode" value="rw" />}
       </div>
 
-      <label class="form-control w-full">
-        <div class="label pb-1">
-          <span class="label-text text-xs opacity-70">Path / UUID</span>
-        </div>
-        <input
-          class="input input-bordered input-sm w-full font-mono text-xs"
-          type="text"
-          name="path"
-          defaultValue={database?.path}
-          placeholder="/path/to/db or UUID"
-          required
-        />
-      </label>
+      {dbType !== "memory"
+        ? (
+          <label class="form-control w-full">
+            <div class="label pb-1">
+              <span class="label-text text-xs opacity-70">
+                {dbType === "remote" ? "Connection URL" : "File Path"}
+              </span>
+            </div>
+            <input
+              class="input input-bordered input-sm w-full font-mono text-xs"
+              type="text"
+              name="path"
+              defaultValue={database?.path}
+              placeholder={dbType === "remote"
+                ? "https://api.deno.com/databases/<UUID>"
+                : "/path/to/db.sqlite"}
+              required
+            />
+            {dbType === "remote" && (
+              <>
+                <div class="label pb-0 pt-1">
+                  <span class="label-text-alt text-xs opacity-50">
+                    Provide the <code>DENO_KV_ACCESS_TOKEN</code>{" "}
+                    for this database. (Optional if server env var is set)
+                  </span>
+                </div>
+                <label class="form-control w-full mt-2">
+                  <div class="label pb-1">
+                    <span class="label-text text-xs opacity-70">
+                      Access Token
+                    </span>
+                  </div>
+                  <input
+                    class="input input-bordered input-sm w-full font-mono text-xs"
+                    type="password"
+                    name="accessToken"
+                    placeholder="dk_..."
+                    autoComplete="off"
+                  />
+                </label>
+              </>
+            )}
+          </label>
+        )
+        : <input type="hidden" name="path" value=":memory:" />}
 
       <div class="form-control mt-2">
         <label class="label cursor-pointer justify-start gap-3">

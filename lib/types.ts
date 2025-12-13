@@ -10,4 +10,7 @@ export type ApiKvEntry<T = unknown> = {
   versionstamp: string;
 };
 
-export type DbNode = ApiKvKeyPart & { children?: Record<string, DbNode> };
+export type DbNode = ApiKvKeyPart & {
+  children?: Record<string, DbNode>;
+  hasChildren?: boolean;
+};

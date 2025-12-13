@@ -18,6 +18,11 @@ interface DatabaseContextType<DB extends Database = Database> {
   gonePaths: Signal<Set<string>>;
   userSettings: Signal<User["settings"]>;
   updateSettings: (settings: User["settings"]) => void;
+  // Pagination
+  cursor: Signal<string | undefined>;
+  nextCursor: Signal<string | undefined>;
+  cursorStack: Signal<Array<string | undefined>>;
+  limit: Signal<number>;
 }
 
 // Create default values for the context
@@ -34,6 +39,10 @@ const defaultContext: DatabaseContextType = {
   gonePaths: signal(new Set()),
   userSettings: signal({}),
   updateSettings: () => {},
+  cursor: signal(undefined),
+  nextCursor: signal(undefined),
+  cursorStack: signal([]),
+  limit: signal(25),
 };
 
 // Create the context
@@ -110,6 +119,10 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   const pathInfo = useSignal<{ value: string; type: string }[] | null>(null);
   const records = useSignal<ApiKvEntry[]>([]);
   const gonePaths = useSignal<Set<string>>(new Set());
+  const cursor = useSignal<string | undefined>(undefined);
+  const nextCursor = useSignal<string | undefined>(undefined);
+  const cursorStack = useSignal<Array<string | undefined>>([]);
+  const limit = useSignal<number>(25);
 
   useEffect(() => {
     // Initialize from URL
@@ -181,24 +194,25 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   }, [databases.value, selectedDatabase.value]);
 
   useEffect(() => {
-    if (!pathInfo.value?.length || !selectedDatabase.value) {
+    if (!pathInfo.value || !selectedDatabase.value) {
       records.value = [];
       return;
     }
 
-    const db = databases.value.find((d) =>
-      d.id === selectedDatabase.value || d.slug === selectedDatabase.value
-    );
-    const targetId = db?.slug || selectedDatabase.value || "";
+    const targetId = activeDatabase?.slug || selectedDatabase.value || "";
 
     defaultContext.api.getRecords(
       targetId,
       pathInfo.value.map((info) => ({ type: info.type, value: info.value })),
+      cursor.value,
+      limit.value,
     ).then((data) => {
-      records.value = data;
+      records.value = data.records;
+      nextCursor.value = data.cursor;
+
       if (pathInfo.value && pathInfo.value.length > 0) {
         const pathStr = KeyCodec.encode(pathInfo.value);
-        if (data.length === 0) {
+        if (data.records.length === 0) {
           if (!gonePaths.value.has(pathStr)) {
             gonePaths.value = new Set(gonePaths.value).add(pathStr);
           }
@@ -210,8 +224,18 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
           }
         }
       }
+    }).catch((e) => {
+      console.error("Failed to fetch records:", e);
+      records.value = [];
     });
-  }, [pathInfo.value]);
+  }, [pathInfo.value, cursor.value, limit.value, activeDatabase?.id]); // Depend on activeDatabase change
+
+  // Reset pagination on path change or DB change
+  useEffect(() => {
+    cursor.value = undefined;
+    nextCursor.value = undefined;
+    cursorStack.value = [];
+  }, [pathInfo.value, selectedDatabase.value]);
 
   return (
     <DatabaseContext.Provider
@@ -226,6 +250,10 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         gonePaths,
         userSettings,
         updateSettings,
+        cursor,
+        nextCursor,
+        cursorStack,
+        limit,
       }}
     >
       {children}

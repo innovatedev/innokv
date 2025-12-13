@@ -7,7 +7,17 @@ const db = new DatabaseRepository(kvdex);
 export const handler = BaseRepository.handlers({
   POST: (ctx) => db.handleApiCall(ctx, db.addDatabase),
   PUT: (ctx) => db.handleApiCall(ctx, db.updateDatabase),
-  DELETE: (ctx) => db.handleApiCall(ctx, db.deleteDatabase),
+  DELETE: (ctx) =>
+    db.handleApiCall(ctx, async (data) => {
+      const result = await db.deleteDatabase(data);
+      if (result.ok && result.name) {
+        (ctx.state as any).flash(
+          "success",
+          `Database "${result.name}" deleted`,
+        );
+      }
+      return result;
+    }),
   GET: (ctx) =>
     db.handleApiCall(ctx, async () => {
       const lookup = await db.getDatabases({ reverse: false, limit: 100 });

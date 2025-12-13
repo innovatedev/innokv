@@ -1,4 +1,5 @@
 import { Database, DatabaseModel } from "./models.ts";
+import { ApiKvKeyPart, DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 
@@ -34,7 +35,10 @@ export class DatabaseRepository extends BaseRepository {
       );
     }
 
-    return database;
+    return {
+      ...database,
+      ...record,
+    };
   }
 
   async updateDatabase(data: Database & { existingSlug: string }) {
@@ -93,7 +97,7 @@ export class DatabaseRepository extends BaseRepository {
 
     await this.kvdex.databases.delete(id);
 
-    return { ok: true };
+    return { ok: true, name: database.value.name || database.value.id };
   }
 
   async getDatabases(
@@ -140,6 +144,10 @@ export class DatabaseRepository extends BaseRepository {
     );
   }
 
+  // Persistent cache for memory databases (keyed by Database ID)
+  // This ensures that memory databases persist across requests within the same server process.
+  private static memoryInstances = new Map<string, Deno.Kv>();
+
   async connectDatabase(database: Database) {
     if (database.type === "file") {
       const { path } = database;
@@ -156,14 +164,42 @@ export class DatabaseRepository extends BaseRepository {
 
       return kv;
     } else if (database.type === "memory") {
-      return await Deno.openKv(":memory:");
+      // Use cached instance if available, otherwise create new and cache it
+      let kv = DatabaseRepository.memoryInstances.get(database.id);
+      if (!kv) {
+        kv = await Deno.openKv(":memory:");
+        DatabaseRepository.memoryInstances.set(database.id, kv);
+      }
+      return kv;
     } else if (database.type === "remote") {
       if (!database.path) {
         throw new DatabaseError(
           `Database with id "${database.id}" does not have a path (UUID)`,
         );
       }
-      return await Deno.openKv(database.path);
+      // Use cached instance if available, otherwise create new and cache it
+      let kv = DatabaseRepository.memoryInstances.get(database.id);
+      if (!kv) {
+        // Handle Token Swap if accessToken is provided
+        const tempToken = database.accessToken;
+        const originalToken = Deno.env.get("DENO_KV_ACCESS_TOKEN");
+
+        try {
+          if (tempToken) {
+            Deno.env.set("DENO_KV_ACCESS_TOKEN", tempToken);
+          }
+          kv = await Deno.openKv(database.path);
+          DatabaseRepository.memoryInstances.set(database.id, kv);
+        } finally {
+          // Restore original token
+          if (originalToken !== undefined) {
+            Deno.env.set("DENO_KV_ACCESS_TOKEN", originalToken);
+          } else {
+            Deno.env.delete("DENO_KV_ACCESS_TOKEN");
+          }
+        }
+      }
+      return kv;
     }
 
     throw new DatabaseError(
@@ -342,6 +378,142 @@ export class DatabaseRepository extends BaseRepository {
     }
   }
 
+  async getNodes(id: string, parentPath: ApiKvKeyPart[] = []) {
+    // Mark as accessed
+    this.updateLastAccessed(id);
+
+    const database = await this.getDatabase(id);
+    const kv = await this.connectDatabase({ ...database.value, id });
+
+    // Decode parent path to KV Key
+    const prefix = parentPath.map((p) => this.parseKeyPart(p));
+    const depth = prefix.length;
+
+    const nodes: DbNode[] = [];
+
+    // Iteration strategy:
+    // We want to find all unique key parts at 'depth'.
+    // We use a cursor-like approach with 'start' key.
+
+    let currentStart = [...prefix];
+    // If prefix is empty, start at beginning.
+    // If prefix is not empty, start at prefix (inclusive) -> effectively first child.
+
+    // Sentinel for skipping descendants (works well for String keys)
+    // For universal support, we might need a robust 'successor' function.
+    // For now, we assume standard string-based hierarchy or accept linear scan for mixed types (unlikely).
+    // The "Maximum Possible Value" for a segment.
+    // We use boolean 'true' as the sentinel in the iteration logic below.
+    // const END_SENTINEL = "\uFFFF\uFFFF\uFFFF\uFFFF";
+
+    // Loop
+    let useStart = false;
+
+    while (true) {
+      // Use explicit type to allow adding 'start'
+      const selector: { prefix: Deno.KvKey; start?: Deno.KvKey } = { prefix };
+      if (useStart) selector.start = currentStart;
+
+      // @ts-ignore: selector compatible
+      const iter = kv.list(selector, { limit: 1 });
+      const entry = await iter.next();
+
+      if (entry.done) break;
+      const { key, value } = entry.value;
+
+      // Extract the part at current depth
+      // key = [...prefix, part, ...rest]
+      if (key.length <= depth) {
+        // Should not happen given 'prefix' constraint, unless key == prefix.
+        // If key == prefix, it means the directory itself has a value.
+        // We handle this? DbNode is usually a child.
+        // If the parent itself is a value, it should have been rendered by the parent's parent?
+        // But here we are asking for children of 'prefix'.
+        // If 'prefix' is a key, iterating 'prefix' returns it first.
+        // We should skip it effectively as it is not a "child".
+        // Next start: [...prefix, <Lowest possible value>]?
+        // Actually, [...prefix, 0] or similar.
+        // Let's just create a nextStart that appends a null/low byte?
+        // Or if key == prefix, we just move `currentStart` to `[...prefix, <min>]`.
+        currentStart = [...prefix, "\x00"]; // Low char
+        useStart = true;
+        continue;
+      }
+
+      const partVal = key[depth];
+      console.log(
+        `[getNodes] Found part: ${partVal} (type: ${typeof partVal})`,
+        { key },
+      );
+
+      const partInfo = this.stringifyKeyPart(partVal);
+      const partKey = JSON.stringify({
+        type: partInfo.type,
+        value: partInfo.value,
+      });
+
+      // Determine if it has children (is implicit folder)
+      let hasChildren = key.length > depth + 1;
+
+      // Heuristic Successor:
+      // We use 'true' as the sentinel because Boolean is the highest type in KV sort order.
+      // This ensures we skip ALL complex keys start with `[...prefix, partVal, ...]`.
+      const nextStart: Deno.KvKey = [...prefix, partVal, true];
+
+      console.log(
+        `[getNodes] Calculated nextStart for skipping ${partVal}:`,
+        nextStart,
+      );
+      // Check if we really have children (if we didn't confirm it yet)
+      // If key.length == depth + 1, it's a leaf node.
+      // But there might be OTHER keys with same prefix that are longer?
+      // e.g. ["a"] and ["a", "b"].
+      // We found ["a"]. `hasChildren` is false.
+      // But `["a", "b"]` exists.
+      // We need to know if `["a"]` is a folder.
+      // We can peek `kv.list({ prefix: [...prefix, partVal] }, { limit: 2 })`?
+      // Too expensive?
+      // If we use the skip strategy, we assume we move to next sibling.
+      // If the current key was valid, we emit it.
+
+      // Wait, if we emit 'partVal', we need to know `hasChildren` for the UI arrow.
+      // If `key.length > depth + 1`, we definitely have children.
+      // If `key.length == depth + 1`, we might or might not (if this key is a leaf AND a folder parent).
+      // We can check if `nextStart` (skipping descendants) is strictly > `key`.
+      // Actually, simplest check:
+      // If we are about to skip descendants, it implies there MIGHT be descendants.
+      // We can explicitly check for one child?
+      // `kv.list({ prefix: [...prefix, partVal], limit: 1, start: [...prefix, partVal, "\x00"] })`.
+      // Yes, if we didn't see a deep key yet.
+
+      if (!hasChildren) {
+        // Check for existence of children
+        const childCheck = kv.list({
+          prefix: [...prefix, partVal],
+          start: [...prefix, partVal, "\x00"],
+        }, { limit: 1 });
+        const childEntry = await childCheck.next();
+        if (!childEntry.done) {
+          hasChildren = true;
+        }
+      }
+
+      nodes.push({
+        ...partInfo,
+        hasChildren,
+        children: {}, // Empty for lazy load
+      });
+
+      // Advance
+      currentStart = nextStart;
+      useStart = true;
+    }
+
+    return nodes;
+  }
+
+  // Old getKeys - kept for reference or legacy if needed, but we should switch.
+  // ...
   async getKeys(id: string) {
     // Mark as accessed when opening the DB keys
     await this.updateLastAccessed(id);
@@ -370,31 +542,73 @@ export class DatabaseRepository extends BaseRepository {
     return keys;
   }
 
-  async getRecords(id: string, pathInfo: string, cursor?: string) {
+  async getRecords(id: string, pathInfo: string, cursor?: string, limit = 100) {
     const pathInfoParsed = KeyCodec.decode(pathInfo);
     const database = await this.getDatabase(id);
     const kv = await this.connectDatabase({ ...database.value, id });
 
-    const keys: Deno.KvKey = pathInfoParsed.map((info) =>
-      this.parseKeyPart(info)
+    const prefix = pathInfoParsed.map((info) => this.parseKeyPart(info));
+    const depth = prefix.length;
+
+    console.log(
+      `[getRecords] Fetching for ${id} prefix:`,
+      prefix,
+      "limit:",
+      limit,
+      "cursor:",
+      cursor,
     );
 
-    // List records with prefix
-    const result = kv.list({ prefix: keys }, { cursor, limit: 100 });
-
-    const records: Deno.KvEntry<unknown>[] = [];
-    for await (const record of result) {
-      const { key, value, versionstamp } = record;
-
-      // Include both the record itself (if path points to it) and direct children
-      if (key.length === keys.length || key.length === keys.length + 1) {
-        // We must serialize the key parts to send over API
-        const parsedKey = key.map((part) => this.stringifyKeyPart(part));
-        records.push({ key: parsedKey as any, value, versionstamp });
+    let currentStart = [...prefix];
+    if (cursor) {
+      try {
+        // Try decoding as Key structure first
+        const decoded = KeyCodec.decode(cursor);
+        currentStart = decoded.map((p) => this.parseKeyPart(p));
+        console.log(`[getRecords] Resuming from cursor key:`, currentStart);
+      } catch (e) {
+        // Fallback for strict opaque cursors?
+        // Since we are changing the strategy, opaque cursors from old method won't work.
+        // We assume cursor is either empty or a Key string.
+        console.warn(
+          `[getRecords] Invalid cursor format, resetting to start.`,
+          e,
+        );
       }
     }
 
-    return records;
+    const records: Deno.KvEntry<unknown>[] = [];
+
+    let nextCursor: string | undefined = undefined;
+
+    // Standard Linear Scan
+    // Construct selector safely to avoid "Start key not in keyspace" error if prefix is empty
+    const selector: { prefix: Deno.KvKey; start?: Deno.KvKey } = { prefix };
+    if (cursor) {
+      selector.start = currentStart;
+    }
+
+    const iter = kv.list(selector, { limit: limit + 1 });
+
+    for await (const entry of iter) {
+      const { key, value, versionstamp } = entry;
+      const parsedKey = key.map((part) => this.stringifyKeyPart(part));
+      records.push({ key: parsedKey as any, value, versionstamp });
+    }
+
+    if (records.length > limit) {
+      const nextItem = records.pop();
+      if (nextItem) {
+        nextCursor = KeyCodec.encode(nextItem.key);
+      }
+    } else {
+      nextCursor = "";
+    }
+
+    console.log(
+      `[getRecords] Done. Records: ${records.length}. NextCursor: ${nextCursor}`,
+    );
+    return { records, cursor: nextCursor || "" };
   }
 
   private keysEqual(a: Deno.KvKey, b: Deno.KvKey): boolean {

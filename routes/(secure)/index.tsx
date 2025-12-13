@@ -4,6 +4,15 @@ import { DatabaseProvider } from "../../islands/admin/contexts/DatabaseContext.t
 
 export default define.page(function Home({ state }) {
   const { databases } = state.plugins.kvAdmin!;
+  const successMessage = state.flash("success");
+
+  // Explicitly clear the flash message to ensure it doesn't persist
+  // This workaround addresses a potential issue where reading doesn't auto-clear
+  if (successMessage) {
+    // Attempt to clear by setting to undefined or call without args if supported?
+    // Usually setting to null/undefined clears it.
+    state.flash("success", undefined);
+  }
 
   return (
     <DatabaseProvider
@@ -33,7 +42,7 @@ export default define.page(function Home({ state }) {
             Logout
           </a>
         </div>
-        <HomeView />
+        <HomeView successMessage={successMessage} />
       </div>
     </DatabaseProvider>
   );

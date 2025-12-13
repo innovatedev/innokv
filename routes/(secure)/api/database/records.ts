@@ -16,8 +16,9 @@ export const handler = BaseRepository.handlers({
       const database = await db.getDatabaseBySlugOrId(dbId);
       const pathInfo = ctx.url.searchParams.get("pathInfo") || "";
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
+      const limit = parseInt(ctx.url.searchParams.get("limit") || "100");
 
-      return db.getRecords(database.id, pathInfo, cursor);
+      return db.getRecords(database.id, pathInfo, cursor, limit);
     }),
   POST: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
@@ -33,6 +34,9 @@ export const handler = BaseRepository.handlers({
       }
 
       const database = await db.getDatabaseBySlugOrId(id);
+      if (database.value.mode === "r") {
+        throw new Error("Database is read-only");
+      }
       return db.saveRecord(database.id, key, value, versionstamp, oldKey);
     }),
   DELETE: (ctx) =>
@@ -42,6 +46,9 @@ export const handler = BaseRepository.handlers({
       if (!id) throw new Error("Database ID is required");
 
       const database = await db.getDatabaseBySlugOrId(id);
+      if (database.value.mode === "r") {
+        throw new Error("Database is read-only");
+      }
 
       // Single key delete
       if (wireKey) {

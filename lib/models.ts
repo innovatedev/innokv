@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export type User = z.infer<typeof UserModel>;
 export type Database = z.infer<typeof DatabaseModel> & { id: string };
+export type Session = z.infer<typeof SessionModel> & { id: string };
 
 export const UserModel = z.object({
   id: z.string(),
@@ -31,6 +32,7 @@ export const DatabaseModel = z.object({
   updatedAt: z.date(),
   sort: z.number().optional(),
   lastAccessedAt: z.date().optional(),
+  accessToken: z.string().optional(),
   description: z.string().optional(),
   tags: z.array(z.string()).optional(),
   settings: z.object({
@@ -39,7 +41,7 @@ export const DatabaseModel = z.object({
 });
 
 export const SessionModel = z.object({
-  id: z.string(),
+  // id removed: handled by kvdex key
   createdAt: z.date(),
   updatedAt: z.date(),
   expiresAt: z.date(),

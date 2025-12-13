@@ -8,11 +8,18 @@ interface RecordItemProps {
   onEdit: (record: ApiKvEntry) => void;
   isSelected?: boolean;
   onToggleSelection?: (selected: boolean) => void;
+  isReadOnly?: boolean;
 }
 
 export function RecordItem(
-  { record, isOpen = false, onEdit, isSelected = false, onToggleSelection }:
-    RecordItemProps,
+  {
+    record,
+    isOpen = false,
+    onEdit,
+    isSelected = false,
+    onToggleSelection,
+    isReadOnly,
+  }: RecordItemProps,
 ) {
   const [activeTab, setActiveTab] = useState<"value" | "json">("value");
 
@@ -54,16 +61,18 @@ export function RecordItem(
             <span class="text-xs text-base-content/40 font-mono">
               {record.versionstamp}
             </span>
-            <button
-              class="btn btn-xs bg-brand hover:bg-brand/80 text-black border-none shadow-sm hover:shadow-md transition-all"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                onEdit(record);
-              }}
-            >
-              Edit
-            </button>
+            {isReadOnly !== true && (
+              <button
+                class="btn btn-xs bg-brand hover:bg-brand/80 text-black border-none shadow-sm hover:shadow-md transition-all"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onEdit(record);
+                }}
+              >
+                Edit
+              </button>
+            )}
           </div>
         </div>
       </summary>

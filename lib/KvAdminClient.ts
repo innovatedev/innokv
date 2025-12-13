@@ -75,6 +75,17 @@ export default class KvAdminClient {
     return this.request(`/databases`, "DELETE", { id });
   }
 
+  public getNodes(
+    id: string,
+    parentPath: ApiKvKeyPart[],
+  ): Promise<Record<string, DbNode>> {
+    const parentPathStr = KeyCodec.encode(parentPath);
+    return this.request(`/database/nodes`, "GET", {
+      id,
+      parentPath: parentPathStr,
+    });
+  }
+
   public getDatabase(
     id: string,
     path?: string,
@@ -85,10 +96,14 @@ export default class KvAdminClient {
   public getRecords<T = unknown>(
     id: string,
     pathInfo: { type: string; value: string }[],
-  ): Promise<ApiKvEntry<T>[]> {
+    cursor?: string,
+    limit?: number,
+  ): Promise<{ records: ApiKvEntry<T>[]; cursor: string }> {
     return this.request(`/database/records`, "GET", {
       id,
       pathInfo: KeyCodec.encode(pathInfo),
+      cursor,
+      limit: limit?.toString(),
     });
   }
 

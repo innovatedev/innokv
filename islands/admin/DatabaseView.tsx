@@ -25,7 +25,11 @@ interface NodeProps {
   openPaths: Set<string>;
   gonePaths: Set<string>;
   prettyPrintDates: boolean;
-  onToggle: (pathStr: string) => void;
+  onToggle: (
+    path: ApiKvKeyPart[],
+    isOpen: boolean,
+    hasChildren: boolean,
+  ) => void;
   onContextMenu: (e: MouseEvent, path: ApiKvKeyPart[]) => void;
 }
 
@@ -57,24 +61,23 @@ const Node = (
   const isOpen = openPaths.has(myPathStr);
   const isGone = gonePaths.has(myPathStr);
 
-  const hasChildren = node.children && Object.keys(node.children).length > 0;
+  const hasChildren = node.hasChildren ||
+    (node.children && Object.keys(node.children).length > 0);
 
   if (!hasChildren) return null;
 
-  const hasSubFolders = Object.values(node.children || {}).some((
-    child: DbNode,
-  ) => child.children && Object.keys(child.children).length > 0);
+  const hasSubFolders = hasChildren; // Simplified: if it has children, we treat it as folder in lazy mode
 
   const toggleOpen = (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    onToggle(myPathStr);
+    onToggle(myPath, !isOpen, !!hasChildren);
   };
 
   const selectNode = (e: Event) => {
     e.preventDefault();
     if (isActive) {
-      onToggle(myPathStr);
+      onToggle(myPath, !isOpen, !!hasChildren);
     } else {
       pathInfo.value = myPath;
     }
@@ -139,8 +142,8 @@ const Node = (
         <ul>
           {hasChildren &&
             Object.values(node.children || {})
-              .filter((child: DbNode) =>
-                child.children && Object.keys(child.children).length > 0
+              .filter((child: DbNode) => child.hasChildren ||
+                (child.children && Object.keys(child.children).length > 0)
               )
               .map((child: DbNode) => (
                 <Node
@@ -176,6 +179,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     gonePaths,
     userSettings,
     updateSettings,
+    cursor,
+    nextCursor,
+    cursorStack,
+    limit,
   } = useContext(DatabaseContext);
   const [dbStructure, setDbStructure] = useState<Record<string, DbNode> | null>(
     initialStructure || null,
@@ -185,6 +192,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
   const selectedEntry = useSignal<ApiKvEntry | null>(null);
   const editingDatabase = useSignal<Database | null>(null);
+
+  // Pagination State (Moved to Context)
 
   // Settings: Width & Open State
   const dbId = activeDatabase?.slug || activeDatabase?.id || "";
@@ -246,6 +255,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       !activeDatabase || (!selectedKeys.value.size && !selectAllMatching.value)
     ) return;
 
+    if (activeDatabase.mode === "r") {
+      alert("Database is read-only");
+      return;
+    }
+
     const isAll = selectAllMatching.value;
     const msg = isAll
       ? "Delete all records at this level?"
@@ -276,15 +290,18 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       const target = activeDatabase?.slug || selectedDatabase.value;
       if (target && pathInfo.value) {
         // refresh records
-        api.getRecords(target, pathInfo.value).then((r) => {
-          records.value = r;
-          if (r.length === 0 && pathInfo.value!.length > 0) {
-            const pathStr = KeyCodec.encode(pathInfo.value!);
-            if (!gonePaths.value.has(pathStr)) {
-              gonePaths.value = new Set(gonePaths.value).add(pathStr);
+        api.getRecords(target, pathInfo.value, cursor.value, limit.value).then(
+          (res) => {
+            records.value = res.records;
+            nextCursor.value = res.cursor;
+            if (res.records.length === 0 && pathInfo.value!.length > 0) {
+              const pathStr = KeyCodec.encode(pathInfo.value!);
+              if (!gonePaths.value.has(pathStr)) {
+                gonePaths.value = new Set(gonePaths.value).add(pathStr);
+              }
             }
-          }
-        });
+          },
+        );
       }
     } catch (e: any) {
       alert(e.message);
@@ -303,15 +320,18 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       const currentStr = KeyCodec.encode(pathInfo.value);
       const ctxStr = KeyCodec.encode(contextMenu.value.path);
       if (currentStr.startsWith(ctxStr)) {
-        api.getRecords(dbId, pathInfo.value).then((r) => {
-          records.value = r;
-          if (r.length === 0 && pathInfo.value!.length > 0) {
-            const pathStr = KeyCodec.encode(pathInfo.value!);
-            if (!gonePaths.value.has(pathStr)) {
-              gonePaths.value = new Set(gonePaths.value).add(pathStr);
+        api.getRecords(dbId, pathInfo.value, cursor.value, limit.value).then(
+          (res) => {
+            records.value = res.records;
+            nextCursor.value = res.cursor;
+            if (res.records.length === 0 && pathInfo.value!.length > 0) {
+              const pathStr = KeyCodec.encode(pathInfo.value!);
+              if (!gonePaths.value.has(pathStr)) {
+                gonePaths.value = new Set(gonePaths.value).add(pathStr);
+              }
             }
-          }
-        });
+          },
+        );
       }
     }
 
@@ -321,6 +341,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const handleFolderDelete = async () => {
     if (!activeDatabase || !contextMenu.value) return;
     const targetPath = contextMenu.value.path;
+
+    if (activeDatabase.mode === "r") {
+      alert("Database is read-only");
+      return;
+    }
 
     if (
       !confirm(
@@ -351,9 +376,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             pathInfo.value = targetPath.slice(0, -1);
           } else {
             // refresh current view
-            api.getRecords(target, pathInfo.value).then((r) =>
-              records.value = r
-            );
+            api.getRecords(target, pathInfo.value, cursor.value, limit.value)
+              .then((res) => {
+                records.value = res.records;
+                nextCursor.value = res.cursor;
+              });
           }
         }
       }
@@ -458,19 +485,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       });
     }
   }, [pathInfo.value]);
-  useEffect(() => {
-    if (!activeDatabase) return;
-    const target = activeDatabase.slug || activeDatabase.id;
 
-    api.getRecords(target, pathInfo.value || []).then((r) => {
-      records.value = r;
-    }).catch((e) => {
-      console.error("Failed to fetch records:", e);
-      records.value = [];
-    });
-  }, [pathInfo.value, activeDatabase]);
-
-  // Clear selection on path change
+  // Clear selection on path change (Pagination reset in Context)
   useEffect(() => {
     selectedKeys.value = new Set();
     selectAllMatching.value = false;
@@ -488,13 +504,77 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       .menu summary { gap: 0.25rem !important; }
   `;
 
-  const togglePath = (pathStr: string) => {
+  const mergeStructure = (
+    currentStruct: Record<string, DbNode>,
+    path: ApiKvKeyPart[],
+    newChildren: Record<string, DbNode>,
+  ): Record<string, DbNode> => {
+    if (path.length === 0) {
+      // Merge at this level. Preserve existing nodes, add new ones.
+      return { ...currentStruct, ...newChildren };
+    }
+
+    const [head, ...tail] = path;
+    const headKey = KeyCodec.encode(head);
+    const node = currentStruct[headKey];
+
+    if (!node) {
+      // Should not happen if path exists
+      return currentStruct;
+    }
+
+    return {
+      ...currentStruct,
+      [headKey]: {
+        ...node,
+        children: mergeStructure(node.children || {}, tail, newChildren),
+      },
+    };
+  };
+
+  const togglePath = (
+    path: ApiKvKeyPart[],
+    isOpen: boolean,
+    hasChildren: boolean,
+  ) => {
+    const pathStr = KeyCodec.encode(path);
+    const currentlyOpen = openPaths.has(pathStr);
+
+    // Toggle state
     setOpenPaths((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(pathStr)) newSet.delete(pathStr);
+      if (currentlyOpen) newSet.delete(pathStr);
       else newSet.add(pathStr);
       return newSet;
     });
+
+    // If opening and hasChildren but no children loaded, fetch them
+    if (!currentlyOpen && hasChildren && activeDatabase) {
+      // Check if children already exist in structure
+      // We need to traverse dbStructure to find the node.
+      // Or simpler: just trigger fetch. If we fetch again, it's okay (refresh).
+      // Optimization: Check if we have children.
+      // Traversing dbStructure is recursive.
+      // Let's just fetch for now to ensure freshness and simplicity of finding the node.
+
+      const dbId = activeDatabase.slug || activeDatabase.id;
+      const parentPathStr = KeyCodec.encode(path);
+
+      api.getNodes(dbId, path).then((nodes) => { // Assuming api.getNodes exists
+        // nodes is Record<string, DbNode> from API?
+        // Wait, api.getNodes needs to return Record<string, DbNode> to match logic?
+        // Use the POST-processed one?
+        // I implemented api/database/nodes.ts to return Record<string, DbNode>.
+        // So I need to add getNodes to the API client.
+
+        if (nodes && Object.keys(nodes).length > 0) {
+          setDbStructure((prev) => {
+            if (!prev) return nodes;
+            return mergeStructure(prev, path, nodes);
+          });
+        }
+      });
+    }
   };
 
   const navigateToRoot = () => {
@@ -502,7 +582,18 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   };
 
   if (!activeDatabase) {
-    // Show loading or fallback?
+    // If databases are loaded but activeDatabase is not found, it means 404 (assuming selectedDatabase is set)
+    if (databases.value.length > 0 && selectedDatabase.value) {
+      return (
+        <div class="flex flex-col items-center justify-center h-screen gap-4">
+          <h1 class="text-2xl font-bold">Database Not Found</h1>
+          <p class="text-base-content/60">
+            The database you are looking for does not exist or has been deleted.
+          </p>
+          <a href="/" class="btn btn-primary">Go Home</a>
+        </div>
+      );
+    }
     return <div class="p-10 text-center">Loading database...</div>;
   }
 
@@ -577,6 +668,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     <a
                       href={`/${db.slug || db.id}`}
                       class="w-full group flex items-center gap-2 p-1 rounded cursor-pointer list-none hover:bg-base-300"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        contextMenu.value = {
+                          x: e.clientX,
+                          y: e.clientY,
+                          type: "database",
+                          path: [],
+                          dbId: db.id,
+                        };
+                      }}
                     >
                       <span class="w-4 h-4 flex items-center justify-center shrink-0 opacity-50">
                         {DbIcon}
@@ -619,8 +721,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       <ul>
                         {Object.entries(dbStructure)
                           .filter(([_, node]) =>
-                            node.children &&
-                            Object.keys(node.children).length > 0
+                            node.hasChildren ||
+                            (node.children &&
+                              Object.keys(node.children).length > 0)
                           )
                           .map(([key, node]) => (
                             <Node
@@ -669,13 +772,15 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     <span class="text-xs font-bold">
                       {selectionCount} selected
                     </span>
-                    <button
-                      type="button"
-                      class="btn btn-xs btn-error btn-outline"
-                      onClick={handleBulkDelete}
-                    >
-                      Delete
-                    </button>
+                    {activeDatabase?.mode !== "r" && (
+                      <button
+                        type="button"
+                        class="btn btn-xs btn-error btn-outline"
+                        onClick={handleBulkDelete}
+                      >
+                        Delete
+                      </button>
+                    )}
                     {/* "Select All Matching" Offer */}
                     {!selectAllMatching.value && allVisibleSelected && (
                       <button
@@ -744,16 +849,18 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   true}
               />
             </div>
-            <button
-              class="btn btn-xs bg-brand hover:bg-brand/80 text-black border-none shrink-0 shadow-sm hover:shadow-md transition-all"
-              type="button"
-              onClick={() => {
-                selectedEntry.value = null;
-                createEntryRef.current?.showModal();
-              }}
-            >
-              +
-            </button>
+            {activeDatabase && activeDatabase.mode !== "r" && (
+              <button
+                class="btn btn-xs bg-brand hover:bg-brand/80 text-black border-none shrink-0 shadow-sm hover:shadow-md transition-all"
+                type="button"
+                onClick={() => {
+                  selectedEntry.value = null;
+                  createEntryRef.current?.showModal();
+                }}
+              >
+                +
+              </button>
+            )}
           </div>
         </div>
 
@@ -869,8 +976,57 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         selectedEntry.value = entry;
                         createEntryRef.current?.showModal();
                       }}
+                      isReadOnly={activeDatabase?.mode === "r"}
                     />
                   ))}
+
+                  {/* Pagination Controls */}
+                  <div class="join-item bg-base-100 border-base-300 border-x border-b p-2 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs opacity-50">
+                        Show
+                      </span>
+                      <select
+                        class="select select-bordered select-xs"
+                        value={limit.value}
+                        onChange={(e) =>
+                          limit.value = parseInt(e.currentTarget.value)}
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                    </div>
+
+                    <div class="join">
+                      <button
+                        class="join-item btn btn-xs"
+                        disabled={cursorStack.value.length === 0}
+                        onClick={() => {
+                          const stack = [...cursorStack.value];
+                          const prev = stack.pop();
+                          cursorStack.value = stack;
+                          cursor.value = prev;
+                        }}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        class="join-item btn btn-xs"
+                        disabled={!nextCursor.value}
+                        onClick={() => {
+                          cursorStack.value = [
+                            ...cursorStack.value,
+                            cursor.value,
+                          ];
+                          cursor.value = nextCursor.value;
+                        }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )
               : (
@@ -960,6 +1116,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     const dbId = contextMenu.value?.dbId;
                     contextMenu.value = null;
                     if (dbId) {
+                      // If not active, redirect
+                      if (
+                        !activeDatabase ||
+                        (activeDatabase.id !== dbId &&
+                          activeDatabase.slug !== dbId)
+                      ) {
+                        const db = databases.value.find((d) => d.id === dbId);
+                        globalThis.location.href = `/${db?.slug || dbId}`;
+                        return;
+                      }
+
                       // 1. Fetch Key Structure (for open nodes)
                       api.getDatabase(dbId).then((s) => {
                         if (
@@ -972,7 +1139,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       });
                       // 2. Refresh List
                       api.getDatabases().then((res) => {
-                        if (res.data) databases.value = res.data;
+                        if (res.data) {
+                          databases.value = res.data;
+                        }
                       });
 
                       // 3. Refresh Records if active
@@ -982,8 +1151,15 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                           activeDatabase.slug === dbId)
                       ) {
                         // Ensure we refresh the current view
-                        api.getRecords(dbId, pathInfo.value || []).then((r) => {
-                          records.value = r;
+                        api.getRecords(
+                          dbId,
+                          pathInfo.value || [],
+                          cursor.value,
+                          limit.value,
+                        ).then((res) => {
+                          records.value = res.records;
+                          nextCursor.value = res.cursor;
+                          const r = res.records;
                           // Check for gone path
                           if (
                             r.length === 0 && pathInfo.value &&
@@ -1017,7 +1193,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
                     />
                   </svg>
-                  Refresh
+                  {/* Change label if inactive? User said "Refresh", but action is open. Keep "Refresh" or change to "Open"? "Refresh" implies staying. "Open" implies moving. */}
+                  {activeDatabase &&
+                      (activeDatabase.id === contextMenu.value?.dbId ||
+                        activeDatabase.slug === contextMenu.value?.dbId)
+                    ? "Refresh"
+                    : "Open"}
                 </button>
                 <button
                   type="button"
@@ -1076,8 +1257,14 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         currentPathStr === targetPathStr ||
                         currentPathStr.startsWith(targetPathStr)
                       ) {
-                        api.getRecords(dbId, pathInfo.value || []).then((r) => {
-                          records.value = r;
+                        api.getRecords(
+                          dbId,
+                          pathInfo.value || [],
+                          cursor.value,
+                          limit.value,
+                        ).then((res) => {
+                          records.value = res.records;
+                          nextCursor.value = res.cursor;
                         });
                       }
 
@@ -1104,27 +1291,29 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   </svg>
                   Refresh
                 </button>
-                <button
-                  type="button"
-                  class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
-                  onClick={handleFolderDelete}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke-width="1.5"
-                    stroke="currentColor"
-                    class="w-4 h-4"
+                {activeDatabase?.mode !== "r" && (
+                  <button
+                    type="button"
+                    class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
+                    onClick={handleFolderDelete}
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                    />
-                  </svg>
-                  Delete
-                </button>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke-width="1.5"
+                      stroke="currentColor"
+                      class="w-4 h-4"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                      />
+                    </svg>
+                    Delete
+                  </button>
+                )}
               </>
             )}
         </div>
@@ -1142,6 +1331,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                 api.deleteDatabase(id)
                   .then(() => {
                     globalThis.location.href = "/";
+                  })
+                  .catch((e) => {
+                    alert(`Failed to delete database: ${e.message}`);
+                    globalThis.location.href = "/"; // Fallback redirect anyway? Or let user stay?
                   });
               }
             }}

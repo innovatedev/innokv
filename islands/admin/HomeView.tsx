@@ -18,7 +18,9 @@ import Dialog from "./Dialog.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import BrandHeader from "../../components/BrandHeader.tsx";
 
-export default function HomeView() {
+export default function HomeView(
+  { successMessage }: { successMessage?: string },
+) {
   const { databases, selectedDatabase, api } = useContext(DatabaseContext);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
   const editingDatabase = useSignal<any>(null);
@@ -28,6 +30,24 @@ export default function HomeView() {
       <div class="mb-8 mt-12">
         <BrandHeader />
       </div>
+      {successMessage && (
+        <div class="alert alert-success shadow-sm mb-4">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="stroke-current shrink-0 h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>{successMessage}</span>
+        </div>
+      )}
       {/* Pinned Databases Section */}
       {databases.value.some((db: any) => db.sort > 0) && (
         <div class="mb-6">
@@ -220,7 +240,7 @@ export default function HomeView() {
                   form.reset();
                   databases.value = (await api.getDatabases()).data;
                   createDatabaseRef.current?.close();
-                  globalThis.location.href = `/${db.id}`;
+                  globalThis.location.href = `/${db.slug || db.id}`;
                 });
             }
           }}
