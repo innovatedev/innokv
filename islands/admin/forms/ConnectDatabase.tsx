@@ -22,7 +22,26 @@ export default function ConnectDatabaseForm({
       e.preventDefault();
       const form = e.target as HTMLFormElement;
       const formData = new FormData(form);
-      const data = Object.fromEntries(formData.entries());
+      const data: any = Object.fromEntries(formData.entries());
+
+      // Handle nested settings
+      if (data["settings.prettyPrintDates"]) {
+        data.settings = {
+          prettyPrintDates: data["settings.prettyPrintDates"] === "true",
+        };
+        delete data["settings.prettyPrintDates"];
+      } else {
+        // Checkbox not checked doesn't send value, so explicitly set to false if we want that behavior,
+        // or handle default elsewhere. Since defaultChecked relies on DB value, if unchecked it won't be in formData.
+        // We need to know if it was unchecked.
+        // Actually, HTML checkboxes are tricky.
+        // Let's assume if it's missing, it's false IF we are editing an existing DB that had it true?
+        // Simplest way: always send it.
+        data.settings = {
+          prettyPrintDates: false,
+        };
+      }
+
       onSubmit(data, form);
     }
   };
@@ -143,6 +162,19 @@ export default function ConnectDatabaseForm({
         />
       </label>
 
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <span class="label-text">Pretty Print Dates</span>
+          <input
+            type="checkbox"
+            name="settings.prettyPrintDates"
+            class="checkbox checkbox-sm checkbox-primary"
+            defaultChecked={database?.settings?.prettyPrintDates ?? true}
+            value="true"
+          />
+        </label>
+      </div>
+
       <div class="flex justify-between gap-4 mt-4">
         <div>
           {database?.id && onDelete && (
@@ -166,7 +198,7 @@ export default function ConnectDatabaseForm({
             Cancel
           </button>
           <button
-            class="btn btn-primary btn-xs"
+            class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
             type="submit"
             disabled={isLoading}
           >

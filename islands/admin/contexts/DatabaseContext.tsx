@@ -1,7 +1,7 @@
 import { createContext, FunctionalComponent } from "preact";
 import { Signal, signal, useSignal } from "@preact/signals";
-import { Database } from "@/lib/models.ts";
-import { useEffect, useState } from "preact/hooks";
+import { Database, User } from "@/lib/models.ts";
+import { useEffect, useRef, useState } from "preact/hooks";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
 import { ApiKvEntry } from "@/lib/types.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts"; // Codec Updated
@@ -15,6 +15,9 @@ interface DatabaseContextType<DB extends Database = Database> {
   api: KvAdminClient;
   pathInfo: Signal<{ value: string; type: string }[] | null>;
   records: Signal<ApiKvEntry[]>;
+  gonePaths: Signal<Set<string>>;
+  userSettings: Signal<User["settings"]>;
+  updateSettings: (settings: User["settings"]) => void;
 }
 
 // Create default values for the context
@@ -28,6 +31,9 @@ const defaultContext: DatabaseContextType = {
   api: new KvAdminClient(),
   pathInfo: signal(null),
   records: signal([]),
+  gonePaths: signal(new Set()),
+  userSettings: signal({}),
+  updateSettings: () => {},
 };
 
 // Create the context
@@ -36,12 +42,14 @@ const DatabaseContext = createContext<DatabaseContextType>(defaultContext);
 interface DatabaseProviderProps<DB extends Database = Database> {
   initialDatabases?: DB[];
   initialSelectedDatabase?: string;
+  initialUserSettings?: User["settings"];
 }
 
 const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   children,
   initialDatabases,
   initialSelectedDatabase,
+  initialUserSettings,
 }) => {
   const databases = useSignal(
     initialDatabases || defaultContext.databases.peek(),
@@ -49,6 +57,31 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   const selectedDatabase = useSignal(
     initialSelectedDatabase || defaultContext.selectedDatabase.peek(),
   );
+  const userSettings = useSignal(
+    initialUserSettings || defaultContext.userSettings.peek(),
+  );
+
+  const debounceTimer = useRef<number | null>(null);
+
+  const updateSettings = (newSettings: User["settings"]) => {
+    // Optimistic update
+    userSettings.value = { ...userSettings.value, ...newSettings }; // Simple merge for signal
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "", // CSRF handling might be needed if strictly enforced, checking middleware
+        },
+        body: JSON.stringify(newSettings),
+      }).catch((err) => console.error("Failed to save settings", err));
+    }, 3000);
+  };
 
   // Compute initial active database for SSR
   const initialActive =
@@ -76,6 +109,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
 
   const pathInfo = useSignal<{ value: string; type: string }[] | null>(null);
   const records = useSignal<ApiKvEntry[]>([]);
+  const gonePaths = useSignal<Set<string>>(new Set());
 
   useEffect(() => {
     // Initialize from URL
@@ -141,22 +175,6 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     );
     if (db) {
       setActiveDatabase(db);
-      // Only clear pathInfo if we are NOT initializing or if the selection changed manually
-      // But here we can't distinguish.
-      // However, if we set pathInfo via setTimeout in init, it will override this null.
-      if (
-        pathInfo.peek() !== null &&
-        !new URLSearchParams(globalThis.location.search).has("path")
-      ) {
-        // This check is flawed because URL updates separately.
-        // Let's rely on the setTimeout in init to override this.
-        // And for normal navigation, clicking a DB card sets selectedDatabase, which triggers this, clearing path. Correct.
-        pathInfo.value = null;
-      } else if (!pathInfo.peek()) {
-        pathInfo.value = null;
-      }
-
-      records.value = [];
     } else {
       setActiveDatabase(null);
     }
@@ -178,6 +196,20 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       pathInfo.value.map((info) => ({ type: info.type, value: info.value })),
     ).then((data) => {
       records.value = data;
+      if (pathInfo.value && pathInfo.value.length > 0) {
+        const pathStr = KeyCodec.encode(pathInfo.value);
+        if (data.length === 0) {
+          if (!gonePaths.value.has(pathStr)) {
+            gonePaths.value = new Set(gonePaths.value).add(pathStr);
+          }
+        } else {
+          if (gonePaths.value.has(pathStr)) {
+            const next = new Set(gonePaths.value);
+            next.delete(pathStr);
+            gonePaths.value = next;
+          }
+        }
+      }
     });
   }, [pathInfo.value]);
 
@@ -191,6 +223,9 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         api: defaultContext.api,
         pathInfo,
         records,
+        gonePaths,
+        userSettings,
+        updateSettings,
       }}
     >
       {children}

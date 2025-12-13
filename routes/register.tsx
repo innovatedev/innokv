@@ -52,7 +52,7 @@ export const handler = define.handlers({
     }
 
     // 3. Log them in
-    await ctx.state.login(user.id, user);
+    await ctx.state.login(user.id);
 
     return ctx.redirect("/");
   },
@@ -125,10 +125,16 @@ export default define.page<typeof handler>((ctx) => {
                 />
               </div>
               <div class="flex flex-row-reverse justify-between items-center mt-2">
-                <button type="submit" class="btn btn-primary btn-sm">
-                  Register
+                <button
+                  type="submit"
+                  class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Create Account
                 </button>
-                <a href="/login" class="link link-primary text-sm">
+                <a
+                  href="/login"
+                  class="link text-brand text-sm hover:text-brand/80 transition-colors"
+                >
                   Login
                 </a>
               </div>

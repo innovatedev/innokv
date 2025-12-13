@@ -1,9 +1,12 @@
-import { JSX } from "preact";
-
 export const KeyDisplay = (
-  { type, value }: { type: string; value: string },
+  { type, value, prettyPrint = true }: {
+    type: string;
+    value: string;
+    prettyPrint?: boolean;
+  },
 ) => {
   const t = type.toLowerCase();
+
   if (t === "string") {
     return (
       <span class="font-mono">
@@ -25,19 +28,61 @@ export const KeyDisplay = (
       </span>
     );
   }
+
+  // ... (string/number/boolean/bigint handlers unchanged)
+
   if (t === "uint8array") {
     try {
-      const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-      const str = Array.from(bytes).join(", ");
+      const charCodes = atob(value).split("").map((c) => c.charCodeAt(0));
+      const bytes = new Uint8Array(charCodes);
+
+      if (prettyPrint) {
+        // Check for TextDecoder compatibility or just generic JSON parsing check if it's text
+        // We assume it's UTF-8
+        const decoder = new TextDecoder();
+        const str = decoder.decode(bytes);
+
+        // Check for kvdex serialized date: {"__date__":"..."}
+        if (str.startsWith('{"__date__":"') && str.endsWith('"}')) {
+          try {
+            const data = JSON.parse(str);
+            return (
+              <span class="font-mono text-purple-400">{data.__date__}</span>
+            );
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      const displayStr = Array.from(bytes).join(", ");
       return (
         <span class="font-mono text-base-content/70 text-xs">
-          [{str.length > 20 ? str.slice(0, 20) + "..." : str}]
+          u8[{displayStr.length > 20
+            ? displayStr.slice(0, 20) + "..."
+            : displayStr}]
         </span>
       );
     } catch {
       return (
         <span class="font-mono text-base-content/70 text-xs">[{value}]</span>
       );
+    }
+  }
+  if (t === "array") {
+    try {
+      const arr = JSON.parse(value);
+      const str = JSON.stringify(arr, null, 1).replace(/\n/g, "").replace(
+        /\s+/g,
+        " ",
+      );
+      return (
+        <span class="font-mono text-base-content/70 text-xs">
+          {str.length > 20 ? str.slice(0, 20) + "..." : str}
+        </span>
+      );
+    } catch {
+      return <span class="font-mono">{value}</span>;
     }
   }
   return <span class="font-mono">{value}</span>;

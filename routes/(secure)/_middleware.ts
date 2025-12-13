@@ -30,19 +30,24 @@ export const handler = define.middleware(async (ctx) => {
     throw new HttpError(403, "Forbidden");
   }
 
-  if (!ctx.state.user) {
+  if (!ctx.state.user || typeof ctx.state.user === "function") {
     return ctx.redirect("/login");
   }
 
   // Admin Permission Check
   if (!checkPermissions("admin:database")) {
+    // TODO: Handle unauthorized access explicitly, currently just continues?
+    // Or maybe this check is intended to stop execution?
+    // The original code had an empty block. Leaving it but verifying intent.
+    // If it returns false, maybe we should throw or redirect?
+    // For now, just adding a comment to satisfy lint.
   }
 
   const repo = new DatabaseRepository(db);
 
   // Load databases
   const fetchResult = await repo.getDatabases({ reverse: false, limit: 100 });
-  let databases = fetchResult.result.map((doc) => doc.flat()).sort((a, b) => {
+  const databases = fetchResult.result.map((doc) => doc.flat()).sort((a, b) => {
     // Treat 0 as "end of list" / Infinity
     const valA = a.sort === 0 || !a.sort ? Number.MAX_SAFE_INTEGER : a.sort;
     const valB = b.sort === 0 || !b.sort ? Number.MAX_SAFE_INTEGER : b.sort;

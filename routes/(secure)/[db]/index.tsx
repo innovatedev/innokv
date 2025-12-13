@@ -26,6 +26,7 @@ export default define.page(async function DatabasePage({ state, params }) {
     <DatabaseProvider
       initialDatabases={databases}
       initialSelectedDatabase={resolvedDbId}
+      initialUserSettings={state.user?.settings}
     >
       <DatabaseView initialStructure={structure} />
     </DatabaseProvider>

@@ -28,7 +28,6 @@ export const db = kvdex({
     }),
     sessions: collection(SessionModel, {
       indices: {
-        id: "primary",
         createdAt: "secondary",
         updatedAt: "secondary",
         expiresAt: "secondary",
@@ -39,7 +38,6 @@ export const db = kvdex({
     }),
     users: collection(UserModel, {
       indices: {
-        id: "primary",
         createdAt: "secondary",
         updatedAt: "secondary",
         lastLoginAt: "secondary",

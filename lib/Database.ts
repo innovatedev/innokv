@@ -270,6 +270,53 @@ export class DatabaseRepository extends BaseRepository {
     return { ok: true };
   }
 
+  async deleteRecords(
+    id: string,
+    { keys, all, pathInfo }: {
+      keys?: Deno.KvKey[];
+      all?: boolean;
+      pathInfo?: string;
+    },
+  ) {
+    const database = await this.getDatabase(id);
+    const kv = await this.connectDatabase({ ...database.value, id });
+
+    let keysToDelete: Deno.KvKey[] = [];
+
+    if (all && pathInfo !== undefined) {
+      // Fetch all keys matching prefix
+      const pathInfoParsed = KeyCodec.decode(pathInfo);
+      const prefix = pathInfoParsed.map((info) => this.parseKeyPart(info));
+      const iter = kv.list({ prefix });
+      for await (const entry of iter) {
+        // Only direct children? Or recursive?
+        // "Select All matching" usually implies recursive if valid, OR flat if list is flat.
+        // DatabaseView typically shows flat list of children or records.
+        // If we are in "folder", records are children.
+        keysToDelete.push(entry.key);
+      }
+    } else if (keys) {
+      keysToDelete = keys;
+    }
+
+    // Batched delete
+    // Deno KV atomic supports limited ops. We might need multiple batches.
+    const BATCH_SIZE = 100;
+    let deletedCount = 0;
+
+    for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
+      const batch = keysToDelete.slice(i, i + BATCH_SIZE);
+      const atomic = kv.atomic();
+      for (const key of batch) {
+        atomic.delete(key);
+      }
+      await atomic.commit();
+      deletedCount += batch.length;
+    }
+
+    return { ok: true, count: deletedCount };
+  }
+
   async updateLastAccessed(id: string) {
     try {
       const database = await this.kvdex.databases.find(id);
@@ -329,10 +376,8 @@ export class DatabaseRepository extends BaseRepository {
     for await (const record of result) {
       const { key, value, versionstamp } = record;
 
-      // Existing logic filtered for direct children?
-      // "if (key.length === keys.length + 1)" gets only immediate children.
-      // I will keep that as it likely supports the "Folder" navigation style.
-      if (key.length === keys.length + 1) {
+      // Include both the record itself (if path points to it) and direct children
+      if (key.length === keys.length || key.length === keys.length + 1) {
         // We must serialize the key parts to send over API
         const parsedKey = key.map((part) => this.stringifyKeyPart(part));
         records.push({ key: parsedKey as any, value, versionstamp });

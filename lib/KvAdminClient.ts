@@ -112,6 +112,25 @@ export default class KvAdminClient {
     return this.request("/database/records", "DELETE", { id, key: wireKey });
   }
 
+  public deleteRecords(
+    id: string,
+    options: { keys?: unknown[][]; all?: boolean; pathInfo?: string },
+  ): Promise<unknown> {
+    const payload: any = { id, all: options.all };
+
+    if (options.keys) {
+      payload.keys = options.keys.map((key) =>
+        key.map((k) => this.stringifyKeyPart(k))
+      );
+    }
+
+    if (options.pathInfo) {
+      payload.pathInfo = options.pathInfo;
+    }
+
+    return this.request("/database/records", "DELETE", payload);
+  }
+
   private stringifyKeyPart(part: unknown): { type: string; value: string } {
     if (typeof part === "string") {
       return { value: part, type: "string" };

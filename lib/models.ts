@@ -9,6 +9,14 @@ export const UserModel = z.object({
   passwordHash: z.string(),
   lastLoginAt: z.date(),
   permissions: z.array(z.string()),
+  settings: z.object({
+    databases: z.record(z.object({
+      treeWidth: z.number().optional(),
+      treeViewOpen: z.boolean().optional(),
+    })).optional(),
+    theme: z.string().optional(),
+    prettyPrintDates: z.boolean().optional(),
+  }).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -25,6 +33,9 @@ export const DatabaseModel = z.object({
   lastAccessedAt: z.date().optional(),
   description: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  settings: z.object({
+    prettyPrintDates: z.boolean().optional(),
+  }).optional(),
 });
 
 export const SessionModel = z.object({

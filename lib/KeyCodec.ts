@@ -67,9 +67,9 @@ export class KeyCodec {
             atob(part.value),
             (c) => c.charCodeAt(0),
           );
-          return `[${Array.from(bytes).join("~")}]`;
+          return `u8[${Array.from(bytes).join("~")}]`;
         } catch {
-          return "[]";
+          return "u8[]";
         }
       default:
         return String(part.value);
@@ -90,9 +90,9 @@ export class KeyCodec {
     if (token === "true" || token === "false") {
       return { type: "boolean", value: token }; // value matches "true"/"false" string
     }
-    if (token.startsWith("[")) {
+    if (token.startsWith("u8[")) {
       try {
-        const content = token.slice(1, -1);
+        const content = token.slice(3, -1);
         if (!content.trim()) return { type: "uint8array", value: btoa("") };
         const bytes = content.split("~").map((n) => parseInt(n.trim())).filter(
           (n) => !isNaN(n),
@@ -102,6 +102,22 @@ export class KeyCodec {
         return { type: "uint8array", value: val };
       } catch {
         return { type: "uint8array", value: btoa("") };
+      }
+    }
+    if (token.startsWith("[")) {
+      // Assume JSON array
+      try {
+        // JSON array doesn't map to a specific KV type in our simplified 'ApiKvKeyPart'
+        // unless we add 'array' type.
+        // But 'Database.ts' parseKeyPart handles 'Array' type using JSON.parse.
+        // So we should return it as 'Array' type?
+        // Database.ts: parseKeyPart handles 'Array'.
+        // stringifyKeyPart -> { type: "Array", value: "[...]" }
+        // KeyCodec.encode -> default -> "[...]"
+        // Here we parse "[...]" -> we should return { type: "Array", value: token }
+        return { type: "Array", value: token };
+      } catch {
+        return { type: "string", value: token };
       }
     }
     const num = Number(token);

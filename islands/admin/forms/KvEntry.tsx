@@ -248,7 +248,7 @@ export default function KvEntryForm({
             Cancel
           </button>
           <button
-            class="btn btn-primary btn-sm"
+            class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
             type="submit"
             disabled={isLoading}
           >

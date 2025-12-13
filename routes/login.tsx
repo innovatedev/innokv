@@ -35,20 +35,23 @@ export const handler = define.handlers({
         lastLoginAt: new Date(),
       };
 
-      if (settings.admin.emails.includes(email) && !permissions.includes("*")) {
+      if (settings.admin.emails.includes(email)) {
         permissions = [...permissions, "*"];
+      }
+
+      // Ensure uniqueness
+      permissions = Array.from(new Set(permissions));
+
+      // Check if different from original
+      if (
+        JSON.stringify(permissions) !== JSON.stringify(userData.permissions)
+      ) {
         updates.permissions = permissions;
         shouldUpdate = true;
       }
 
-      // Combine lastLoginAt update
-      const updatedUser = { ...userData, ...updates };
-
-      // Update DB if needed (or just always for lastLoginAt)
-      await db.users.update(user.id, updates);
-
       // 4. Log user in (Rotation is handled automatically)
-      await ctx.state.login(user.id, updatedUser);
+      await ctx.state.login(user.id);
 
       return ctx.redirect("/");
     }
@@ -113,10 +116,16 @@ export default define.page<typeof handler>((ctx) => {
                 />
               </div>
               <div class="flex flex-row-reverse justify-between items-center mt-2">
-                <button type="submit" class="btn btn-primary btn-sm">
-                  Login
+                <button
+                  type="submit"
+                  class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Sign In
                 </button>
-                <a href="/register" class="link link-primary text-sm">
+                <a
+                  href="/register"
+                  class="link text-brand text-sm hover:text-brand/80 transition-colors"
+                >
                   Register
                 </a>
               </div>

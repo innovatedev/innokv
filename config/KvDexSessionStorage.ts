@@ -101,7 +101,7 @@ export class KvDexSessionStorage<
     const doc = await this.#userCollection.find(
       userId as unknown as ParseId<TUserOptions>,
     );
-    return doc?.flat ?? null;
+    return doc?.flat() ?? null;
   }
 
   async delete(sessionId: string) {

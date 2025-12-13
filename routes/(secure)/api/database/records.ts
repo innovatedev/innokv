@@ -37,12 +37,25 @@ export const handler = BaseRepository.handlers({
     }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
-      const { id, key: wireKey } = data;
+      const { id, key: wireKey, keys: wireKeys, all, pathInfo } = data;
       if (!id) throw new Error("Database ID is required");
-      if (!wireKey) throw new Error("Key is required");
 
-      const key = wireKey.map((p: any) => db.parseKeyPart(p));
       const database = await db.getDatabaseBySlugOrId(id);
-      return db.deleteRecord(database.id, key);
+
+      // Single key delete
+      if (wireKey) {
+        const key = wireKey.map((p: any) => db.parseKeyPart(p));
+        return db.deleteRecord(database.id, key);
+      }
+
+      // Bulk delete
+      let keys: Deno.KvKey[] | undefined;
+      if (wireKeys) {
+        keys = wireKeys.map((k: any[]) =>
+          k.map((p: any) => db.parseKeyPart(p))
+        );
+      }
+
+      return db.deleteRecords(database.id, { keys, all, pathInfo });
     }),
 });

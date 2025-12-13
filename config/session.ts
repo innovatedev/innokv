@@ -2,7 +2,7 @@ import {
   createSessionMiddleware,
   type SessionOptions,
 } from "@innovatedev/fresh-session";
-import { KvDexSessionStorage } from "./KvDexSessionStorage.ts";
+import { KvDexSessionStorage } from "@innovatedev/fresh-session/kvdex-store";
 import type { State } from "@/utils.ts";
 import { db } from "@/lib/db.ts";
 
@@ -12,7 +12,6 @@ export const sessionConfig: SessionOptions = {
     collection: db.sessions,
     userCollection: db.users,
     expireAfter: 60 * 60 * 24 * 7, // 1 week
-    // userKeyPrefix: ["users"], // Uncomment to enable automatic user resolution
   }),
   cookie: {
     name: "sessionId",
@@ -21,6 +20,8 @@ export const sessionConfig: SessionOptions = {
     sameSite: "Lax",
     maxAge: 60 * 60 * 24 * 7, // 1 week
   },
+  trackIp: true,
+  trackUserAgent: true,
 };
 
 export const session = createSessionMiddleware<State>(sessionConfig);

@@ -3,3 +3,7 @@
 @plugin "daisyui" {
   themes: forest --default;
 }
+
+@theme {
+  --color-brand: #F4892D;
+}

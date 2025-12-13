@@ -10,6 +10,7 @@ interface BreadcrumbsProps {
   navigateToRoot: () => void;
   databases: any[];
   onSwitchDatabase: (id: string) => void;
+  prettyPrintDates: boolean;
 }
 
 export const Breadcrumbs = (
@@ -20,6 +21,7 @@ export const Breadcrumbs = (
     navigateToRoot,
     databases,
     onSwitchDatabase,
+    prettyPrintDates,
   }: BreadcrumbsProps,
 ) => {
   // Helper to get children of a path from dbStructure
@@ -29,9 +31,9 @@ export const Breadcrumbs = (
     if (!dbStructure) return null;
     let current: Record<string, DbNode> | null = dbStructure;
     for (const p of parents) {
-      const key = Object.keys(current!).find((k) => {
-        const n = current![k];
-        return n.type === p.type && n.value === p.value;
+      const key: string | undefined = Object.keys(current!).find((k) => {
+        const child = current![k];
+        return child.value === p.value && child.type === p.type;
       });
       if (key && current![key]?.children) {
         current = current![key].children!;
@@ -66,6 +68,7 @@ export const Breadcrumbs = (
             basePath={[]}
             pathInfo={pathInfo}
             isLast={path.length === 0}
+            prettyPrintDates={prettyPrintDates}
           />
         </li>
 
@@ -80,16 +83,20 @@ export const Breadcrumbs = (
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  pathInfo.value = myPath;
                 }}
               >
-                <KeyDisplay type={node.type} value={node.value} />
+                <KeyDisplay
+                  type={node.type}
+                  value={node.value}
+                  prettyPrint={prettyPrintDates}
+                />
               </button>
               <BreadcrumbSeparator
                 candidates={children}
                 basePath={myPath}
                 pathInfo={pathInfo}
                 isLast={i === path.length - 1}
+                prettyPrintDates={prettyPrintDates}
               />
             </li>
           );
@@ -195,12 +202,15 @@ const DatabaseSwitcher = (
   );
 };
 
-const BreadcrumbSeparator = ({ candidates, basePath, pathInfo, isLast }: {
-  candidates: Record<string, DbNode> | null;
-  basePath: ApiKvKeyPart[];
-  pathInfo: Signal<ApiKvKeyPart[] | null>;
-  isLast: boolean;
-}) => {
+const BreadcrumbSeparator = (
+  { candidates, basePath, pathInfo, isLast, prettyPrintDates }: {
+    candidates: Record<string, DbNode> | null;
+    basePath: ApiKvKeyPart[];
+    pathInfo: Signal<ApiKvKeyPart[] | null>;
+    isLast: boolean;
+    prettyPrintDates: boolean;
+  },
+) => {
   // Filter to only show keys that have children (folders)
   const folders = candidates
     ? Object.values(candidates).filter((n: DbNode) =>
@@ -296,7 +306,11 @@ const BreadcrumbSeparator = ({ candidates, basePath, pathInfo, isLast }: {
                   setIsOpen(false);
                 }}
               >
-                <KeyDisplay type={folder.type} value={folder.value} />
+                <KeyDisplay
+                  type={folder.type}
+                  value={folder.value}
+                  prettyPrint={prettyPrintDates}
+                />
               </a>
             </li>
           ))}
