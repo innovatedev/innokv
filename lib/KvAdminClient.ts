@@ -114,24 +114,43 @@ export default class KvAdminClient {
 
   public deleteRecords(
     id: string,
-    options: { keys?: unknown[][]; all?: boolean; pathInfo?: string },
+    options: {
+      keys?: unknown[][];
+      all?: boolean;
+      pathInfo?: string;
+      recursive?: boolean;
+    },
   ): Promise<unknown> {
     const payload: any = { id, all: options.all };
 
     if (options.keys) {
       payload.keys = options.keys.map((key) =>
-        key.map((k) => this.stringifyKeyPart(k))
+        key.map((k) => this.stringifyKeyPart(k)) // fixed: double encoding? No, stringifyKeyPart returns {type, value}
       );
     }
 
-    if (options.pathInfo) {
+    // Allow empty string for root path
+    if (options.pathInfo !== undefined) {
       payload.pathInfo = options.pathInfo;
+    }
+
+    if (options.recursive !== undefined) {
+      payload.recursive = options.recursive;
     }
 
     return this.request("/database/records", "DELETE", payload);
   }
 
   private stringifyKeyPart(part: unknown): { type: string; value: string } {
+    if (
+      typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      "value" in part
+    ) {
+      return part as { type: string; value: string };
+    }
+
     if (typeof part === "string") {
       return { value: part, type: "string" };
     } else if (typeof part === "number") {

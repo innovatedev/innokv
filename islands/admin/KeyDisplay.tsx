@@ -35,27 +35,24 @@ export const KeyDisplay = (
     try {
       const charCodes = atob(value).split("").map((c) => c.charCodeAt(0));
       const bytes = new Uint8Array(charCodes);
+      const displayStr = Array.from(bytes).join(", ");
 
       if (prettyPrint) {
-        // Check for TextDecoder compatibility or just generic JSON parsing check if it's text
-        // We assume it's UTF-8
-        const decoder = new TextDecoder();
-        const str = decoder.decode(bytes);
-
-        // Check for kvdex serialized date: {"__date__":"..."}
-        if (str.startsWith('{"__date__":"') && str.endsWith('"}')) {
-          try {
+        try {
+          const decoder = new TextDecoder();
+          const str = decoder.decode(bytes);
+          // Check for kvdex serialized date
+          if (str.startsWith('{"__date__":"') && str.endsWith('"}')) {
             const data = JSON.parse(str);
             return (
               <span class="font-mono text-purple-400">{data.__date__}</span>
             );
-          } catch {
-            // ignore
           }
+        } catch {
+          // Not a string/date
         }
       }
 
-      const displayStr = Array.from(bytes).join(", ");
       return (
         <span class="font-mono text-base-content/70 text-xs">
           u8[{displayStr.length > 20
@@ -65,7 +62,9 @@ export const KeyDisplay = (
       );
     } catch {
       return (
-        <span class="font-mono text-base-content/70 text-xs">[{value}]</span>
+        <span class="font-mono text-base-content/70 text-xs opacity-50">
+          [Binary Data]
+        </span>
       );
     }
   }

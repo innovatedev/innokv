@@ -78,7 +78,10 @@ export class DatabaseRepository extends BaseRepository {
     //   await this.kvdex.databases.update(id, record);
     // }
 
-    return database;
+    return {
+      id,
+      ...record,
+    };
   }
 
   async deleteDatabase({ id }: { id: string }) {
@@ -272,10 +275,11 @@ export class DatabaseRepository extends BaseRepository {
 
   async deleteRecords(
     id: string,
-    { keys, all, pathInfo }: {
+    { keys, all, pathInfo, recursive }: {
       keys?: Deno.KvKey[];
       all?: boolean;
       pathInfo?: string;
+      recursive?: boolean;
     },
   ) {
     const database = await this.getDatabase(id);
@@ -289,10 +293,10 @@ export class DatabaseRepository extends BaseRepository {
       const prefix = pathInfoParsed.map((info) => this.parseKeyPart(info));
       const iter = kv.list({ prefix });
       for await (const entry of iter) {
-        // Only direct children? Or recursive?
-        // "Select All matching" usually implies recursive if valid, OR flat if list is flat.
-        // DatabaseView typically shows flat list of children or records.
-        // If we are in "folder", records are children.
+        // If recursive is explicitly false, skip nested keys (depth > prefix + 1)
+        if (recursive === false) {
+          if (entry.key.length > prefix.length + 1) continue;
+        }
         keysToDelete.push(entry.key);
       }
     } else if (keys) {
@@ -300,8 +304,9 @@ export class DatabaseRepository extends BaseRepository {
     }
 
     // Batched delete
-    // Deno KV atomic supports limited ops. We might need multiple batches.
-    const BATCH_SIZE = 100;
+    // Deno KV atomic supports limited ops (10 per atomic usually).
+    // Now that key serialization is fixed, we can safely use atomic batches for better performance (fewer commits).
+    const BATCH_SIZE = 10;
     let deletedCount = 0;
 
     for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
@@ -310,8 +315,12 @@ export class DatabaseRepository extends BaseRepository {
       for (const key of batch) {
         atomic.delete(key);
       }
-      await atomic.commit();
-      deletedCount += batch.length;
+      const result = await atomic.commit();
+      if (result.ok) {
+        deletedCount += batch.length;
+      } else {
+        console.error("Failed to delete batch of records", result);
+      }
     }
 
     return { ok: true, count: deletedCount };
@@ -342,9 +351,10 @@ export class DatabaseRepository extends BaseRepository {
 
     // [Rest of key fetching logic...]
     const keys: Record<string, any> = {};
-    const iter = kv.list({ prefix: [] }, { limit: 1000 }); // Limit for safety
+    const iter = kv.list({ prefix: [] }, { limit: 10000 }); // Partial fix for large DBs: increased limit
     for await (const entry of iter) {
       const { key } = entry;
+      // console.log("Found key in DB:", key);
       let parent = keys;
       for (let i = 0; i < key.length; i++) {
         const part = key[i];

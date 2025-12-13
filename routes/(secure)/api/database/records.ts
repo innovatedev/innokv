@@ -14,7 +14,7 @@ export const handler = BaseRepository.handlers({
       }
 
       const database = await db.getDatabaseBySlugOrId(dbId);
-      const pathInfo = ctx.url.searchParams.get("pathInfo") || "[]";
+      const pathInfo = ctx.url.searchParams.get("pathInfo") || "";
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
 
       return db.getRecords(database.id, pathInfo, cursor);
@@ -37,7 +37,8 @@ export const handler = BaseRepository.handlers({
     }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
-      const { id, key: wireKey, keys: wireKeys, all, pathInfo } = data;
+      const { id, key: wireKey, keys: wireKeys, all, pathInfo, recursive } =
+        data;
       if (!id) throw new Error("Database ID is required");
 
       const database = await db.getDatabaseBySlugOrId(id);
@@ -56,6 +57,11 @@ export const handler = BaseRepository.handlers({
         );
       }
 
-      return db.deleteRecords(database.id, { keys, all, pathInfo });
+      return db.deleteRecords(database.id, {
+        keys,
+        all,
+        pathInfo,
+        recursive,
+      });
     }),
 });

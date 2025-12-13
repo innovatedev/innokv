@@ -138,19 +138,23 @@ const Node = (
         </summary>
         <ul>
           {hasChildren &&
-            Object.values(node.children || {}).map((child: DbNode) => (
-              <Node
-                key={child.value}
-                node={child}
-                parents={myPath}
-                pathInfo={pathInfo}
-                openPaths={openPaths}
-                gonePaths={gonePaths}
-                prettyPrintDates={prettyPrintDates}
-                onToggle={onToggle}
-                onContextMenu={onContextMenu}
-              />
-            ))}
+            Object.values(node.children || {})
+              .filter((child: DbNode) =>
+                child.children && Object.keys(child.children).length > 0
+              )
+              .map((child: DbNode) => (
+                <Node
+                  key={child.value}
+                  node={child}
+                  parents={myPath}
+                  pathInfo={pathInfo}
+                  openPaths={openPaths}
+                  gonePaths={gonePaths}
+                  prettyPrintDates={prettyPrintDates}
+                  onToggle={onToggle}
+                  onContextMenu={onContextMenu}
+                />
+              ))}
         </ul>
       </details>
     </li>
@@ -242,11 +246,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       !activeDatabase || (!selectedKeys.value.size && !selectAllMatching.value)
     ) return;
 
-    if (
-      !confirm(
-        `Are you sure you want to delete ${selectionCount} records? This cannot be undone.`,
-      )
-    ) return;
+    const isAll = selectAllMatching.value;
+    const msg = isAll
+      ? "Delete all records at this level?"
+      : `Are you sure you want to delete ${selectionCount} records? This cannot be undone.`;
+
+    if (!confirm(msg)) return;
 
     try {
       const dbId = activeDatabase.slug || activeDatabase.id;
@@ -254,9 +259,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       if (selectAllMatching.value) {
         await api.deleteRecords(dbId, {
           all: true,
-          pathInfo: pathInfo.value
-            ? KeyCodec.encode(pathInfo.value)
-            : undefined,
+          pathInfo: KeyCodec.encode(pathInfo.value || []),
+          recursive: false, // Explicitly shallow delete for list view
         });
       } else {
         // Decode keys
@@ -454,6 +458,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       });
     }
   }, [pathInfo.value]);
+  useEffect(() => {
+    if (!activeDatabase) return;
+    const target = activeDatabase.slug || activeDatabase.id;
+
+    api.getRecords(target, pathInfo.value || []).then((r) => {
+      records.value = r;
+    }).catch((e) => {
+      console.error("Failed to fetch records:", e);
+      records.value = [];
+    });
+  }, [pathInfo.value, activeDatabase]);
 
   // Clear selection on path change
   useEffect(() => {
@@ -602,26 +617,31 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     </summary>
                     {dbStructure && (
                       <ul>
-                        {Object.entries(dbStructure).map(([key, node]) => (
-                          <Node
-                            node={node}
-                            key={key}
-                            pathInfo={pathInfo}
-                            openPaths={openPaths}
-                            gonePaths={gonePaths.value}
-                            prettyPrintDates={activeDatabase?.settings
-                              ?.prettyPrintDates ??
-                              true}
-                            onToggle={togglePath}
-                            onContextMenu={(e, path) =>
-                              contextMenu.value = {
-                                x: e.clientX,
-                                y: e.clientY,
-                                type: "folder",
-                                path,
-                              }}
-                          />
-                        ))}
+                        {Object.entries(dbStructure)
+                          .filter(([_, node]) =>
+                            node.children &&
+                            Object.keys(node.children).length > 0
+                          )
+                          .map(([key, node]) => (
+                            <Node
+                              node={node}
+                              key={key}
+                              pathInfo={pathInfo}
+                              openPaths={openPaths}
+                              gonePaths={gonePaths.value}
+                              prettyPrintDates={activeDatabase?.settings
+                                ?.prettyPrintDates ??
+                                true}
+                              onToggle={togglePath}
+                              onContextMenu={(e, path) =>
+                                contextMenu.value = {
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  type: "folder",
+                                  path,
+                                }}
+                            />
+                          ))}
                       </ul>
                     )}
                   </details>
@@ -818,60 +838,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           </Dialog>
 
           <div>
-            {isRoot && activeDatabase && (
-              <div class="p-4 mb-4 bg-base-100 rounded border border-base-300 relative group">
-                <div class="absolute top-4 right-4">
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-ghost"
-                    onClick={() => {
-                      editingDatabase.value = activeDatabase;
-                      createDatabaseRef.current?.showModal();
-                    }}
-                  >
-                    Edit
-                  </button>
-                </div>
-                {/* Database Settings Display (Info Only) */}
-                <h3 class="font-bold text-lg mb-2">Database Settings</h3>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm max-w-md">
-                  <span class="font-semibold text-base-content/70">Name</span>
-                  {" "}
-                  <span>{activeDatabase.name}</span>
-                  <span class="font-semibold text-base-content/70">Type</span>
-                  {" "}
-                  <span>{activeDatabase.type}</span>
-                  {activeDatabase.path && (
-                    <>
-                      <span class="font-semibold text-base-content/70">
-                        Path
-                      </span>{" "}
-                      <span class="font-mono">{activeDatabase.path}</span>
-                    </>
-                  )}
-                  <span class="font-semibold text-base-content/70">ID</span>
-                  {" "}
-                  <span class="font-mono text-xs">{activeDatabase.id}</span>
-                </div>
-              </div>
-            )}
-
-            {selectAllMatching.value && (
-              <div class="alert alert-info py-2 rounded-none text-xs">
-                <span>All records matching this filter are selected.</span>
-                <button
-                  class="btn btn-xs btn-ghost"
-                  onClick={() => selectAllMatching.value = false}
-                >
-                  Clear selection
-                </button>
-              </div>
-            )}
-
-            {!isRoot && (records.value.length
+            {activeDatabase && (records.value.length
               ? (
                 <div class="join join-vertical w-full">
-                  {/* "Select All" Header Row if not root */}
+                  {/* "Select All" Header Row */}
                   <div class="join-item bg-base-100 border-base-300 border-x border-t p-2 flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -908,24 +878,29 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   {(() => {
                     // Check if we have known children in the local structure
                     let hasKnownChildren = false;
-                    if (pathInfo.value && dbStructure) {
-                      let current = dbStructure;
-                      let found = true;
-                      for (const part of pathInfo.value) {
-                        const match = Object.values(current).find((c) =>
-                          c.value === part.value && c.type === part.type
-                        );
-                        if (match && match.children) {
-                          current = match.children;
-                        } else if (match) {
-                          current = {};
-                        } else {
-                          found = false;
-                          break;
+                    if (dbStructure) {
+                      const currentPath = pathInfo.value || [];
+                      if (currentPath.length === 0) {
+                        hasKnownChildren = Object.keys(dbStructure).length > 0;
+                      } else {
+                        let current = dbStructure;
+                        let found = true;
+                        for (const part of currentPath) {
+                          const match = Object.values(current).find((c) =>
+                            c.value === part.value && c.type === part.type
+                          );
+                          if (match && match.children) {
+                            current = match.children;
+                          } else if (match) {
+                            current = {};
+                          } else {
+                            found = false;
+                            break;
+                          }
                         }
-                      }
-                      if (found && Object.keys(current).length > 0) {
-                        hasKnownChildren = true;
+                        if (found && Object.keys(current).length > 0) {
+                          hasKnownChildren = true;
+                        }
                       }
                     }
 
@@ -953,9 +928,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         </div>
                       );
                     }
-                    if (pathInfo.value && pathInfo.value.length > 0) {
+                    // For empty root or empty folder
+                    if (activeDatabase) {
                       return <p class="text-sm">No records found</p>;
                     }
+
                     return (
                       <p class="text-sm">Select a database to view records</p>
                     );
@@ -1049,7 +1026,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     const dbId = contextMenu.value?.dbId;
                     contextMenu.value = null;
                     if (dbId) {
-                      const db = databases.value.find((d) => d.id === dbId);
+                      const db = databases.value.find((d) =>
+                        d.id === dbId
+                      );
                       if (db) {
                         editingDatabase.value = db;
                         createDatabaseRef.current?.showModal();
@@ -1171,11 +1150,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               if (id) {
                 api.updateDatabase({ id, ...data })
                   .then((updatedDb) => {
-                    // Update local list
-                    databases.value = databases.value.map((d) =>
-                      d.id === id ? (updatedDb as Database) : d
-                    );
-                    createDatabaseRef.current?.close();
+                    // Redirect to new path if slug changed
+                    globalThis.location.href = `/${
+                      updatedDb.slug || updatedDb.id
+                    }`;
                   });
               }
             }}

@@ -69,128 +69,140 @@ export default function ConnectDatabaseForm({
   };
   return (
     <form
-      class="form-control w-full flex flex-col"
+      class="form-control w-full flex flex-col gap-3"
       onSubmit={doSubmit}
       method="post"
     >
       {error && (
-        <div class="alert alert-error mt-2">
-          <div>
-            <span>{error}</span>
-          </div>
+        <div class="alert alert-error text-sm py-2 rounded">
+          <span>{error}</span>
         </div>
       )}
       {success && (
-        <div class="alert alert-success mt-2">
-          <div>
-            <span>{success}</span>
-          </div>
+        <div class="alert alert-success text-sm py-2 rounded">
+          <span>{success}</span>
         </div>
       )}
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Slug</span>
-        <input
-          class="input input-bordered input-xs w-full"
-          type="text"
-          name="slug"
-          defaultValue={database?.slug}
-          required
-        />
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Path</span>
-        <input
-          class="input input-bordered input-xs w-full"
-          type="text"
-          name="path"
-          defaultValue={database?.path}
-          required
-        />
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Name</span>
-        <input
-          class="input input-bordered input-xs w-full"
-          type="text"
-          name="name"
-          defaultValue={database?.name}
-          required
-        />
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Type</span>
-        <select
-          class="select select-bordered select-xs w-full"
-          name="type"
-          defaultValue={database?.type}
-          required
-        >
-          <option value="memory">Memory</option>
-          <option value="file">File</option>
-          <option value="remote">Remote</option>
-        </select>
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Mode</span>
-        <select
-          class="select select-bordered select-xs w-full"
-          name="mode"
-          defaultValue={database?.mode}
-          required
-        >
-          <option value="r">Read</option>
-          <option value="rw">Read/Write</option>
-        </select>
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Description</span>
-        <input
-          class="input input-bordered input-xs w-full"
-          type="text"
-          name="description"
-          defaultValue={database?.description}
-        />
-      </label>
-      <label class="label flex flex-col items-start">
-        <span class="label-text">Sort</span>
-        <input
-          class="input input-bordered input-xs w-full"
-          type="number"
-          min="0"
-          name="sort"
-          defaultValue={database?.sort}
-        />
-      </label>
 
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-4">
-          <span class="label-text">Pretty Print Dates</span>
+      {/* Basic Info */}
+      <div class="grid grid-cols-2 gap-4">
+        <label class="form-control w-full">
+          <div class="label pb-1">
+            <span class="label-text text-xs opacity-70">Name</span>
+          </div>
           <input
-            type="checkbox"
-            name="settings.prettyPrintDates"
-            class="checkbox checkbox-sm checkbox-primary"
-            defaultChecked={database?.settings?.prettyPrintDates ?? true}
-            value="true"
+            class="input input-bordered input-sm w-full"
+            type="text"
+            name="name"
+            defaultValue={database?.name}
+            placeholder="My Database"
+            required
+          />
+        </label>
+        <label class="form-control w-full">
+          <div class="label pb-1">
+            <span class="label-text text-xs opacity-70">Slug</span>
+          </div>
+          <input
+            class="input input-bordered input-sm w-full"
+            type="text"
+            name="slug"
+            defaultValue={database?.slug}
+            placeholder="my-database"
+            required
           />
         </label>
       </div>
 
-      <div class="flex justify-between gap-4 mt-4">
+      <label class="form-control w-full">
+        <div class="label pb-1">
+          <span class="label-text text-xs opacity-70">Description</span>
+        </div>
+        <input
+          class="input input-bordered input-sm w-full"
+          type="text"
+          name="description"
+          defaultValue={database?.description}
+          placeholder="A brief description of this database"
+        />
+      </label>
+
+      {/* Connection Info */}
+      <div class="grid grid-cols-2 gap-4">
+        <label class="form-control w-full">
+          <div class="label pb-1">
+            <span class="label-text text-xs opacity-70">Type</span>
+          </div>
+          <select
+            class="select select-bordered select-sm w-full"
+            name="type"
+            defaultValue={database?.type || "memory"}
+            required
+          >
+            <option value="memory">Memory</option>
+            <option value="file">File</option>
+            <option value="remote">Remote</option>
+          </select>
+        </label>
+        <label class="form-control w-full">
+          <div class="label pb-1">
+            <span class="label-text text-xs opacity-70">Mode</span>
+          </div>
+          <select
+            class="select select-bordered select-sm w-full"
+            name="mode"
+            defaultValue={database?.mode || "rw"}
+            required
+          >
+            <option value="r">Read Only</option>
+            <option value="rw">Read/Write</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="form-control w-full">
+        <div class="label pb-1">
+          <span class="label-text text-xs opacity-70">Path / UUID</span>
+        </div>
+        <input
+          class="input input-bordered input-sm w-full font-mono text-xs"
+          type="text"
+          name="path"
+          defaultValue={database?.path}
+          placeholder="/path/to/db or UUID"
+          required
+        />
+      </label>
+
+      <div class="form-control mt-2">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input
+            type="checkbox"
+            name="settings.prettyPrintDates"
+            class="checkbox checkbox-xs checkbox-primary"
+            defaultChecked={database?.settings?.prettyPrintDates ?? true}
+            value="true"
+          />
+          <span class="label-text text-sm">Pretty Print Dates</span>
+        </label>
+      </div>
+
+      <div class="modal-action flex justify-between items-center mt-6">
         <div>
           {database?.id && onDelete && (
             <button
-              class="btn btn-danger btn-ghost btn-xs"
+              class="btn btn-error btn-outline btn-xs hover:btn-error hover:text-white"
               type="button"
               onClick={doDelete}
               disabled={isLoading}
             >
-              Delete
+              Delete Database
             </button>
           )}
         </div>
         <div class="flex gap-2">
           <button
-            class="btn btn-ghost btn-xs"
+            class="btn btn-ghost btn-sm"
             type="button"
             onClick={doCancel}
             disabled={isLoading}
@@ -198,11 +210,13 @@ export default function ConnectDatabaseForm({
             Cancel
           </button>
           <button
-            class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
+            class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none min-w-[80px]"
             type="submit"
             disabled={isLoading}
           >
-            {isLoading ? "Loading..." : (database ? "Save" : "Connect")}
+            {isLoading
+              ? <span class="loading loading-spinner loading-xs"></span>
+              : (database ? "Save" : "Connect")}
           </button>
         </div>
       </div>
