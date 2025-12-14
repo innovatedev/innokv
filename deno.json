@@ -1,8 +1,6 @@
 {
   "nodeModulesDir": "manual",
-  "name": "@innovatedev/innokv",
   "version": "0.0.1",
-  "exports": { ".": "./_fresh/server.js" },
   "tasks": {
     "check": "deno fmt --check . && deno lint . && deno check",
     "dev": "vite",
@@ -59,5 +57,13 @@
   },
   "unstable": ["kv"],
   "license": "MIT",
-  "tags": ["ai-generated", "ai-assisted"]
+  "tags": [
+    "ai-generated",
+    "ai-assisted",
+    "deno-fresh",
+    "deno-kv",
+    "management-tool",
+    "kv-explorer",
+    "kv-management"
+  ]
 }

@@ -11,13 +11,17 @@ humans.
 
 ## Quick Start
 
-ADMIN_USER=test@example.com ADMIN_PASSWORD="something secure" deno serve -A
-@innovatedev/innokv
+```bash
+git clone https://github.com/innovatedev/innokv.git
+cd innokv
+deno install
 
-Open http://localhost:8000 in your browser. Login with the credentials you just
-set.
+deno task build
+ADMIN_EMAILS=test@example.com deno task start
+```
 
-## Demo
+Open http://localhost:8000 in your browser. Register and login with an email
+address matching the `ADMIN_EMAILS` environment variable.
 
 ## Security Issues
 
