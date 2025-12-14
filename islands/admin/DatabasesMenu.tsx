@@ -1,7 +1,8 @@
-import { useContext, useRef, useState } from "preact/hooks";
+import { useContext, useRef } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import Dialog from "./Dialog.tsx";
+import { Database } from "../../lib/models.ts";
 
 export default function DatabasesMenu() {
   const { databases, selectedDatabase, api, activeDatabase } = useContext(
@@ -22,7 +23,7 @@ export default function DatabasesMenu() {
             <button
               class="flex-1"
               type="button"
-              onClick={(e) => {
+              onClick={(_e) => {
                 selectedDatabase.value = db.id;
               }}
             >
@@ -61,9 +62,7 @@ export default function DatabasesMenu() {
           onCancel={() => createDatabaseRef.current?.close()}
           onDelete={() => {
             api.deleteDatabase(activeDatabase!.id)
-              .then(async (db) => {
-                console.log("Database deleted", activeDatabase);
-
+              .then(async () => {
                 databases.value = (await api.getDatabases()).data;
                 selectedDatabase.value = null;
                 createDatabaseRef.current?.close();
@@ -81,7 +80,6 @@ export default function DatabasesMenu() {
             } else {
               api.updateDatabase({ id: activeDatabase.id, ...data })
                 .then(async (db) => {
-                  console.log("Database updated", db);
                   selectedDatabase.value = db.id;
                   form.reset();
 

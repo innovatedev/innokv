@@ -1,8 +1,8 @@
 import { define } from "@/utils.ts";
 import { DatabaseRepository } from "@/lib/Database.ts";
 import { db as kvdex } from "@/lib/db.ts";
-import { BaseRepository } from "@/lib/BaseRepository.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
+import { DbNode } from "@/lib/types.ts";
 
 const db = new DatabaseRepository(kvdex);
 
@@ -15,20 +15,24 @@ export const handler = define.handlers({
       const parentPathStr = ctx.url.searchParams.get("parentPath");
       const parentPath = parentPathStr ? KeyCodec.decode(parentPathStr) : [];
 
-      const nodes = await db.getNodes(dbId, parentPath);
+      const cursor = ctx.url.searchParams.get("cursor") || undefined;
+      const limit = parseInt(ctx.url.searchParams.get("limit") || "100");
+
+      const { nodes, cursor: nextCursor } = await db.getNodes(
+        dbId,
+        parentPath,
+        { limit, cursor },
+      );
 
       // Convert to Structure expected by Frontend (Record<string, DbNode>)
-      const structure: Record<string, any> = {};
+      const structure: Record<string, DbNode> = {};
+
       for (const node of nodes) {
-        // We key by the encoded value of the PART?
-        // In Database.ts getKeys:
-        // const mapKey = JSON.stringify({ type: info.type, value: info.value });
-        // We should replicate this for consistency with existing Frontend logic.
-        const mapKey = JSON.stringify({ type: node.type, value: node.value });
+        const mapKey = KeyCodec.encode([node]);
         structure[mapKey] = node;
       }
 
-      return structure;
+      return { items: structure, cursor: nextCursor };
     });
   },
 });

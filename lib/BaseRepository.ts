@@ -12,15 +12,16 @@ export class DatabaseError extends Error {
 export class BaseRepository {
   constructor(protected kvdex: typeof db) {
     // Automatically bind all methods to the instance
-    for (const key of Object.getOwnPropertyNames(Object.getPrototypeOf(this))) {
-      const value = this[key];
+    const proto = Object.getPrototypeOf(this);
+    for (const key of Object.getOwnPropertyNames(proto)) {
+      const value = (this as any)[key];
       if (typeof value === "function" && key !== "constructor") {
-        this[key] = value.bind(this);
+        (this as any)[key] = value.bind(this);
       }
     }
   }
 
-  protected parseModel<T>(model: (data: any) => T, data: any): T {
+  protected parseModel<T>(model: { parse: (data: any) => T }, data: any): T {
     return model.parse(data);
   }
 

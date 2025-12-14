@@ -111,7 +111,6 @@ const DatabaseSwitcher = (
 ) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const hasMultiple = databases.length > 0; // Always show if we have standard list
 
   // Close on outside click
   useEffect(() => {

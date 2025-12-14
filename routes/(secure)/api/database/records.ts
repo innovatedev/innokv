@@ -17,8 +17,12 @@ export const handler = BaseRepository.handlers({
       const pathInfo = ctx.url.searchParams.get("pathInfo") || "";
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
       const limit = parseInt(ctx.url.searchParams.get("limit") || "100");
+      const recursiveParam = ctx.url.searchParams.get("recursive");
+      const recursive = recursiveParam !== null
+        ? recursiveParam === "true"
+        : undefined;
 
-      return db.getRecords(database.id, pathInfo, cursor, limit);
+      return db.getRecords(database.id, pathInfo, cursor, limit, { recursive });
     }),
   POST: (ctx) =>
     db.handleApiCall(ctx, async (data) => {

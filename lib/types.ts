@@ -12,5 +12,8 @@ export type ApiKvEntry<T = unknown> = {
 
 export type DbNode = ApiKvKeyPart & {
   children?: Record<string, DbNode>;
+  childrenCount?: number;
   hasChildren?: boolean;
+  nextCursor?: string;
+  lastLoadedCursor?: string;
 };

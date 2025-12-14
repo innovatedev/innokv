@@ -1,5 +1,5 @@
 import { Database } from "./models.ts";
-import { ApiKvEntry, DbNode } from "./types.ts";
+import { ApiKvEntry, ApiKvKeyPart, DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 
 export default class KvAdminClient {
@@ -52,15 +52,13 @@ export default class KvAdminClient {
   }
 
   public createDatabase(data: Record<string, unknown>): Promise<Database> {
-    console.log("Creating database with data:", data);
     if (data.sort !== undefined && typeof data.sort === "string") {
       data.sort = parseInt(data.sort as string);
     }
     return this.request("/databases", "POST", data);
   }
 
-  public updateDatabase(data: Record<string, unknown>): Promise<unknown> {
-    console.log("Updating database with slug:", data.slug, "and data:", data);
+  public updateDatabase(data: Record<string, unknown>): Promise<Database> {
     if (data.sort !== undefined && typeof data.sort === "string") {
       data.sort = parseInt(data.sort as string);
     }
@@ -78,11 +76,14 @@ export default class KvAdminClient {
   public getNodes(
     id: string,
     parentPath: ApiKvKeyPart[],
-  ): Promise<Record<string, DbNode>> {
+    options: { cursor?: string; limit?: number } = {},
+  ): Promise<{ items: Record<string, DbNode>; cursor?: string }> {
     const parentPathStr = KeyCodec.encode(parentPath);
     return this.request(`/database/nodes`, "GET", {
       id,
       parentPath: parentPathStr,
+      cursor: options.cursor,
+      limit: options.limit?.toString(),
     });
   }
 
@@ -90,7 +91,18 @@ export default class KvAdminClient {
     id: string,
     path?: string,
   ): Promise<Record<string, DbNode>> {
-    return this.request(`/database`, "GET", { id, path });
+    // Legacy: path arg was for getKeys. Now we use getNodes if path is used for structure.
+    // Actually, getDatabase was likely just fetching the *structure*.
+    // And older implementation called `/database`.
+    // We redirect to `/database/nodes`.
+
+    // NOTE: getNodes returns { items: ..., cursor: ... }.
+    // getDatabase caller expects Record<string, DbNode>.
+    const parentPath = path ? KeyCodec.decode(path) : [];
+
+    return this.getNodes(id, parentPath, { limit: 1000 }).then((res) =>
+      res.items
+    );
   }
 
   public getRecords<T = unknown>(
@@ -98,12 +110,16 @@ export default class KvAdminClient {
     pathInfo: { type: string; value: string }[],
     cursor?: string,
     limit?: number,
+    options: { recursive?: boolean } = {},
   ): Promise<{ records: ApiKvEntry<T>[]; cursor: string }> {
     return this.request(`/database/records`, "GET", {
       id,
       pathInfo: KeyCodec.encode(pathInfo),
       cursor,
       limit: limit?.toString(),
+      recursive: options.recursive !== undefined
+        ? String(options.recursive)
+        : undefined,
     });
   }
 

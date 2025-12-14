@@ -101,7 +101,6 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
     // If they are looking at `getRecords` (Files), then `users` won't show up if `users` is just a folder.
 
     // Let's assume `users` has a record at `["users"]`? Or just children?
-    // If I add `add(["users", "user-1"])`, then `["users"]` is a folder.
 
     // Let's test `getNodes` logic equivalent.
   });

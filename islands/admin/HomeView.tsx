@@ -87,6 +87,7 @@ export default function HomeView(
                   </a>
                   {/* Unpin Button */}
                   <button
+                    type="button"
                     class="absolute top-2 right-2 btn btn-xs btn-circle btn-ghost opacity-0 group-hover:opacity-100 transition-opacity bg-base-100 shadow-sm"
                     title="Unpin"
                     onClick={(e) => {
@@ -161,6 +162,7 @@ export default function HomeView(
               </a>
               <div class="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
+                  type="button"
                   class="btn btn-ghost btn-sm btn-circle"
                   title="Edit Database"
                   onClick={(e) => {
@@ -172,6 +174,7 @@ export default function HomeView(
                   <EditIcon className="w-4 h-4" />
                 </button>
                 <button
+                  type="button"
                   class="btn btn-ghost btn-sm btn-circle"
                   title="Pin to top"
                   onClick={(e) => {
@@ -214,13 +217,7 @@ export default function HomeView(
         title={editingDatabase.value ? "Edit Database" : "Connect Database"}
       >
         <ConnectDatabaseForm
-          method="dialog"
           database={editingDatabase.value}
-          onSave={() => {
-            // Fallback if needed, but onSubmit covers it
-            createDatabaseRef.current?.close();
-            api.getDatabases().then((res) => databases.value = res.data);
-          }}
           onCancel={() => createDatabaseRef.current?.close()}
           onSubmit={(data, form) => {
             if (editingDatabase.value) {

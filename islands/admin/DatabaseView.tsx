@@ -31,6 +31,7 @@ interface NodeProps {
     hasChildren: boolean,
   ) => void;
   onContextMenu: (e: MouseEvent, path: ApiKvKeyPart[]) => void;
+  onLoadMore: (path: ApiKvKeyPart[], cursor: string) => void;
 }
 
 interface ContextMenuState {
@@ -51,6 +52,7 @@ const Node = (
     prettyPrintDates,
     onToggle,
     onContextMenu,
+    onLoadMore,
   }: NodeProps,
 ) => {
   const myPath = [...parents, node];
@@ -66,7 +68,15 @@ const Node = (
 
   if (!hasChildren) return null;
 
-  const hasSubFolders = hasChildren; // Simplified: if it has children, we treat it as folder in lazy mode
+  // Smart Arrow Logic:
+  // If children are loaded, only show arrow if there is at least one sub-folder (visible child).
+  // If children are NOT loaded, assume yes (optimistic) if hasChildren is true.
+  const childrenLoaded = node.children && Object.keys(node.children).length > 0;
+  const hasVisibleChildren = childrenLoaded
+    ? Object.values(node.children!).some((child: DbNode) => child.hasChildren)
+    : hasChildren;
+
+  const hasSubFolders = hasVisibleChildren;
 
   const toggleOpen = (e: Event) => {
     e.preventDefault();
@@ -156,8 +166,36 @@ const Node = (
                   prettyPrintDates={prettyPrintDates}
                   onToggle={onToggle}
                   onContextMenu={onContextMenu}
+                  onLoadMore={onLoadMore}
                 />
               ))}
+          {node.nextCursor && (
+            <li class="pl-2 py-1">
+              <button
+                class="btn btn-xs btn-ghost text-xs w-full text-left font-normal opacity-50 hover:opacity-100 flex gap-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onLoadMore(myPath, node.nextCursor!); // myPath is the path TO this node. nextCursor fetches more children OF this node.
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="1.5"
+                  stroke="currentColor"
+                  class="w-3 h-3"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                  />
+                </svg>
+                Load more...
+              </button>
+            </li>
+          )}
         </ul>
       </details>
     </li>
@@ -165,7 +203,7 @@ const Node = (
 };
 
 interface DatabaseViewProps {
-  initialStructure?: Record<string, any> | null;
+  initialStructure?: Record<string, DbNode> | null;
 }
 
 export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
@@ -184,8 +222,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     cursorStack,
     limit,
   } = useContext(DatabaseContext);
+  // Robust initialization: Handle Record input for initialStructure
   const [dbStructure, setDbStructure] = useState<Record<string, DbNode> | null>(
-    initialStructure || null,
+    () => {
+      if (!initialStructure) return null;
+      return initialStructure;
+    },
   );
 
   const createEntryRef = useRef<HTMLDialogElement>(null);
@@ -213,6 +255,89 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     return () => globalThis.removeEventListener("click", closeMenu);
   }, []);
 
+  // Deep Linking / Auto-Expand Effect
+  useEffect(() => {
+    if (!pathInfo.value || !dbStructure || !activeDatabase) return;
+
+    const path = pathInfo.value;
+    const dbId = activeDatabase.slug || activeDatabase.id;
+
+    // 1. Calculate all parent paths that should be open
+    const newOpenPaths = new Set(openPaths);
+    let changedOpen = false;
+    const parents: ApiKvKeyPart[] = [];
+
+    // We iterate the path parts to build up the tree
+    // e.g. path = [a, b, c]
+    // We need to ensure [a] is open, [a, b] is open.
+    // And we need to ensure their children are loaded.
+
+    for (let i = 0; i < path.length; i++) {
+      const seg = path[i];
+      parents.push(seg);
+      const parentStr = KeyCodec.encode(parents);
+
+      if (i < path.length - 1) {
+        if (!newOpenPaths.has(parentStr)) {
+          newOpenPaths.add(parentStr);
+          changedOpen = true;
+        }
+      }
+    }
+
+    if (changedOpen) {
+      setOpenPaths(newOpenPaths);
+    }
+
+    const checkAndLoad = async () => {
+      let currentLevel = dbStructure;
+      const currentPath: ApiKvKeyPart[] = [];
+
+      for (let i = 0; i < path.length; i++) {
+        const seg = path[i];
+        const keyStr = KeyCodec.encode([seg]);
+        const node = currentLevel[keyStr];
+
+        if (!node) {
+          await api.getNodes(dbId, currentPath).then((res) => {
+            const nodes = res.items;
+            if (nodes) {
+              setDbStructure((prev) => {
+                if (!prev) return nodes;
+                return mergeStructure(prev, currentPath, nodes, res.cursor);
+              });
+            }
+          });
+          return;
+        }
+
+        if (i < path.length) {
+          if (
+            node.hasChildren &&
+            (!node.children || Object.keys(node.children).length === 0)
+          ) {
+            const nextPath = [...currentPath, seg];
+            await api.getNodes(dbId, nextPath).then((res) => {
+              const nodes = res.items;
+              if (nodes) {
+                setDbStructure((prev) => {
+                  if (!prev) return nodes;
+                  return mergeStructure(prev, nextPath, nodes, res.cursor);
+                });
+              }
+            });
+            return;
+          }
+        }
+
+        currentLevel = node.children || {};
+        currentPath.push(seg);
+      }
+    };
+
+    checkAndLoad();
+  }, [pathInfo.value, dbStructure, activeDatabase]);
+
   // Selection State
   const selectedKeys = useSignal<Set<string>>(new Set());
   const selectAllMatching = useSignal(false);
@@ -239,14 +364,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       selectedKeys.value = new Set();
       selectAllMatching.value = false;
     } else {
-      // User style: standard behavior is usually toggle visible set.
-      // If I want to verify "Select All matching", maybe clearing is safer to avoid confusion.
-      // Let's replace selection with visible if not all selected, or clear if all selected.
-      // Actually standard: "Select All" checkbox in header selects all visible.
       const newS = new Set(selectedKeys.value);
       currentKeyStrings.forEach((k) => newS.add(k));
       selectedKeys.value = newS;
-      // If we want to support "Select All" across pages, we handle that via the banner.
     }
   };
 
@@ -290,7 +410,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       const target = activeDatabase?.slug || selectedDatabase.value;
       if (target && pathInfo.value) {
         // refresh records
-        api.getRecords(target, pathInfo.value, cursor.value, limit.value).then(
+        api.getRecords(target, pathInfo.value, cursor.value, limit.value, {
+          recursive: false,
+        }).then(
           (res) => {
             records.value = res.records;
             nextCursor.value = res.cursor;
@@ -308,7 +430,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     }
   };
 
-  const handleRefresh = () => {
+  const _handleRefresh = () => {
     if (!activeDatabase) return;
     const dbId = activeDatabase.slug || activeDatabase.id;
 
@@ -319,8 +441,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     if (pathInfo.value && contextMenu.value) {
       const currentStr = KeyCodec.encode(pathInfo.value);
       const ctxStr = KeyCodec.encode(contextMenu.value.path);
+
       if (currentStr.startsWith(ctxStr)) {
-        api.getRecords(dbId, pathInfo.value, cursor.value, limit.value).then(
+        api.getRecords(dbId, pathInfo.value, cursor.value, limit.value, {
+          recursive: false,
+        }).then(
           (res) => {
             records.value = res.records;
             nextCursor.value = res.cursor;
@@ -376,7 +501,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             pathInfo.value = targetPath.slice(0, -1);
           } else {
             // refresh current view
-            api.getRecords(target, pathInfo.value, cursor.value, limit.value)
+            api.getRecords(target, pathInfo.value, cursor.value, limit.value, {
+              recursive: false,
+            })
               .then((res) => {
                 records.value = res.records;
                 nextCursor.value = res.cursor;
@@ -393,7 +520,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const currentDbName = activeDatabase
     ? (activeDatabase.name || activeDatabase.id)
     : "Database";
-  const isRoot = !pathInfo.value || pathInfo.value.length === 0;
+  const _isRoot = pathInfo.value === null || pathInfo.value.length === 0;
 
   // Persist Sidebar State
   useEffect(() => {
@@ -452,13 +579,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   useEffect(() => {
     if (!selectedDatabase.value) return;
 
-    // Only fetch if we don't have it or if it might be stale (simple check: if IDs match)
-    // But structure isn't keyed by ID here, it's just state.
-    // If we switched DBs, we should ideally clear structure or fetch new.
-    // For now, let's just fetch if we are client-side only navigation or if we want refresh.
-    // NOTE: If provided structure fits current DB, we use it. If not, fetch.
-
-    // Actually simplicity: If initialStructure is provided, use it. But real-time updates?
     const target = activeDatabase?.slug || selectedDatabase.value;
     if (target) {
       api.getDatabase(target).then((structure) => {
@@ -508,33 +628,79 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     currentStruct: Record<string, DbNode>,
     path: ApiKvKeyPart[],
     newChildren: Record<string, DbNode>,
+    nextCursor?: string,
   ): Record<string, DbNode> => {
+    // Helper to merge a dictionary of nodes while preserving children of existing nodes
+    const safeMergeDict = (
+      current: Record<string, DbNode>,
+      incoming: Record<string, DbNode>,
+    ): Record<string, DbNode> => {
+      const merged = { ...current };
+      for (const [key, newNode] of Object.entries(incoming)) {
+        if (merged[key]) {
+          // Node exists: Update props but preserve children/cursors from existing state
+          // We assume local state (open folders) is more valuable than fresh server state for these props
+          merged[key] = {
+            ...newNode,
+            children: merged[key].children,
+            nextCursor: merged[key].nextCursor,
+            lastLoadedCursor: merged[key].lastLoadedCursor,
+          };
+        } else {
+          merged[key] = newNode;
+        }
+      }
+      return merged;
+    };
+
     if (path.length === 0) {
-      // Merge at this level. Preserve existing nodes, add new ones.
-      return { ...currentStruct, ...newChildren };
+      return safeMergeDict(currentStruct, newChildren);
     }
 
     const [head, ...tail] = path;
-    const headKey = KeyCodec.encode(head);
+    const headKey = KeyCodec.encode([head]);
     const node = currentStruct[headKey];
 
     if (!node) {
-      // Should not happen if path exists
       return currentStruct;
+    }
+
+    if (tail.length === 0) {
+      // We found the parent node (head). Update its children and nextCursor.
+      const existingChildren = node.children || {};
+      const mergedChildren = safeMergeDict(existingChildren, newChildren);
+
+      return {
+        ...currentStruct,
+        [headKey]: {
+          ...node,
+          children: mergedChildren,
+          childrenCount: Object.keys(mergedChildren).length,
+          lastLoadedCursor: nextCursor !== undefined
+            ? nextCursor
+            : node.lastLoadedCursor,
+          nextCursor: nextCursor !== undefined ? nextCursor : node.nextCursor,
+        },
+      };
     }
 
     return {
       ...currentStruct,
       [headKey]: {
         ...node,
-        children: mergeStructure(node.children || {}, tail, newChildren),
+        children: mergeStructure(
+          node.children || {},
+          tail,
+          newChildren,
+          nextCursor,
+        ),
       },
     };
   };
 
   const togglePath = (
     path: ApiKvKeyPart[],
-    isOpen: boolean,
+    _isOpen: boolean,
     hasChildren: boolean,
   ) => {
     const pathStr = KeyCodec.encode(path);
@@ -558,19 +724,14 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       // Let's just fetch for now to ensure freshness and simplicity of finding the node.
 
       const dbId = activeDatabase.slug || activeDatabase.id;
-      const parentPathStr = KeyCodec.encode(path);
-
-      api.getNodes(dbId, path).then((nodes) => { // Assuming api.getNodes exists
-        // nodes is Record<string, DbNode> from API?
-        // Wait, api.getNodes needs to return Record<string, DbNode> to match logic?
-        // Use the POST-processed one?
-        // I implemented api/database/nodes.ts to return Record<string, DbNode>.
-        // So I need to add getNodes to the API client.
+      // const parentPathStr = KeyCodec.encode(path);
+      api.getNodes(dbId, path).then((res) => {
+        const nodes = res.items;
 
         if (nodes && Object.keys(nodes).length > 0) {
           setDbStructure((prev) => {
             if (!prev) return nodes;
-            return mergeStructure(prev, path, nodes);
+            return mergeStructure(prev, path, nodes, res.cursor);
           });
         }
       });
@@ -743,6 +904,30 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                                   type: "folder",
                                   path,
                                 }}
+                              onLoadMore={(path, cursor) => {
+                                const dbId = activeDatabase?.slug ||
+                                  activeDatabase?.id;
+                                if (!dbId) return;
+
+                                api.getNodes(dbId, path, { cursor }).then(
+                                  (res) => {
+                                    const nodes = res.items;
+                                    if (
+                                      nodes && Object.keys(nodes).length > 0
+                                    ) {
+                                      setDbStructure((prev) => {
+                                        if (!prev) return nodes;
+                                        return mergeStructure(
+                                          prev,
+                                          path,
+                                          nodes,
+                                          res.cursor,
+                                        );
+                                      });
+                                    }
+                                  },
+                                );
+                              }}
                             />
                           ))}
                       </ul>
@@ -876,7 +1061,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               onDelete={() => {
                 if (!activeDatabase || !selectedEntry.value) return;
                 // ... simplify key conversion logic or move to util ...
-                const convertValue = (p: any) => {
+                const convertValue = (p: ApiKvKeyPart) => {
                   const t = p.type.toLowerCase();
                   if (t === "number") return parseFloat(p.value);
                   if (t === "boolean") return p.value === "true";
@@ -901,11 +1086,13 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     .then((
                       s,
                     ) => setDbStructure(s));
-                }).catch((e: any) => alert(e.message));
+                }).catch((e: Error | unknown) =>
+                  alert(e instanceof Error ? e.message : String(e))
+                );
               }}
-              onSubmit={(data, form) => {
+              onSubmit={(data, _form) => {
                 if (!activeDatabase) return;
-                const convertValue = (p: any) => {
+                const convertValue = (p: ApiKvKeyPart) => {
                   const t = p.type.toLowerCase();
                   if (t === "number") return parseFloat(p.value);
                   if (t === "boolean") return p.value === "true";
@@ -918,7 +1105,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   }
                   return p.value;
                 };
-                let oldKey: any[] | undefined;
+                let oldKey: unknown[] | undefined;
                 if (selectedEntry.value) {
                   oldKey = selectedEntry.value.key.map(
                     convertValue,
@@ -939,7 +1126,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     .then((
                       s,
                     ) => setDbStructure(s));
-                }).catch((e: any) => alert(e.message));
+                }).catch((e: Error | unknown) =>
+                  alert(e instanceof Error ? e.message : String(e))
+                );
               }}
             />
           </Dialog>
@@ -1001,6 +1190,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
 
                     <div class="join">
                       <button
+                        type="button"
                         class="join-item btn btn-xs"
                         disabled={cursorStack.value.length === 0}
                         onClick={() => {
@@ -1013,6 +1203,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         Prev
                       </button>
                       <button
+                        type="button"
                         class="join-item btn btn-xs"
                         disabled={!nextCursor.value}
                         onClick={() => {
@@ -1128,13 +1319,20 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       }
 
                       // 1. Fetch Key Structure (for open nodes)
-                      api.getDatabase(dbId).then((s) => {
+                      // 1. Fetch Key Structure (for open nodes)
+                      api.getNodes(dbId, []).then((res) => {
+                        const nodes = res.items;
                         if (
-                          activeDatabase &&
+                          nodes && activeDatabase &&
                           (activeDatabase.id === dbId ||
                             activeDatabase.slug === dbId)
                         ) {
-                          setDbStructure(s);
+                          setDbStructure((prev) => {
+                            if (!prev) {
+                              return nodes;
+                            }
+                            return mergeStructure(prev, [], nodes, res.cursor);
+                          });
                         }
                       });
                       // 2. Refresh List
@@ -1156,6 +1354,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                           pathInfo.value || [],
                           cursor.value,
                           limit.value,
+                          { recursive: false },
                         ).then((res) => {
                           records.value = res.records;
                           nextCursor.value = res.cursor;
@@ -1262,16 +1461,30 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                           pathInfo.value || [],
                           cursor.value,
                           limit.value,
+                          { recursive: false },
                         ).then((res) => {
                           records.value = res.records;
                           nextCursor.value = res.cursor;
                         });
                       }
 
-                      // Also refresh structure to check for children updates?
+                      // Refresh structure to check for children updates
                       // Ideally yes, but expensive. Let's just do records for now as that's what user likely wants.
                       // Actually, let's refresh structure too for completeness if it's a folder.
-                      api.getDatabase(dbId).then((s) => setDbStructure(s));
+                      api.getNodes(dbId, targetPath).then((res) => {
+                        const nodes = res.items;
+                        if (nodes) {
+                          setDbStructure((prev) => {
+                            if (!prev) return nodes;
+                            return mergeStructure(
+                              prev,
+                              targetPath,
+                              nodes,
+                              res.cursor,
+                            );
+                          });
+                        }
+                      });
                     }
                   }}
                 >
@@ -1334,7 +1547,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   })
                   .catch((e) => {
                     alert(`Failed to delete database: ${e.message}`);
-                    globalThis.location.href = "/"; // Fallback redirect anyway? Or let user stay?
+                    globalThis.location.href = "/";
                   });
               }
             }}
@@ -1342,11 +1555,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               const id = editingDatabase.value?.id || activeDatabase?.id;
               if (id) {
                 api.updateDatabase({ id, ...data })
-                  .then((updatedDb) => {
-                    // Redirect to new path if slug changed
-                    globalThis.location.href = `/${
-                      updatedDb.slug || updatedDb.id
-                    }`;
+                  .then((updatedDb: unknown) => {
+                    const db = updatedDb as Database;
+                    const target = activeDatabase?.slug === dbId
+                      ? (db.slug || db.id)
+                      : (db.slug || db.id);
+                    globalThis.location.href = `/${target}`;
                   });
               }
             }}

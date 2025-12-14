@@ -4,7 +4,7 @@ import { DatabaseProvider } from "../../islands/admin/contexts/DatabaseContext.t
 
 export default define.page(function Home({ state }) {
   const { databases } = state.plugins.kvAdmin!;
-  const successMessage = state.flash("success");
+  const successMessage = state.flash("success") as string | undefined;
 
   // Explicitly clear the flash message to ensure it doesn't persist
   // This workaround addresses a potential issue where reading doesn't auto-clear

@@ -14,6 +14,7 @@
   "exclude": ["**/_fresh/*"],
   "imports": {
     "@/": "./",
+    "@std/http": "jsr:@std/http@^1.0.22",
     "daisyui": "npm:daisyui@^5.5.11",
     "fresh": "jsr:@fresh/core@^2.2.0",
     "preact": "npm:preact@^10.27.2",
@@ -26,7 +27,7 @@
     "zod": "npm:zod@^3.25.75",
     "@felix/argon2": "jsr:@felix/argon2",
     "@innovatedev/fresh-session/kvdex-store": "../fresh-utils/session/src/stores/kvdex.ts",
-    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session"
+    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.3.3"
   },
   "compilerOptions": {
     "lib": [

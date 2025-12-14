@@ -140,7 +140,7 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     // But usually we filter out the exact prefix key in the UI?
     // Or maybe we don't.
     // If we use `kv.list({ prefix })`, it includes the prefix.
-    // If I delete "a" (the folder metadata?), that seems fine if I selected "All".
+    // If "a" (folder metadata) is deleted, it's acceptable if "All" is selected.
     // But usually "Select All" means "Select All Visible Items".
     // If "a" is not visible, it shouldn't be deleted.
     // However, for SAFETY, deleting ["a"] is fine (it's just a value).

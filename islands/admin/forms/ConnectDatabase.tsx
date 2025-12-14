@@ -9,6 +9,7 @@ export default function ConnectDatabaseForm({
   isLoading,
   error,
   success,
+  method,
 }: {
   onSubmit?: (data: any, form: HTMLFormElement) => void;
   onCancel?: () => void;
@@ -17,6 +18,7 @@ export default function ConnectDatabaseForm({
   isLoading?: boolean;
   error?: string;
   success?: string;
+  method?: "post" | "dialog";
 }) {
   const [dbType, setDbType] = useState<string>(database?.type || "memory");
 
@@ -34,12 +36,6 @@ export default function ConnectDatabaseForm({
         };
         delete data["settings.prettyPrintDates"];
       } else {
-        // Checkbox not checked doesn't send value, so explicitly set to false if we want that behavior,
-        // or handle default elsewhere. Since defaultChecked relies on DB value, if unchecked it won't be in formData.
-        // We need to know if it was unchecked.
-        // Actually, HTML checkboxes are tricky.
-        // Let's assume if it's missing, it's false IF we are editing an existing DB that had it true?
-        // Simplest way: always send it.
         data.settings = {
           prettyPrintDates: false,
         };
@@ -74,7 +70,7 @@ export default function ConnectDatabaseForm({
     <form
       class="form-control w-full flex flex-col gap-3"
       onSubmit={doSubmit}
-      method="post"
+      method={method || "post"}
     >
       {error && (
         <div class="alert alert-error text-sm py-2 rounded">

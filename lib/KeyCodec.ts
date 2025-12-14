@@ -81,7 +81,7 @@ export class KeyCodec {
       try {
         return { type: "string", value: JSON.parse(token) };
       } catch {
-        return { type: "string", value: token }; // Fallback
+        return { type: "string", value: token };
       }
     }
     if (token.endsWith("n")) {

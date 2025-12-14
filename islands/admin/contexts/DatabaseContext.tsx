@@ -29,7 +29,6 @@ interface DatabaseContextType<DB extends Database = Database> {
 const defaultContext: DatabaseContextType = {
   activeDatabase: null,
   setActiveDatabase: () => {
-    console.log("Set active database not implemented");
   },
   databases: signal([]),
   selectedDatabase: signal(null),
@@ -206,6 +205,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       pathInfo.value.map((info) => ({ type: info.type, value: info.value })),
       cursor.value,
       limit.value,
+      { recursive: false },
     ).then((data) => {
       records.value = data.records;
       nextCursor.value = data.cursor;
