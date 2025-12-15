@@ -1,9 +1,17 @@
 {
   "nodeModulesDir": "manual",
   "version": "0.0.2",
-  "name": "innokv",
+  "name": "@innovatedev/innokv",
   "exports": {
     ".": "./cli/mod.ts"
+  },
+  "publish": {
+    "exclude": [
+      "tests/**",
+      "routes/**",
+      "components/**",
+      "islands/**"
+    ]
   },
   "tasks": {
     "check": "deno fmt --check . && deno lint . && deno check",
@@ -25,7 +33,9 @@
     "@/": "./",
     "@std/cli": "jsr:@std/cli@^1.0.24",
     "@std/collections": "jsr:@std/collections@^1.1.3",
+    "@std/fs": "jsr:@std/fs@^1.0.20",
     "@std/http": "jsr:@std/http@^1.0.22",
+    "@std/path": "jsr:@std/path@^1.1.3",
     "@std/semver": "jsr:@std/semver@^1.0.7",
     "@std/jsonc": "jsr:@std/jsonc@^1.0.2",
     "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.8",

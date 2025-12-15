@@ -1,4 +1,3 @@
-/// <reference lib="deno.unstable" />
 import { collection, kvdex, model } from "@olli/kvdex";
 import { DatabaseModel } from "./models.ts";
 import { dirname } from "jsr:@std/path@1.0.8";

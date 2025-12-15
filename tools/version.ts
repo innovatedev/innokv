@@ -32,13 +32,13 @@ if (statusOutput.trim()) {
   }
 }
 
-// 1. Read current version from deno.jsonc
-const denoJsonPath = "deno.jsonc";
+// 1. Read current version from deno.json
+const denoJsonPath = "deno.json";
 const denoJsonContent = await Deno.readTextFile(denoJsonPath);
 
 const versionMatch = denoJsonContent.match(/"version":\s*"([^"]+)"/);
 if (!versionMatch) {
-  console.error("Could not find version in deno.jsonc");
+  console.error("Could not find version in deno.json");
   Deno.exit(1);
 }
 
@@ -113,7 +113,7 @@ if (!changelogContent.includes(header)) {
   console.log("CHANGELOG.md already has section for this version. Proceeding.");
 }
 
-// 3. Update deno.jsonc
+// 3. Update deno.json
 console.log(`Bumping version: ${currentVersionStr} -> ${newVersionStr}`);
 const newDenoJsonContent = denoJsonContent.replace(
   `"version": "${currentVersionStr}"`,
@@ -123,7 +123,7 @@ await Deno.writeTextFile(denoJsonPath, newDenoJsonContent);
 
 // 4. Git operations
 const commands = [
-  ["git", "add", "deno.jsonc", "CHANGELOG.md"],
+  ["git", "add", "deno.json", "CHANGELOG.md"],
   ["git", "commit", "-m", `chore: release v${newVersionStr}`],
   ["git", "tag", `v${newVersionStr}`],
 ];

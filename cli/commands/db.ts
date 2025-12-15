@@ -5,7 +5,11 @@ import { DatabaseRepository } from "../../lib/Database.ts";
 import { db as coreDb } from "../../lib/db.ts";
 import { startRepl } from "./repl.ts";
 
-export const db = new Command()
+/**
+ * Command to manage databases (list or connect).
+ */
+// deno-lint-ignore no-explicit-any
+export const db: Command<any> = new Command()
   .description(
     "Manage databases. Default: List databases. With arg: Connect to database.",
   )
@@ -32,6 +36,7 @@ async function listDatabases() {
   const table = new Table()
     .header(["ID", "Slug", "Name", "Type", "Path"])
     .body(
+      // deno-lint-ignore no-explicit-any
       dbs.result.map((d: any) => [
         d.id,
         d.value.slug,

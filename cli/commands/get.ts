@@ -3,7 +3,11 @@ import { db as coreDb } from "../../lib/db.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
 import { resolvePath } from "../utils.ts";
 
-export const get = new Command()
+/**
+ * Command to get a value from a database.
+ */
+// deno-lint-ignore no-explicit-any
+export const get: Command<any> = new Command()
   .description("Get a value from a database")
   .arguments("<slug:string> <path:string>")
   .action(async (_options, slug, path) => {
@@ -15,6 +19,7 @@ export const get = new Command()
         Deno.exit(1);
       }
       const db = { ...dbDoc.value, id: dbDoc.id };
+      // deno-lint-ignore no-explicit-any
       const kv = await repo.connectDatabase(db as any);
 
       const targetPath = resolvePath([], path);

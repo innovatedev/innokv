@@ -3,4 +3,5 @@ export interface InnoKvMetadata {
   id: string;
 }
 
-export const APP_VERSION = (import.meta as any).env?.APP_VERSION || "0.0.1";
+import denoConfig from "../deno.json" with { type: "json" };
+export const APP_VERSION = denoConfig.version;

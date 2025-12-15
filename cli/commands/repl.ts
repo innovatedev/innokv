@@ -15,6 +15,7 @@ export async function startRepl(initialSlug?: string) {
       state.currentDbId = db.id;
       state.currentDbName = db.slug;
       state.currentPath = [];
+      // deno-lint-ignore no-explicit-any
       state.kv = await state.repo.connectDatabase(db as any);
       console.log(`Switched to database: ${db.name} (${db.slug})`);
     } catch (e: unknown) {
@@ -65,6 +66,7 @@ export async function startRepl(initialSlug?: string) {
           state.currentDbName = db.slug;
           state.currentPath = [];
           // Connect to this specific DB
+          // deno-lint-ignore no-explicit-any
           state.kv = await state.repo.connectDatabase(db as any);
           console.log(`Switched to database: ${db.name} (${db.slug})`);
         } catch (e: unknown) {
@@ -140,9 +142,21 @@ export async function startRepl(initialSlug?: string) {
   }
 }
 
-export const repl = new Command()
-  .description("Start the interactive InnoKV shell")
-  .arguments("[slug:string]")
-  .action(async (_options, slug) => {
-    await startRepl(slug);
-  });
+type ReplArgs = [string | undefined];
+
+/**
+ * Command to start the interactive InnoKV shell.
+ */
+// deno-lint-ignore no-explicit-any
+export const repl: Command<void, void, void, [string | undefined]> =
+  new Command<
+    void,
+    void,
+    void,
+    ReplArgs
+  >()
+    .description("Start the interactive InnoKV shell")
+    .arguments("[slug:string]")
+    .action(async (_options, slug) => {
+      await startRepl(slug);
+    }) as any;
