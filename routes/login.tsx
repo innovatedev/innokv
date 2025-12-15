@@ -1,8 +1,6 @@
 import { define } from "@/utils.ts";
-import { verify } from "@felix/argon2";
-import BrandHeader from "../components/BrandHeader.tsx";
-import { db } from "@/lib/db.ts";
-import settings from "../settings.ts";
+import { authenticateUser } from "@/lib/users.ts";
+import BrandHeader from "@/components/BrandHeader.tsx";
 
 export const handler = define.handlers({
   async POST(ctx) {
@@ -11,47 +9,15 @@ export const handler = define.handlers({
     const password = form.get("password")?.toString();
 
     if (email && password) {
-      // 1. Fetch user from DB
-      const user = await db.users.findByPrimaryIndex("email", email);
+      const { ok, id, error } = await authenticateUser(email, password);
 
-      if (!user) {
-        // User not found (generic error for security)
-        ctx.state.flash("error", "Invalid email or password");
+      if (!ok || !id) {
+        ctx.state.flash("error", error || "Invalid email or password");
         return ctx.redirect("/login");
-      }
-
-      // 2. Verify password
-      const isValid = await verify(user.value.passwordHash, password);
-      if (!isValid) {
-        ctx.state.flash("error", "Invalid email or password");
-        return ctx.redirect("/login");
-      }
-
-      // 3. Admin Permission Check & Update
-      const userData = user.value;
-      let permissions = userData.permissions;
-      let shouldUpdate = false;
-      const updates: Partial<typeof userData> = {
-        lastLoginAt: new Date(),
-      };
-
-      if (settings.admin.emails.includes(email)) {
-        permissions = [...permissions, "*"];
-      }
-
-      // Ensure uniqueness
-      permissions = Array.from(new Set(permissions));
-
-      // Check if different from original
-      if (
-        JSON.stringify(permissions) !== JSON.stringify(userData.permissions)
-      ) {
-        updates.permissions = permissions;
-        shouldUpdate = true;
       }
 
       // 4. Log user in (Rotation is handled automatically)
-      await ctx.state.login(user.id);
+      await ctx.state.login(id);
 
       return ctx.redirect("/");
     }

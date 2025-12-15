@@ -26,28 +26,7 @@ export default function HomeView(
   const editingDatabase = useSignal<any>(null);
 
   return (
-    <div class="flex flex-col w-full max-w-4xl mx-auto p-4 gap-3">
-      <div class="mb-8 mt-12">
-        <BrandHeader />
-      </div>
-      {successMessage && (
-        <div class="alert alert-success shadow-sm mb-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="stroke-current shrink-0 h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>{successMessage}</span>
-        </div>
-      )}
+    <>
       {/* Pinned Databases Section */}
       {databases.value.some((db: any) => db.sort > 0) && (
         <div class="mb-6">
@@ -63,7 +42,11 @@ export default function HomeView(
                 <div key={db.id} class="relative group">
                   <a
                     href={`/${db.slug || db.id}`}
-                    class="block card bg-base-100 border border-base-200 shadow-sm p-3 hover:shadow-md hover:border-primary/50 transition-all h-full"
+                    class={`block card bg-base-100 border shadow-sm p-3 hover:shadow-md transition-all h-full ${
+                      db.lastError
+                        ? "border-error hover:border-error"
+                        : "border-base-200 hover:border-primary/50"
+                    }`}
                   >
                     <div class="flex items-center gap-3">
                       <div class="p-2 bg-base-200 rounded-lg text-primary shrink-0">
@@ -80,6 +63,14 @@ export default function HomeView(
                         {db.description && (
                           <div class="text-xs text-base-content/60 truncate">
                             {db.description}
+                          </div>
+                        )}
+                        {db.lastError && (
+                          <div
+                            class="text-xs text-error font-semibold truncate mt-1"
+                            title={db.lastError}
+                          >
+                            ! {db.lastError}
                           </div>
                         )}
                       </div>
@@ -129,7 +120,11 @@ export default function HomeView(
             <div key={db.id} class="relative group">
               <a
                 href={`/${db.slug || db.id}`}
-                class="cursor-pointer card card-side bg-base-100 border border-base-200 shadow-sm p-2 items-center gap-4 transition-all hover:bg-base-50 hover:shadow-md hover:border-primary/50 group"
+                class={`cursor-pointer card card-side bg-base-100 border shadow-sm p-2 items-center gap-4 transition-all hover:bg-base-50 hover:shadow-md group ${
+                  db.lastError
+                    ? "border-error hover:border-error"
+                    : "border-base-200 hover:border-primary/50"
+                }`}
               >
                 <div class="p-3 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                   {Icon}
@@ -155,6 +150,14 @@ export default function HomeView(
                       </span>
                     )}
                   </div>
+                  {db.lastError && (
+                    <div
+                      class="text-xs text-error font-semibold truncate mt-1"
+                      title={db.lastError}
+                    >
+                      ! {db.lastError}
+                    </div>
+                  )}
                 </div>
                 <div class="flex flex-col items-end gap-2 text-xs text-base-content/50 mt-0.5 mr-8">
                   {/* Date removed to prevent overlap */}
@@ -243,6 +246,6 @@ export default function HomeView(
           }}
         />
       </Dialog>
-    </div>
+    </>
   );
 }

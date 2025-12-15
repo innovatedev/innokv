@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # Only run for stable releases
+      - "v[0-9]+\.[0-9]+\.[0-9]+"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Build Release Binaries
+        run: deno task release
+
+      - name: Extract Release Notes
+        id: extract_release_notes
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # Extract text between "## {TAG_NAME}" and the next "## "
+          # 1. sed -n "/^## ${TAG_NAME}/, /^## /p" CHANGELOG.md  -> prints the section
+          # 2. sed '1d;$d'                                       -> removes the first line (header) and last line (next header)
+          # Note: This simple logic assumes the next section starts with "## ".
+          # If it's the last section, we need to handle that.
+
+          # More robust awk approach:
+          awk -v tag="## $TAG_NAME" '
+            $0 ~ tag { flag=1; next }
+            /^## / && flag { flag=0; exit }
+            flag { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+
+          # Check if empty, fallback if needed
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "No specific notes for $TAG_NAME found in CHANGELOG.md" > RELEASE_NOTES.md
+          fi
+
+          echo "Release Notes:"
+          cat RELEASE_NOTES.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          files: |
+            innokv
+            target/innokv-linux
+            target/innokv-mac
+            target/innokv-win.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

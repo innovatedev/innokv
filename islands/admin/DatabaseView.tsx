@@ -234,6 +234,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
   const selectedEntry = useSignal<ApiKvEntry | null>(null);
   const editingDatabase = useSignal<Database | null>(null);
+  const error = useSignal<string | null>(null);
+
+  // Clear error when database changes
+  useEffect(() => {
+    error.value = null;
+  }, [selectedDatabase.value]);
 
   // Pagination State (Moved to Context)
 
@@ -307,6 +313,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                 return mergeStructure(prev, currentPath, nodes, res.cursor);
               });
             }
+          }).catch((e) => {
+            console.error(e);
+            error.value = e.message;
           });
           return;
         }
@@ -325,6 +334,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   return mergeStructure(prev, nextPath, nodes, res.cursor);
                 });
               }
+            }).catch((e) => {
+              console.error(e);
+              error.value = e.message;
             });
             return;
           }
@@ -583,6 +595,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     if (target) {
       api.getDatabase(target).then((structure) => {
         setDbStructure(structure);
+      }).catch((e) => {
+        console.error(e);
+        error.value = e.message;
       });
     }
   }, [selectedDatabase.value]);
@@ -1050,6 +1065,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 content-start">
+          {error.value && (
+            <div role="alert" class="alert alert-error mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="stroke-current shrink-0 h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>{error.value}</span>
+            </div>
+          )}
           <Dialog
             title={selectedEntry.value ? "Edit Entry" : "Create Entry"}
             ref={createEntryRef}

@@ -46,7 +46,17 @@ export default class KvAdminClient {
     const response = await fetch(`${this.baseUri}${endpoint}`, options);
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(errorText);
+      let errorMessage = errorText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        // BaseRepository returns { error: "message", details: ... }
+        if (errorJson.error) {
+          errorMessage = errorJson.error;
+        }
+      } catch {
+        // use raw text if not json
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   }

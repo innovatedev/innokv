@@ -1,7 +1,7 @@
 import { define } from "@/utils.ts";
 import { db } from "@/lib/db.ts";
 import { HttpError } from "fresh";
-import { deepMerge } from "jsr:@std/collections@1.0.9";
+import { deepMerge } from "@std/collections";
 
 export const handler = define.handlers({
   async PATCH(ctx) {

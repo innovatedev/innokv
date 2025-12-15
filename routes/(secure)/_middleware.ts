@@ -1,15 +1,14 @@
 import { define } from "@/utils.ts";
+import { HttpError } from "fresh";
 import { db } from "@/lib/db.ts";
 import { DatabaseRepository } from "@/lib/Database.ts";
-
-import { HttpError } from "fresh";
 
 export const handler = define.middleware(async (ctx) => {
   // Initialize state plugins
   ctx.state.plugins = ctx.state.plugins || {};
   ctx.state.plugins.kvAdmin = ctx.state.plugins.kvAdmin || {};
 
-  const checkPermissions = (permission: string) => {
+  const hasPermission = (permission: string) => {
     if (
       !ctx.state.user?.permissions?.some((p) =>
         p === "*" || permission.startsWith(p)
@@ -18,6 +17,14 @@ export const handler = define.middleware(async (ctx) => {
       return false;
     }
     return true;
+  };
+  ctx.state.plugins.permissions = {
+    has: hasPermission,
+    requires: (permission: string) => {
+      if (!hasPermission(permission)) {
+        throw new HttpError(403, "Forbidden");
+      }
+    },
   };
 
   // CSRF Check for API methods
@@ -34,36 +41,39 @@ export const handler = define.middleware(async (ctx) => {
     return ctx.redirect("/login");
   }
 
-  // Admin Permission Check
-  if (!checkPermissions("admin:database")) {
+  if (!ctx.state.user) {
     throw new HttpError(403, "Forbidden");
   }
 
-  const repo = new DatabaseRepository(db);
+  if (ctx.state.plugins.permissions.has("database:manage")) {
+    const repo = new DatabaseRepository(db);
 
-  // Load databases
-  const fetchResult = await repo.getDatabases({ reverse: false, limit: 100 });
-  const databases = fetchResult.result.map((doc) => doc.flat()).sort((a, b) => {
-    // Treat 0 as "end of list" / Infinity
-    const valA = a.sort === 0 || !a.sort ? Number.MAX_SAFE_INTEGER : a.sort;
-    const valB = b.sort === 0 || !b.sort ? Number.MAX_SAFE_INTEGER : b.sort;
+    // Load databases
+    const fetchResult = await repo.getDatabases({ reverse: false, limit: 100 });
+    const databases = fetchResult.result.map((doc) => doc.flat()).sort(
+      (a, b) => {
+        // Treat 0 as "end of list" / Infinity
+        const valA = a.sort === 0 || !a.sort ? Number.MAX_SAFE_INTEGER : a.sort;
+        const valB = b.sort === 0 || !b.sort ? Number.MAX_SAFE_INTEGER : b.sort;
 
-    if (valA === valB) {
-      // Tie-break with lastAccessedAt descending (Newer first)
-      if (a.lastAccessedAt && b.lastAccessedAt) {
-        return new Date(b.lastAccessedAt).getTime() -
-          new Date(a.lastAccessedAt).getTime();
-      } else if (a.lastAccessedAt) {
-        return -1;
-      } else if (b.lastAccessedAt) {
-        return 1;
-      }
-      return 0;
-    }
-    return valA - valB;
-  });
+        if (valA === valB) {
+          // Tie-break with lastAccessedAt descending (Newer first)
+          if (a.lastAccessedAt && b.lastAccessedAt) {
+            return new Date(b.lastAccessedAt).getTime() -
+              new Date(a.lastAccessedAt).getTime();
+          } else if (a.lastAccessedAt) {
+            return -1;
+          } else if (b.lastAccessedAt) {
+            return 1;
+          }
+          return 0;
+        }
+        return valA - valB;
+      },
+    );
 
-  ctx.state.plugins.kvAdmin.databases = databases;
+    ctx.state.plugins.kvAdmin.databases = databases;
+  }
 
   return await ctx.next();
 });

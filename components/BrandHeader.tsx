@@ -1,3 +1,5 @@
+import { APP_VERSION } from "../lib/metadata.ts";
+
 export default function BrandHeader() {
   return (
     <div class="flex flex-col items-center gap-2 select-none">
@@ -12,6 +14,9 @@ export default function BrandHeader() {
       >
         InnoKV
       </h1>
+      <span class="text-xs text-base-content/30 font-mono tracking-widest uppercase">
+        v{APP_VERSION}
+      </span>
     </div>
   );
 }

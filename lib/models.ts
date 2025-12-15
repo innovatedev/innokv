@@ -5,7 +5,6 @@ export type Database = z.infer<typeof DatabaseModel> & { id: string };
 export type Session = z.infer<typeof SessionModel> & { id: string };
 
 export const UserModel = z.object({
-  id: z.string(),
   email: z.string(),
   passwordHash: z.string(),
   lastLoginAt: z.date(),
@@ -38,6 +37,8 @@ export const DatabaseModel = z.object({
   settings: z.object({
     prettyPrintDates: z.boolean().optional(),
   }).optional(),
+  lastError: z.string().optional(),
+  lastErrorAt: z.date().optional(),
 });
 
 export const SessionModel = z.object({

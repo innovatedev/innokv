@@ -1,7 +1,6 @@
 import { define } from "@/utils.ts";
-import { hash } from "@felix/argon2";
+import { createUser } from "@/lib/users.ts";
 import BrandHeader from "../components/BrandHeader.tsx";
-import { db } from "@/lib/db.ts";
 
 export const handler = define.handlers({
   async POST(ctx) {
@@ -25,29 +24,10 @@ export const handler = define.handlers({
       return ctx.redirect("/register");
     }
 
-    const existing = await db.users.findByPrimaryIndex("email", email);
-    if (existing) {
-      ctx.state.flash("error", "User already exists");
-      return ctx.redirect("/register");
-    }
+    const { ok, user, error } = await createUser({ email, password });
 
-    // 1. Hash the password
-    const passwordHash = await hash(password);
-
-    // 2. Save user to DB
-    const user = {
-      id: crypto.randomUUID(),
-      email,
-      passwordHash,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastLoginAt: new Date(),
-      permissions: [] as string[],
-    };
-
-    const commit = await db.users.add(user);
-    if (!commit.ok) {
-      ctx.state.flash("error", "Failed to create user");
+    if (!ok || !user) {
+      ctx.state.flash("error", error || "Failed to create user");
       return ctx.redirect("/register");
     }
 

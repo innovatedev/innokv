@@ -3,6 +3,7 @@ import { ApiKvKeyPart } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
+import { ROOT_DB_ID } from "./db.ts";
 
 export class DatabaseRepository extends BaseRepository {
   async addDatabase(data: Database) {
@@ -156,12 +157,50 @@ export class DatabaseRepository extends BaseRepository {
         );
       }
 
-      const kv = await Deno.openKv(path);
-      if (!kv) {
-        throw new DatabaseError(`Failed to open database at path "${path}"`);
-      }
+      try {
+        const kv = await Deno.openKv(path);
+        if (!kv) {
+          throw new DatabaseError(`Failed to open database at path "${path}"`);
+        }
 
-      return kv;
+        // Recursion Protection: Check if this is the root database
+        try {
+          const meta = await kv.get<{ id: string }>(["__innokv__"]);
+          if (meta.value && meta.value.id === ROOT_DB_ID) {
+            kv.close();
+            throw new DatabaseError(
+              "Cannot mount the InnoKV database running this application.",
+            );
+          }
+        } catch (e) {
+          if (e instanceof DatabaseError) throw e;
+          // Ignore read errors (e.g. if key doesn't exist or other issue), allow connection?
+          // If we can't read metadata, maybe safe to assume it's not root?
+          // Or log it.
+        }
+
+        if (database.lastError) {
+          // Clear error on success
+          this.kvdex.databases.update(database.id, {
+            lastError: "",
+            lastErrorAt: new Date(0), // Use a zero date or null equivalent if model allows, or just ignore date if error is empty
+          } as any).catch(() => {});
+        }
+
+        return kv;
+      } catch (error: any) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        // Track error
+        try {
+          await this.kvdex.databases.update(database.id, {
+            lastError: message,
+            lastErrorAt: new Date(),
+          } as any);
+        } catch (_) { /* ignore write failure */ }
+
+        throw new DatabaseError(message);
+      }
     } else if (database.type === "memory") {
       // Use cached instance if available, otherwise create new and cache it
       let kv = DatabaseRepository.memoryInstances.get(database.id);
@@ -189,6 +228,21 @@ export class DatabaseRepository extends BaseRepository {
           }
           kv = await Deno.openKv(database.path);
           DatabaseRepository.memoryInstances.set(database.id, kv);
+          if (database.lastError) {
+            this.kvdex.databases.update(
+              database.id,
+              { lastError: "", lastErrorAt: new Date(0) } as any,
+            ).catch(() => {});
+          }
+        } catch (err: any) { // Catch errors for remote too
+          const message = err instanceof Error ? err.message : String(err);
+          try {
+            await this.kvdex.databases.update(database.id, {
+              lastError: message,
+              lastErrorAt: new Date(),
+            } as any);
+          } catch (_) { /* ignore */ }
+          throw err; // Rethrow
         } finally {
           // Restore original token
           if (originalToken !== undefined) {
@@ -365,12 +419,9 @@ export class DatabaseRepository extends BaseRepository {
 
       // We need the real ID for the update operation
       const realId = database.id;
-      const { slug: _slug, ...data } = database.value;
-
       await this.kvdex.databases.update(realId, {
-        ...data,
         lastAccessedAt: new Date(),
-      });
+      } as any);
     } catch (e) {
       // Ignore update errors for lastAccessedAt to prevent blocking reads
       console.warn(`Failed to update lastAccessedAt for db ${id}`, e);
