@@ -2,7 +2,7 @@ import { ApiKvKeyPart } from "./types.ts";
 
 export class KeyCodec {
   static encode(parts: ApiKvKeyPart[]): string {
-    return parts.map((p) => this.encodePart(p)).join("~");
+    return parts.map((p) => this.encodePart(p)).join("/");
   }
 
   static decode(str: string): ApiKvKeyPart[] {
@@ -42,7 +42,7 @@ export class KeyCodec {
         } else if (char === "[") {
           inArray = true;
           current += char;
-        } else if (char === "~") {
+        } else if (char === "/") {
           if (current.trim()) parts.push(this.parseToken(current.trim()));
           current = "";
           continue;
@@ -67,7 +67,7 @@ export class KeyCodec {
             atob(part.value),
             (c) => c.charCodeAt(0),
           );
-          return `u8[${Array.from(bytes).join("~")}]`;
+          return `u8[${Array.from(bytes).join(",")}]`;
         } catch {
           return "u8[]";
         }
@@ -94,7 +94,7 @@ export class KeyCodec {
       try {
         const content = token.slice(3, -1);
         if (!content.trim()) return { type: "uint8array", value: btoa("") };
-        const bytes = content.split("~").map((n) => parseInt(n.trim())).filter(
+        const bytes = content.split(",").map((n) => parseInt(n.trim())).filter(
           (n) => !isNaN(n),
         );
         const u8 = new Uint8Array(bytes);

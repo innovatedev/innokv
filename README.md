@@ -23,6 +23,51 @@ ADMIN_EMAILS=test@example.com deno task start
 Open http://localhost:8000 in your browser. Register and login with an email
 address matching the `ADMIN_EMAILS` environment variable.
 
+## CLI Usage
+
+InnoKV includes a powerful CLI for managing your databases directly from the
+terminal.
+
+### Commands
+
+| Command              | Usage              | Description                   |
+| :------------------- | :----------------- | :---------------------------- |
+| **List Databases**   | `db`               | List all available databases. |
+| **Interactive REPL** | `repl [slug]`      | Start an interactive shell.   |
+| **List Keys**        | `ls <slug> [path]` | List keys in a database.      |
+| **Get Value**        | `get <slug> <key>` | Get the value of a key.       |
+
+### Examples
+
+**List all databases:**
+
+```bash
+innokv db
+```
+
+**Interactive Mode:**
+
+```bash
+deno task cli repl my-db
+# > ls
+# > get users/admin
+# > cd users
+# > ls
+```
+
+**Quick Key Inspection:**
+
+```bash
+# List keys in 'users' path
+innokv ls my-db users
+
+# Get a specific value
+innokv get my-db users/admin
+
+# Navigate to a Uint8Array key
+innokv get my-db u8[1,2,3]
+```
+
 ## Security Issues
 
 Report any security related issues to security@innovate.dev

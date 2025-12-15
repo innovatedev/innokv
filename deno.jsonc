@@ -1,6 +1,10 @@
 {
   "nodeModulesDir": "manual",
   "version": "0.0.1",
+  "name": "innokv",
+  "exports": {
+    ".": "./cli/mod.ts"
+  },
   "tasks": {
     "check": "deno fmt --check . && deno lint . && deno check",
     "dev": "vite",
@@ -11,6 +15,7 @@
     "compile:mac": "deno compile -A --exclude=node_modules --target=aarch64-apple-darwin --output target/innokv-mac --include _fresh _fresh/compiled-entry.js",
     "compile:win": "deno compile -A --icon static/favicon.ico --exclude=node_modules --target=x86_64-pc-windows-msvc --output target/innokv-win.exe --include _fresh _fresh/compiled-entry.js",
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
+    "cli": "deno run -A cli/mod.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },
   "lint": { "rules": { "tags": ["fresh", "recommended"] } },
@@ -22,6 +27,9 @@
     "@std/http": "jsr:@std/http@^1.0.22",
     "@std/semver": "jsr:@std/semver@^1.0.7",
     "@std/jsonc": "jsr:@std/jsonc@^1.0.2",
+    "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.8",
+    "@cliffy/prompt": "jsr:@cliffy/prompt@1.0.0-rc.8",
+    "@cliffy/table": "jsr:@cliffy/table@1.0.0-rc.8",
     "daisyui": "npm:daisyui@^5.5.11",
     "fresh": "jsr:@fresh/core@^2.2.0",
     "preact": "npm:preact@^10.27.2",

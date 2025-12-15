@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@cliffy/ansi@1.0.0-rc.8": "1.0.0-rc.8",
     "jsr:@cliffy/command@1.0.0-rc.8": "1.0.0-rc.8",
+    "jsr:@cliffy/command@^1.0.0-rc.8": "1.0.0-rc.8",
     "jsr:@cliffy/flags@1.0.0-rc.8": "1.0.0-rc.8",
     "jsr:@cliffy/internal@1.0.0-rc.8": "1.0.0-rc.8",
     "jsr:@cliffy/keycode@1.0.0-rc.8": "1.0.0-rc.8",
@@ -19,12 +20,9 @@
     "jsr:@fresh/plugin-vite@^1.0.8": "1.0.8",
     "jsr:@innovatedev/fresh-session@~0.3.3": "0.3.3",
     "jsr:@olli/kvdex@^3.4.2": "3.4.2",
-    "jsr:@std/assert@*": "1.0.16",
-    "jsr:@std/assert@1": "1.0.16",
     "jsr:@std/assert@~1.0.6": "1.0.16",
     "jsr:@std/bytes@^1.0.4": "1.0.6",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
-    "jsr:@std/cli@*": "1.0.24",
     "jsr:@std/cli@1.0.12": "1.0.12",
     "jsr:@std/cli@^1.0.24": "1.0.24",
     "jsr:@std/collections@1.0.9": "1.0.9",
@@ -45,7 +43,6 @@
     "jsr:@std/http@^1.0.21": "1.0.22",
     "jsr:@std/http@^1.0.22": "1.0.22",
     "jsr:@std/internal@^1.0.12": "1.0.12",
-    "jsr:@std/json@^1.0.2": "1.0.2",
     "jsr:@std/jsonc@1": "1.0.2",
     "jsr:@std/jsonc@^1.0.2": "1.0.2",
     "jsr:@std/media-types@^1.1.0": "1.1.0",
@@ -55,7 +52,7 @@
     "jsr:@std/path@^1.1.1": "1.1.3",
     "jsr:@std/path@^1.1.2": "1.1.3",
     "jsr:@std/path@^1.1.3": "1.1.3",
-    "jsr:@std/path@~1.0.6": "1.0.9",
+    "jsr:@std/path@~1.0.6": "1.0.8",
     "jsr:@std/semver@^1.0.6": "1.0.7",
     "jsr:@std/semver@^1.0.7": "1.0.7",
     "jsr:@std/streams@^1.0.14": "1.0.14",
@@ -117,7 +114,7 @@
         "jsr:@cliffy/ansi",
         "jsr:@cliffy/internal",
         "jsr:@cliffy/keycode",
-        "jsr:@std/assert@~1.0.6",
+        "jsr:@std/assert",
         "jsr:@std/fmt@~1.0.2",
         "jsr:@std/path@~1.0.6",
         "jsr:@std/text"
@@ -202,10 +199,8 @@
     "@innovatedev/fresh-session@0.3.3": {
       "integrity": "ebe509d0952296a0dcae5d2de4a9711b0eda6191bdf7333d04b803e9c14c7b45",
       "dependencies": [
-        "jsr:@cliffy/command",
+        "jsr:@cliffy/command@1.0.0-rc.8",
         "jsr:@cliffy/prompt",
-        "jsr:@fresh/core@^2.2.0",
-        "jsr:@olli/kvdex",
         "jsr:@std/http@^1.0.22",
         "jsr:@std/jsonc@1",
         "jsr:@std/path@1"
@@ -222,10 +217,7 @@
       ]
     },
     "@std/assert@1.0.16": {
-      "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
-      "dependencies": [
-        "jsr:@std/internal"
-      ]
+      "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532"
     },
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
@@ -281,14 +273,8 @@
     "@std/internal@1.0.12": {
       "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
     },
-    "@std/json@1.0.2": {
-      "integrity": "d9e5497801c15fb679f55a2c01c7794ad7a5dfda4dd1bebab5e409cb5e0d34d4"
-    },
     "@std/jsonc@1.0.2": {
-      "integrity": "909605dae3af22bd75b1cbda8d64a32cf1fd2cf6efa3f9e224aba6d22c0f44c7",
-      "dependencies": [
-        "jsr:@std/json"
-      ]
+      "integrity": "909605dae3af22bd75b1cbda8d64a32cf1fd2cf6efa3f9e224aba6d22c0f44c7"
     },
     "@std/media-types@1.1.0": {
       "integrity": "c9d093f0c05c3512932b330e3cc1fe1d627b301db33a4c2c2185c02471d6eaa4"
@@ -298,9 +284,6 @@
     },
     "@std/path@1.0.8": {
       "integrity": "548fa456bb6a04d3c1a1e7477986b6cffbce95102d0bb447c67c4ee70e0364be"
-    },
-    "@std/path@1.0.9": {
-      "integrity": "260a49f11edd3db93dd38350bf9cd1b4d1366afa98e81b86167b4e3dd750129e"
     },
     "@std/path@1.1.3": {
       "integrity": "b015962d82a5e6daea980c32b82d2c40142149639968549c649031a230b1afb3",
@@ -1289,6 +1272,9 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@cliffy/command@^1.0.0-rc.8",
+      "jsr:@cliffy/prompt@1.0.0-rc.8",
+      "jsr:@cliffy/table@1.0.0-rc.8",
       "jsr:@felix/argon2@*",
       "jsr:@fresh/core@^2.2.0",
       "jsr:@fresh/plugin-vite@^1.0.8",
