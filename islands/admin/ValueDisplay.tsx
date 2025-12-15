@@ -79,14 +79,90 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     );
   }
 
+  if (value instanceof Map) {
+    const entries = Array.from(value.entries());
+    if (entries.length === 0) {
+      return <span class="text-base-content/50">Map(0)</span>;
+    }
+    return (
+      <div class="ml-2">
+        <div
+          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+          onClick={(e) => {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }}
+        >
+          {expanded ? "▼" : "▶"} Map({value.size})
+        </div>
+        {expanded && (
+          <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
+            {entries.map(([k, v], i) => (
+              <div key={i} class="flex items-start gap-2">
+                <span class="text-primary font-mono text-sm flex items-start">
+                  <ValueDisplay value={k} />:
+                </span>
+                <ValueDisplay value={v} level={level + 1} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (value instanceof Set) {
+    const items = Array.from(value);
+    if (items.length === 0) {
+      return <span class="text-base-content/50">Set(0)</span>;
+    }
+    return (
+      <div class="inline-block align-top">
+        <div
+          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+          onClick={(e) => {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }}
+        >
+          {expanded ? "▼" : "▶"} Set({value.size})
+        </div>
+        {expanded && (
+          <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
+            {items.map((item, i) => (
+              <div key={i} class="flex items-start gap-2">
+                <span class="text-base-content/50 font-mono text-xs mt-1">
+                  {i}:
+                </span>
+                <ValueDisplay value={item} level={level + 1} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Handle RichValue specifically if passed directly without decoding
+  if (
+    value && typeof value === "object" && "type" in value && "value" in value
+  ) {
+    return (
+      <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50">
+        <span class="text-xs font-bold opacity-50 mr-1">{value.type}</span>
+        <ValueDisplay value={value.value} level={level} />
+      </div>
+    );
+  }
+
   if (typeof value === "object") {
-    const keys = Object.keys(value);
-    if (keys.length === 0) {
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
       return <span class="text-base-content/50">{"{}"}</span>;
     }
 
     return (
-      <div class="ml-2">
+      <div class="inline-block align-top">
         <div
           class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
           onClick={(e) => {
@@ -98,7 +174,7 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
-            {Object.entries(value).map(([k, v]) => (
+            {entries.map(([k, v]) => (
               <div key={k} class="flex items-start gap-2">
                 <span class="text-primary font-mono text-sm">{k}:</span>
                 <ValueDisplay value={v} level={level + 1} />

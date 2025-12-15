@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { ApiKvEntry } from "@/lib/types.ts";
 import { ValueDisplay } from "./ValueDisplay.tsx";
+import { ValueCodec } from "@/lib/ValueCodec.ts";
 
 interface RecordItemProps {
   record: ApiKvEntry;
@@ -95,7 +96,22 @@ export function RecordItem(
         <div class="p-4 border-t border-base-300 bg-base-100">
           {activeTab === "value" && (
             <div class="font-mono text-xs overflow-x-auto">
-              <ValueDisplay value={record.value} />
+              <ValueDisplay
+                value={(() => {
+                  try {
+                    // Attempt to decode RichValue to native type for display
+                    if (
+                      record.value && typeof record.value === "object" &&
+                      "type" in record.value
+                    ) {
+                      return ValueCodec.decode(record.value as any);
+                    }
+                    return record.value;
+                  } catch {
+                    return record.value;
+                  }
+                })()}
+              />
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { ApiKvEntry, ApiKvKey } from "@/lib/types.ts";
-
+import RichValueEditor from "./RichValueEditor.tsx";
+import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
 export default function KvEntryForm({
   onSubmit,
   onCancel,
@@ -22,6 +23,19 @@ export default function KvEntryForm({
 }) {
   const [keyParts, setKeyParts] = useState<{ type: string; value: string }[]>(
     [],
+  );
+  // Helper to ensure value is RichValue
+  const toRichValue = (val: unknown): RichValue => {
+    if (val && typeof val === "object" && "type" in val && "value" in val) {
+      // Naive check if it's already encoded
+      return val as RichValue;
+    }
+    return ValueCodec.encode(val);
+  };
+
+  // Initialize rich value from entry or default
+  const [richValue, setRichValue] = useState<RichValue>(
+    toRichValue(entry?.value),
   );
 
   useEffect(() => {
@@ -47,22 +61,19 @@ export default function KvEntryForm({
     } else {
       setKeyParts([]);
     }
+
+    // Update value when entry changes
+    if (entry) {
+      setRichValue(toRichValue(entry.value));
+    } else {
+      setRichValue({ type: "object", value: {} });
+    }
   }, [entry, path]);
 
   const doSubmit = (e: Event) => {
     if (onSubmit) {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
-      const formData = new FormData(form);
-
-      // Parse Value
-      let value: any;
-      try {
-        value = JSON.parse(formData.get("value") as string);
-      } catch (e) {
-        alert("Invalid JSON value");
-        return;
-      }
 
       // Construct Key
       const key = keyParts.map((part) => {
@@ -83,13 +94,14 @@ export default function KvEntryForm({
 
       const data = {
         key,
-        value,
+        value: richValue, // Send the RichValue object directly
       };
 
       onSubmit(data, form);
     }
   };
 
+  // ... (doCancel, doDelete, addPart, removePart, updatePart same as before)
   const doCancel = (e: Event) => {
     e.preventDefault();
     if (onCancel) {
@@ -119,7 +131,6 @@ export default function KvEntryForm({
   const updatePart = (index: number, field: "type" | "value", val: string) => {
     const newParts = [...keyParts];
     newParts[index] = { ...newParts[index], [field]: val };
-    // Reset value if type changes to boolean/etc? Maybe not needed for simple texts.
     if (field === "type") {
       if (val === "boolean") newParts[index].value = "true";
     }
@@ -210,20 +221,15 @@ export default function KvEntryForm({
         </button>
       </div>
 
-      <label class="form-control">
-        <div class="label">
-          <span class="label-text font-bold">Value (JSON)</span>
-        </div>
-        <textarea
-          rows={12}
-          class="textarea textarea-bordered font-mono text-xs w-full"
-          name="value"
-          defaultValue={entry?.value
-            ? JSON.stringify(entry.value, null, 2)
-            : ""}
-          required
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text font-bold">Value</span>
+        </label>
+        <RichValueEditor
+          value={richValue}
+          onChange={setRichValue}
         />
-      </label>
+      </div>
 
       <div class="flex justify-between gap-4 mt-4">
         <div>

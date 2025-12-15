@@ -4,6 +4,7 @@ import { KeyCodec } from "./KeyCodec.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "./db.ts";
+import { RichValue, ValueCodec } from "./ValueCodec.ts";
 
 export class DatabaseRepository extends BaseRepository {
   async addDatabase(data: Database) {
@@ -324,13 +325,31 @@ export class DatabaseRepository extends BaseRepository {
     const database = await this.getDatabase(id);
     const kv = await this.connectDatabase({ ...database.value, id });
 
+    // Decode value if it looks like a RichValue structure sent from API
+    const decodedValue = ValueCodec.decode(value as RichValue);
+
+    console.log(`[Database] Saving record ${id} key=${JSON.stringify(key)}`);
+    console.log(`[Database] Raw Value:`, JSON.stringify(value).slice(0, 200));
+    console.log(`[Database] Decoded Type: ${typeof decodedValue}`);
+    if (decodedValue instanceof Map) {
+      console.log(`[Database] IS MAP. Size: ${decodedValue.size}`);
+      console.log(
+        `[Database] Map Content:`,
+        Array.from(decodedValue.entries()),
+      );
+    } else if (decodedValue && typeof decodedValue === "object") {
+      console.log(`[Database] IS OBJECT. Keys: ${Object.keys(decodedValue)}`);
+    } else {
+      console.log(`[Database] IS PRIMITIVE: ${decodedValue}`);
+    }
+
     if (oldKey) {
       const isSameKey = this.keysEqual(key, oldKey);
       if (!isSameKey) {
         const atomic = kv.atomic();
         if (versionstamp) atomic.check({ key: oldKey, versionstamp });
         atomic.delete(oldKey);
-        atomic.set(key, value);
+        atomic.set(key, decodedValue);
         const result = await atomic.commit();
         if (!result.ok) {
           throw new Error(
@@ -344,7 +363,7 @@ export class DatabaseRepository extends BaseRepository {
     if (versionstamp) {
       const atomic = kv.atomic();
       atomic.check({ key, versionstamp });
-      atomic.set(key, value);
+      atomic.set(key, decodedValue);
       const result = await atomic.commit();
       if (!result.ok) {
         throw new Error("Failed to save record: version check failed");
@@ -352,7 +371,7 @@ export class DatabaseRepository extends BaseRepository {
       return result;
     }
 
-    return await kv.set(key, value);
+    return await kv.set(key, decodedValue);
   }
 
   async deleteRecord(id: string, key: Deno.KvKey) {
@@ -478,7 +497,7 @@ export class DatabaseRepository extends BaseRepository {
       const parsedKey = entry.key.map((part) => this.stringifyKeyPart(part));
       return {
         key: parsedKey as any,
-        value: entry.value,
+        value: ValueCodec.encode(entry.value),
         versionstamp: entry.versionstamp,
       };
     });
