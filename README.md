@@ -12,15 +12,13 @@ humans.
 ## Quick Start
 
 ```bash
-git clone https://github.com/innovatedev/innokv.git
-cd innokv
-deno install
+deno run -A --unstable-kv jsr:@innovatedev/innokv install
+```
 
-deno task build
-ADMIN_EMAILS=test@example.com deno task start
+### Server
 
-# CLI Usage
-deno task start db
+```bash
+ADMIN_EMAILS=test@example.com innokv
 ```
 
 Open http://localhost:8000 in your browser. Register and login with an email
@@ -46,10 +44,10 @@ The `innokv` binary works as both the server and the CLI.
 
 ```bash
 # Start the server (default)
-./innokv
+innokv
 
 # Run a CLI command
-./innokv db
+innokv db
 ```
 
 ### Examples
@@ -57,13 +55,13 @@ The `innokv` binary works as both the server and the CLI.
 **List all databases:**
 
 ```bash
-./innokv db
+innokv db
 ```
 
 **Interactive Mode:**
 
 ```bash
-./innokv repl my-db
+innokv repl my-db
 # > ls
 # > get users/admin
 # > cd users
@@ -74,13 +72,13 @@ The `innokv` binary works as both the server and the CLI.
 
 ```bash
 # List keys in 'users' path
-./innokv ls my-db users
+innokv ls my-db users
 
 # Get a specific value
-./innokv get my-db users/admin
+innokv get my-db users/admin
 
 # Navigate to a Uint8Array key
-./innokv get my-db u8[1,2,3]
+innokv get my-db u8[1,2,3]
 ```
 
 ## Security Issues
