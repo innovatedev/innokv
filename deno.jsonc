@@ -42,7 +42,7 @@
     "@olli/kvdex": "jsr:@olli/kvdex@^3.4.2",
     "zod": "npm:zod@^3.25.75",
     "@felix/argon2": "jsr:@felix/argon2",
-    "@innovatedev/fresh-session/kvdex-store": "../fresh-utils/session/src/stores/kvdex.ts",
+    "@innovatedev/fresh-session/kvdex-store": "jsr:@innovatedev/fresh-session@^0.3.3/kvdex-store",
     "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.3.3"
   },
   "compilerOptions": {
