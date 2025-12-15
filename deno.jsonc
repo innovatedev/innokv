@@ -1,6 +1,6 @@
 {
   "nodeModulesDir": "manual",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "name": "innokv",
   "exports": {
     ".": "./cli/mod.ts"

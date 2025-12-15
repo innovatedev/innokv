@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Web server with deno fresh
 - User accounts and permissions
 - Binary releases for Linux, Windows and macOS
+- CLI tool for managing databases
 
 ## v0.0.0
 
