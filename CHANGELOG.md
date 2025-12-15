@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.0.3
+
+- jsr package
+
 ## v0.0.2
 
 - unified cli and server
