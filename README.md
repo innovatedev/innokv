@@ -18,6 +18,9 @@ deno install
 
 deno task build
 ADMIN_EMAILS=test@example.com deno task start
+
+# CLI Usage
+deno task start db
 ```
 
 Open http://localhost:8000 in your browser. Register and login with an email
@@ -37,18 +40,30 @@ terminal.
 | **List Keys**        | `ls <slug> [path]` | List keys in a database.      |
 | **Get Value**        | `get <slug> <key>` | Get the value of a key.       |
 
+### Running the Binary
+
+The `innokv` binary works as both the server and the CLI.
+
+```bash
+# Start the server (default)
+./innokv
+
+# Run a CLI command
+./innokv db
+```
+
 ### Examples
 
 **List all databases:**
 
 ```bash
-innokv db
+./innokv db
 ```
 
 **Interactive Mode:**
 
 ```bash
-deno task cli repl my-db
+./innokv repl my-db
 # > ls
 # > get users/admin
 # > cd users
@@ -59,13 +74,13 @@ deno task cli repl my-db
 
 ```bash
 # List keys in 'users' path
-innokv ls my-db users
+./innokv ls my-db users
 
 # Get a specific value
-innokv get my-db users/admin
+./innokv get my-db users/admin
 
 # Navigate to a Uint8Array key
-innokv get my-db u8[1,2,3]
+./innokv get my-db u8[1,2,3]
 ```
 
 ## Security Issues

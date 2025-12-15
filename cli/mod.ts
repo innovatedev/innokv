@@ -4,7 +4,7 @@ import { db } from "./commands/db.ts";
 import { ls } from "./commands/ls.ts";
 import { get } from "./commands/get.ts";
 
-const cmd = new Command()
+export const cmd = new Command()
   .name("innokv")
   .version("0.0.1")
   .description("InnoKV Command Line Interface")

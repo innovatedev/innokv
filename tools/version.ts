@@ -3,7 +3,7 @@ import { format, increment, parse, type ReleaseType } from "@std/semver";
 const args = Deno.args;
 if (args.length === 0) {
   console.error(
-    "Usage: deno task version <major|minor|patch|point|custom-version>",
+    "Usage: deno task version <major|minor|patch|custom-version>",
   );
   Deno.exit(1);
 }
@@ -47,34 +47,39 @@ const currentVersion = parse(currentVersionStr);
 
 let newVersionStr: string;
 
-if (["major", "minor", "patch", "point"].includes(specifier)) {
-  const releaseType =
-    (specifier === "point" ? "patch" : specifier) as ReleaseType;
+if (["major", "minor", "patch"].includes(specifier)) {
+  const releaseType = specifier as ReleaseType;
   newVersionStr = format(increment(currentVersion, releaseType));
 } else {
-  // Custom version
-  // Validate it parses
+  // Custom version logic
   try {
+    // 1. Try to parse as an absolute version
     const v = parse(specifier.startsWith("v") ? specifier.slice(1) : specifier);
     newVersionStr = format(v);
   } catch {
-    console.log(
-      `Specifier '${specifier}' is not a valid semver, treating as custom tag suffix? No, user said 'custom-string'. Assuming raw string.`,
-    );
-    newVersionStr = specifier;
+    // 2. Try to append as a suffix to the current version
+    let suffix = specifier;
+    // If it doesn't start with + (build) or - (pre-release), assume pre-release and prepend -
+    if (!suffix.startsWith("+") && !suffix.startsWith("-")) {
+      suffix = "-" + suffix;
+    }
+
+    const potentialVersion = `${currentVersionStr}${suffix}`;
+    try {
+      const v = parse(potentialVersion);
+      newVersionStr = format(v);
+    } catch {
+      console.error(
+        `Error: Specifier '${specifier}' is not a valid version or suffix.`,
+      );
+      Deno.exit(1);
+    }
   }
 }
 
-console.log(`Bumping version: ${currentVersionStr} -> ${newVersionStr}`);
+console.log(`Target version: ${newVersionStr}`);
 
-// 2. Update deno.jsonc
-const newDenoJsonContent = denoJsonContent.replace(
-  `"version": "${currentVersionStr}"`,
-  `"version": "${newVersionStr}"`,
-);
-await Deno.writeTextFile(denoJsonPath, newDenoJsonContent);
-
-// 3. Update CHANGELOG.md
+// 2. Check/Update CHANGELOG.md (Before updating deno.jsonc)
 const changelogPath = "CHANGELOG.md";
 let changelogContent = "";
 try {
@@ -87,13 +92,7 @@ try {
 
 const header = `## v${newVersionStr}`;
 if (!changelogContent.includes(header)) {
-  // Insert after the main description or at top
-  // Look for the first existing version header to insert before, or if none, append?
-  // User wants "make sure we have a changelog section"
-  // Let's look for the first "## v" and insert before it.
-
   const firstVersionHeaderIndex = changelogContent.indexOf("\n## v");
-
   const newSection = `\n${header}\n\n- \n`;
 
   if (firstVersionHeaderIndex !== -1) {
@@ -101,23 +100,26 @@ if (!changelogContent.includes(header)) {
       newSection +
       changelogContent.slice(firstVersionHeaderIndex);
   } else {
-    // Append if no version history
     changelogContent += newSection;
   }
 
   await Deno.writeTextFile(changelogPath, changelogContent);
-  console.log("Added new section to CHANGELOG.md");
+  console.log(`Added new section for v${newVersionStr} to CHANGELOG.md.`);
   console.log(
-    "Please update CHANGELOG.md with your changes and commit/tag manually, or run this command again if you've already updated it (wait, running again would bump version again).",
-  );
-  console.log("Actually, just commit and tag manually:");
-  console.log(
-    `git add deno.jsonc CHANGELOG.md && git commit -m "chore: release v${newVersionStr}" && git tag v${newVersionStr}`,
+    "Please update CHANGELOG.md with your changes and then run this command again to complete the release.",
   );
   Deno.exit(0);
 } else {
-  console.log("CHANGELOG.md already has section for this version.");
+  console.log("CHANGELOG.md already has section for this version. Proceeding.");
 }
+
+// 3. Update deno.jsonc
+console.log(`Bumping version: ${currentVersionStr} -> ${newVersionStr}`);
+const newDenoJsonContent = denoJsonContent.replace(
+  `"version": "${currentVersionStr}"`,
+  `"version": "${newVersionStr}"`,
+);
+await Deno.writeTextFile(denoJsonPath, newDenoJsonContent);
 
 // 4. Git operations
 const commands = [
@@ -139,4 +141,4 @@ for (const cmd of commands) {
   }
 }
 
-console.log(`Successfully bumped version to v${newVersionStr}`);
+console.log(`Successfully released v${newVersionStr}`);
