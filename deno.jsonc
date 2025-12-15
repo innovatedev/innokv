@@ -1,6 +1,6 @@
 {
   "nodeModulesDir": "manual",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "name": "innokv",
   "exports": {
     ".": "./cli/mod.ts"
@@ -16,6 +16,7 @@
     "compile:win": "deno compile -A --icon static/favicon.ico --exclude=node_modules --target=x86_64-pc-windows-msvc --output target/innokv-win.exe --include _fresh _fresh/compiled-entry.js",
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
     "cli": "deno run -A cli/mod.ts",
+    "version": "deno run -A tools/version.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },
   "lint": { "rules": { "tags": ["fresh", "recommended"] } },
