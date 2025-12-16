@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { ApiKvEntry } from "@/lib/types.ts";
 import { ValueDisplay } from "./ValueDisplay.tsx";
 import { ValueCodec } from "@/lib/ValueCodec.ts";
+import { KeyDisplay } from "./KeyDisplay.tsx";
 
 interface RecordItemProps {
   record: ApiKvEntry;
@@ -44,11 +45,11 @@ export function RecordItem(
           />
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
-              <span class="text-lg font-bold truncate text-base-content">
-                {record.key[record.key.length - 1].value}
-              </span>
-              <span class="badge badge-sm badge-neutral text-xs font-mono opacity-50">
-                {record.key[record.key.length - 1].type}
+              <span class="text-lg font-bold truncate text-base-content flex items-center gap-2">
+                <KeyDisplay
+                  type={record.key[record.key.length - 1].type}
+                  value={record.key[record.key.length - 1].value}
+                />
               </span>
             </div>
             <div class="text-xs text-base-content/60 font-mono truncate max-w-md">
