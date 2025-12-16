@@ -5,6 +5,7 @@ import { ls } from "./commands/ls.ts";
 import { get } from "./commands/get.ts";
 import { install } from "./commands/install.ts";
 import { APP_VERSION } from "../lib/metadata.ts";
+import settings from "../config/app.ts";
 
 // Re-export Command so it is part of the public API, fixing 'private-type-ref' errors.
 export { Command } from "@cliffy/command";
@@ -24,6 +25,8 @@ export const cmd: Command<any> = new Command()
     console.log(
       "Welcome to InnoKV CLI! Use --help for usage instructions, or 'repl' to enter interactive mode.",
     );
+    console.log(`InnoKV Version: ${APP_VERSION}`);
+    console.log(`Using Database: ${settings.db.path}`);
   })
   .command("repl", repl)
   .command("db", db)

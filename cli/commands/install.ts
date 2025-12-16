@@ -1,6 +1,6 @@
 import { Command } from "@cliffy/command";
 import { join } from "@std/path";
-import { ensureDir, exists } from "@std/fs";
+import { ensureDir } from "@std/fs";
 
 const REPO_OWNER = "innovatedev";
 const REPO_NAME = "innokv";
@@ -17,8 +17,8 @@ export const install: Command<any> = new Command()
   )
   .option("-d, --dir <dir:string>", "Installation directory", {
     default: Deno.build.os === "windows"
-      ? "."
-      : join(Deno.env.get("HOME") || ".", ".innokv", "bin"),
+      ? join(Deno.env.get("USERPROFILE") || ".", ".innokv", "bin")
+      : join(Deno.env.get("HOME") || ".", ".local", "bin"),
   })
   .option("-f, --force", "Overwrite existing binary", { default: false })
   // deno-lint-ignore no-explicit-any
@@ -26,7 +26,9 @@ export const install: Command<any> = new Command()
     const tag = options.tag || "latest";
     const installDir = options.dir
       ? join(options.dir)
-      : join(Deno.env.get("HOME") || ".", ".innokv", "bin");
+      : Deno.build.os === "windows"
+      ? join(Deno.env.get("USERPROFILE") || ".", ".innokv", "bin")
+      : join(Deno.env.get("HOME") || ".", ".local", "bin");
     const force = options.force || false;
 
     console.log(`Installing InnoKV CLI (${tag}) to ${installDir}...`);
@@ -100,7 +102,7 @@ export const install: Command<any> = new Command()
       console.log(
         `Please add ${installDir} to your PATH if it's not already there.`,
       );
-      console.log(`\n  export PATH="${installDir}:$PATH"\n`);
+      console.log(`\n  export PATH="$PATH:${installDir}"\n`);
     } catch (e) {
       console.error(
         "Installation failed:",

@@ -1,6 +1,8 @@
+import { getDefaultDbPath } from "@/lib/paths.ts";
+
 const settings = {
   db: {
-    path: Deno.env.get("INNOVK_DB_PATH") ?? "innokv-data/db.kv",
+    path: getDefaultDbPath(),
   },
   admin: {
     emails: (Deno.env.get("ADMIN_EMAILS") ?? "")

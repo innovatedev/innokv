@@ -12,7 +12,13 @@ if (Deno.args.length > 0) {
 }
 
 // First-boot check
+// First-boot check
 await performFirstBootCheck();
+
+import { APP_VERSION } from "@/lib/metadata.ts";
+import settings from "@/config/app.ts";
+console.log(`InnoKV Version: ${APP_VERSION}`);
+console.log(`Using Database: ${settings.db.path}`);
 
 export const app = new App<State>();
 
