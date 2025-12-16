@@ -126,6 +126,8 @@ const commands = [
   ["git", "add", "deno.json", "CHANGELOG.md"],
   ["git", "commit", "-m", `chore: release v${newVersionStr}`],
   ["git", "tag", `v${newVersionStr}`],
+  ["git", "push", "origin", "HEAD"],
+  ["git", "push", "origin", `v${newVersionStr}`],
 ];
 
 for (const cmd of commands) {
