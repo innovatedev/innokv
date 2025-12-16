@@ -17,7 +17,6 @@ export default define.page(function App({ Component }) {
           href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
           rel="stylesheet"
         />
-        <link rel="stylesheet" href="/assets/styles.css" />
       </head>
       <body>
         <Component />
