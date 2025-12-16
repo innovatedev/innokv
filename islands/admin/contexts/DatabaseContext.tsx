@@ -115,7 +115,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     initialActive,
   );
 
-  const pathInfo = useSignal<{ value: string; type: string }[] | null>(null);
+  const pathInfo = useSignal<{ value: string; type: string }[] | null>([]);
   const records = useSignal<ApiKvEntry[]>([]);
   const gonePaths = useSignal<Set<string>>(new Set());
   const cursor = useSignal<string | undefined>(undefined);
@@ -136,7 +136,10 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         }, 0);
       } catch (e) {
         console.error("Failed to parse path from URL", e);
+        if (!pathInfo.value || pathInfo.value.length > 0) pathInfo.value = [];
       }
+    } else {
+      if (!pathInfo.value || pathInfo.value.length > 0) pathInfo.value = [];
     }
 
     const handlePopState = () => {
@@ -147,10 +150,10 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         try {
           pathInfo.value = KeyCodec.decode(path);
         } catch {
-          // ignore error
+          pathInfo.value = [];
         }
       } else {
-        pathInfo.value = null;
+        pathInfo.value = [];
       }
     };
     globalThis.addEventListener("popstate", handlePopState);

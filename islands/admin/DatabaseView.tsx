@@ -70,14 +70,15 @@ const Node = (
   if (!hasChildren) return null;
 
   // Smart Arrow Logic:
-  // If children are loaded, only show arrow if there is at least one sub-folder (visible child).
-  // If children are NOT loaded, assume yes (optimistic) if hasChildren is true.
+  // Show arrow if it's a folder (hasChildren).
+  // Dim it if we know it has no sub-folders (based on loaded children), but keep it clickable to refresh.
   const childrenLoaded = node.children && Object.keys(node.children).length > 0;
-  const hasVisibleChildren = childrenLoaded
+  const hasVisibleSubFolders = childrenLoaded
     ? Object.values(node.children!).some((child: DbNode) => child.hasChildren)
-    : hasChildren;
+    : false;
 
-  const hasSubFolders = hasVisibleChildren;
+  const showChevron = node.hasChildren;
+  const dimChevron = childrenLoaded && !hasVisibleSubFolders;
 
   const toggleOpen = (e: Event) => {
     e.preventDefault();
@@ -112,9 +113,11 @@ const Node = (
           onClick={selectNode}
           onContextMenu={handleContextMenu}
         >
-          {hasSubFolders && (
+          {showChevron && (
             <span
-              class={`w-4 h-4 flex items-center justify-center p-0 rounded hover:bg-base-300/50`}
+              class={`w-4 h-4 flex items-center justify-center p-0 rounded hover:bg-base-300/50 ${
+                dimChevron ? "opacity-30 hover:opacity-100" : ""
+              }`}
               onClick={toggleOpen}
             >
               <svg
@@ -264,7 +267,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
 
   // Deep Linking / Auto-Expand Effect
   useEffect(() => {
-    if (!pathInfo.value || !dbStructure || !activeDatabase) return;
+    if (!pathInfo.value || !activeDatabase) return;
+    if (pathInfo.value.length > 0 && !dbStructure) return;
 
     const path = pathInfo.value;
     const dbId = activeDatabase.slug || activeDatabase.id;
@@ -299,6 +303,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     const checkAndLoad = async () => {
       let currentLevel = dbStructure;
       const currentPath: ApiKvKeyPart[] = [];
+
+      // Initial load logic removed, deferred to Context
 
       for (let i = 0; i < path.length; i++) {
         const seg = path[i];
