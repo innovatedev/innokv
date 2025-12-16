@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.1
+
+- fix default database and installation paths across operating systems
+- display app/DB info on startup
+- fix u8 record key display in database view
+- fix entry UI/editor, add JSON editor tab for structure/values
+- fix breadcrumb links
+- fix initial load for root records
+- fix treeview display for items with no sub keys
+
 ## v0.1.0
 
 - jsr release
