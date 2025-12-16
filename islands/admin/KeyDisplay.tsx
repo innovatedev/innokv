@@ -54,7 +54,7 @@ export const KeyDisplay = (
       }
 
       return (
-        <span class="font-mono text-base-content/70 text-xs">
+        <span class="font-mono text-base-content/70">
           u8[{displayStr.length > 20
             ? displayStr.slice(0, 20) + "..."
             : displayStr}]
@@ -62,7 +62,7 @@ export const KeyDisplay = (
       );
     } catch {
       return (
-        <span class="font-mono text-base-content/70 text-xs opacity-50">
+        <span class="font-mono text-base-content/70 opacity-50">
           [Binary Data]
         </span>
       );
@@ -76,7 +76,7 @@ export const KeyDisplay = (
         " ",
       );
       return (
-        <span class="font-mono text-base-content/70 text-xs">
+        <span class="font-mono text-base-content/70">
           {str.length > 20 ? str.slice(0, 20) + "..." : str}
         </span>
       );

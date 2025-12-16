@@ -4,6 +4,7 @@ import {
   MemoryDatabaseIcon,
   RemoteDatabaseIcon,
 } from "../../components/icons/DatabaseIcons.tsx";
+import { ExpandIcon } from "@/components/icons/ExpandIcon.tsx";
 import { Database } from "@/lib/models.ts";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
@@ -350,9 +351,21 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     checkAndLoad();
   }, [pathInfo.value, dbStructure, activeDatabase]);
 
-  // Selection State
+  // Selection state
   const selectedKeys = useSignal<Set<string>>(new Set());
   const selectAllMatching = useSignal(false);
+  const lastSelectedKey = useSignal<string | null>(null);
+
+  // Expansion state
+  const expandedKeys = useSignal<Set<string>>(new Set());
+
+  // Reset selection and expansion when database or search changes
+  useEffect(() => {
+    selectedKeys.value = new Set();
+    selectAllMatching.value = false;
+    lastSelectedKey.value = null;
+    expandedKeys.value = new Set();
+  }, [activeDatabase?.id, pathInfo.value, cursor.value]);
 
   // Computed selection state
   const currentKeyStrings = records.value.map((r) => KeyCodec.encode(r.key));
@@ -379,6 +392,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       const newS = new Set(selectedKeys.value);
       currentKeyStrings.forEach((k) => newS.add(k));
       selectedKeys.value = newS;
+    }
+  };
+
+  const toggleExpandAll = () => {
+    const allEncoded = records.value.map((r) => KeyCodec.encode(r.key));
+    const allExpanded = allEncoded.every((k) => expandedKeys.value.has(k));
+
+    if (allExpanded) {
+      expandedKeys.value = new Set();
+    } else {
+      expandedKeys.value = new Set(allEncoded);
     }
   };
 
@@ -1084,8 +1108,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             </div>
           )}
           <Dialog
-            title={selectedEntry.value ? "Edit Entry" : "Create Entry"}
             ref={createEntryRef}
+            title={selectedEntry.value ? "Edit Record" : "Create Record"}
+            className="w-11/12 max-w-5xl"
           >
             <KvEntryForm
               entry={selectedEntry.value}
@@ -1169,22 +1194,41 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           <div>
             {activeDatabase && (records.value.length
               ? (
-                <div class="join join-vertical w-full">
+                <div class="flex flex-col w-full gap-2">
                   {/* "Select All" Header Row */}
-                  <div class="join-item bg-base-100 border-base-300 border-x border-t p-2 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      class="checkbox checkbox-xs"
-                      checked={allVisibleSelected}
-                      ref={(input) => {
-                        if (input) {
-                          input.indeterminate = selectedKeys.value.size > 0 &&
-                            !allVisibleSelected;
-                        }
-                      }}
-                      onClick={toggleSelectVisible}
-                    />
-                    <span class="text-xs font-bold opacity-50">Select All</span>
+                  <div class="bg-base-100 p-2 flex items-center lg:gap-4 gap-2 justify-between">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-xs"
+                        checked={allVisibleSelected}
+                        ref={(input) => {
+                          if (input) {
+                            input.indeterminate = selectedKeys.value.size > 0 &&
+                              !allVisibleSelected;
+                          }
+                        }}
+                        onClick={toggleSelectVisible}
+                      />
+                      <span class="text-xs font-bold opacity-50">
+                        Select All
+                      </span>
+                    </label>
+
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-ghost gap-1"
+                      onClick={toggleExpandAll}
+                    >
+                      <ExpandIcon class="w-4 h-4" />
+                      <span class="text-xs opacity-70 font-normal">
+                        {records.value.every((r) =>
+                            expandedKeys.value.has(KeyCodec.encode(r.key))
+                          )
+                          ? "Collapse All"
+                          : "Expand All"}
+                      </span>
+                    </button>
                   </div>
 
                   {records.value.map((entry) => (
@@ -1194,6 +1238,16 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       isSelected={selectAllMatching.value ||
                         selectedKeys.value.has(KeyCodec.encode(entry.key))}
                       onToggleSelection={() => toggleSelection(entry.key)}
+                      isOpen={expandedKeys.value.has(
+                        KeyCodec.encode(entry.key),
+                      )}
+                      onToggle={(isOpen) => {
+                        const strKey = KeyCodec.encode(entry.key);
+                        const next = new Set(expandedKeys.value);
+                        if (isOpen) next.add(strKey);
+                        else next.delete(strKey);
+                        expandedKeys.value = next;
+                      }}
                       onEdit={() => {
                         selectedEntry.value = entry;
                         createEntryRef.current?.showModal();
@@ -1203,7 +1257,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   ))}
 
                   {/* Pagination Controls */}
-                  <div class="join-item bg-base-100 border-base-300 border-x border-b p-2 flex items-center justify-between gap-2">
+                  <div class="bg-base-100 p-2 flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                       <span class="text-xs opacity-50">
                         Show
@@ -1221,34 +1275,39 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       </select>
                     </div>
 
-                    <div class="join">
-                      <button
-                        type="button"
-                        class="join-item btn btn-xs"
-                        disabled={cursorStack.value.length === 0}
-                        onClick={() => {
-                          const stack = [...cursorStack.value];
-                          const prev = stack.pop();
-                          cursorStack.value = stack;
-                          cursor.value = prev;
-                        }}
-                      >
-                        Prev
-                      </button>
-                      <button
-                        type="button"
-                        class="join-item btn btn-xs"
-                        disabled={!nextCursor.value}
-                        onClick={() => {
-                          cursorStack.value = [
-                            ...cursorStack.value,
-                            cursor.value,
-                          ];
-                          cursor.value = nextCursor.value;
-                        }}
-                      >
-                        Next
-                      </button>
+                    <div class="flex items-center gap-4">
+                      <span class="text-xs opacity-50">
+                        {records.value.length} items
+                      </span>
+                      <div class="join join-horizontal">
+                        <button
+                          type="button"
+                          class="join-item btn btn-xs"
+                          disabled={cursorStack.value.length === 0}
+                          onClick={() => {
+                            const stack = [...cursorStack.value];
+                            const prev = stack.pop();
+                            cursorStack.value = stack;
+                            cursor.value = prev;
+                          }}
+                        >
+                          Prev
+                        </button>
+                        <button
+                          type="button"
+                          class="join-item btn btn-xs"
+                          disabled={!nextCursor.value}
+                          onClick={() => {
+                            cursorStack.value = [
+                              ...cursorStack.value,
+                              cursor.value,
+                            ];
+                            cursor.value = nextCursor.value;
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

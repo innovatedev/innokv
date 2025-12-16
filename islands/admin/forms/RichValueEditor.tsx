@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { RichValue, RichValueType } from "@/lib/ValueCodec.ts";
 
 interface RichValueEditorProps {
@@ -84,8 +84,8 @@ export default function RichValueEditor({
 
   return (
     <div
-      class={`flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100 ${
-        depth > 0 ? "ml-4" : ""
+      class={`flex flex-col gap-2 p-2 border border-base-200 rounded-md ${
+        depth > 0 ? "ml-4 bg-base-content/5" : "bg-base-100"
       }`}
     >
       <div class="flex items-center gap-2">
@@ -126,7 +126,7 @@ export default function RichValueEditor({
         <div class="mt-1">
           {type === "string" && (
             <textarea
-              class="textarea textarea-bordered textarea-sm w-full font-mono"
+              class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded-2xl font-mono"
               rows={Math.min(5, (String(val) || "").split("\n").length + 1)}
               value={val}
               onInput={(e) =>
@@ -137,7 +137,7 @@ export default function RichValueEditor({
             <input
               type="number"
               step="any"
-              class="input input-bordered input-sm w-full"
+              class="input input-bordered input-sm w-full max-w-xs"
               value={val}
               onInput={(e) =>
                 handlePrimitiveChange(
@@ -148,7 +148,7 @@ export default function RichValueEditor({
           {type === "bigint" && (
             <input
               type="text"
-              class="input input-bordered input-sm w-full font-mono"
+              class="input input-bordered input-sm w-full max-w-xs font-mono"
               pattern="-?[0-9]+"
               placeholder="e.g. 9007199254740991"
               value={val}
@@ -183,7 +183,7 @@ export default function RichValueEditor({
           {type === "date" && (
             <input
               type="datetime-local"
-              class="input input-bordered input-sm w-full"
+              class="input input-bordered input-sm w-full max-w-xs"
               value={val ? new Date(val).toISOString().slice(0, 16) : ""}
               onChange={(e) =>
                 handlePrimitiveChange(
@@ -199,27 +199,9 @@ export default function RichValueEditor({
               <span class="text-xs text-base-content/50">
                 Comma separated bytes (0-255)
               </span>
-              <textarea
-                class="textarea textarea-bordered textarea-sm w-full font-mono"
-                value={(() => {
-                  try {
-                    return Uint8Array.from(atob(val), (c) => c.charCodeAt(0))
-                      .join(", ");
-                  } catch {
-                    return "";
-                  }
-                })()}
-                onInput={(e) => {
-                  const text = (e.target as HTMLTextAreaElement).value;
-                  try {
-                    const bytes = text.split(/[,\s]+/).map((x) =>
-                      parseInt(x.trim())
-                    ).filter((x) => !isNaN(x));
-                    const u8 = new Uint8Array(bytes);
-                    const bin = String.fromCharCode(...u8);
-                    handlePrimitiveChange(btoa(bin));
-                  } catch {}
-                }}
+              <Uint8ArrayInput
+                value={val}
+                onChange={(v) => handlePrimitiveChange(v)}
               />
             </div>
           )}
@@ -336,7 +318,7 @@ function ObjectEditor(
                 <div class="flex gap-2 items-center flex-1">
                   <input
                     type="text"
-                    class="input input-xs input-bordered"
+                    class="input input-xs input-bordered max-w-xs"
                     value={editKeyName}
                     onInput={(e) =>
                       setEditKeyName((e.target as HTMLInputElement).value)}
@@ -568,5 +550,55 @@ function MapEditor(
         + Add Entry
       </button>
     </div>
+  );
+}
+
+function Uint8ArrayInput(
+  { value, onChange }: { value: string; onChange: (v: string) => void },
+) {
+  // Value is base64 string
+  const format = (v: string) => {
+    try {
+      return Uint8Array.from(atob(v), (c) => c.charCodeAt(0)).join(", ");
+    } catch {
+      return "";
+    }
+  };
+
+  const [text, setText] = useState(format(value));
+  const focused = useRef(false);
+
+  // Sync from parent only if not focused
+  useEffect(() => {
+    if (!focused.current) {
+      setText(format(value));
+    }
+  }, [value]);
+
+  const handleChange = (newText: string) => {
+    setText(newText);
+    try {
+      const bytes = newText.split(/[,\s]+/).map((x) => parseInt(x.trim()))
+        .filter((x) => !isNaN(x));
+      const u8 = new Uint8Array(bytes);
+      const bin = String.fromCharCode(...u8);
+      onChange(btoa(bin));
+    } catch {
+      // ignore parse error, just keep text
+    }
+  };
+
+  return (
+    <textarea
+      class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded font-mono"
+      value={text}
+      onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}
+      onFocus={() => focused.current = true}
+      onBlur={() => {
+        focused.current = false;
+        // On blur, force re-format to canonical
+        setText(format(value));
+      }}
+    />
   );
 }

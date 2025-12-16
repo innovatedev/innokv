@@ -83,6 +83,7 @@ export const Breadcrumbs = (
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
+                  pathInfo.value = myPath;
                 }}
               >
                 <KeyDisplay

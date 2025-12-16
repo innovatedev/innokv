@@ -44,9 +44,27 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     (typeof value === "object" && value !== null &&
       Object.keys(value).length === 20 && "0" in value)
   ) {
-    // Very basic heuristic for byte array if standard check fails, but instanceof usually works
     const arr = value instanceof Uint8Array ? value : Object.values(value);
-    return <span class="text-accent font-mono">Uint8Array({arr.length})</span>;
+
+    return (
+      <div class="ml-2">
+        <div
+          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+          onClick={(e) => {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }}
+        >
+          {expanded ? "▼" : "▶"} Uint8Array({arr.length})
+        </div>
+        {expanded && (
+          <div class="border-l-2 border-base-300 pl-2 mt-1 font-mono text-xs break-all bg-base-200/30 p-2 rounded">
+            {/* Show as list of numbers for now, or maybe hex? User said "full value", list is safe */}
+            [{Array.from(arr).join(", ")}]
+          </div>
+        )}
+      </div>
+    );
   }
 
   if (Array.isArray(value)) {

@@ -3,12 +3,20 @@ import { ComponentChildren } from "preact";
 
 const Dialog = forwardRef<
   HTMLDialogElement,
-  { title?: string; children: ComponentChildren }
+  { title?: string; children: ComponentChildren; className?: string }
 >(
-  ({ children, title }, ref) => {
+  ({ children, title, className = "" }, ref) => {
     return (
-      <dialog class="modal" ref={ref}>
-        <div class="modal-box">
+      <dialog
+        class="modal"
+        ref={ref}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            (ref as any)?.current?.close();
+          }
+        }}
+      >
+        <div class={`modal-box ${className}`}>
           <div class="flex w-full justify-between">
             {title ? <h2 class="font-bold text-lg">{title}</h2> : ""}
 

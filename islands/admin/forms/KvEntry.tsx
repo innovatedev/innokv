@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { ApiKvEntry, ApiKvKey } from "@/lib/types.ts";
 import RichValueEditor from "./RichValueEditor.tsx";
 import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
+import { KeyDisplay } from "../KeyDisplay.tsx";
 export default function KvEntryForm({
   onSubmit,
   onCancel,
@@ -38,12 +39,21 @@ export default function KvEntryForm({
     toRichValue(entry?.value),
   );
 
+  const [activeTab, setActiveTab] = useState<"editor" | "json">("editor");
+  const [isEditingKey, setIsEditingKey] = useState(!entry); // Default to editing if new entry
+  const [jsonString, setJsonString] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsEditingKey(!entry);
+  }, [entry]);
+
   useEffect(() => {
     let initialParts: { type: string; value: string }[] = [];
     if (entry && entry.key) {
       initialParts = entry.key;
     } else if (path) {
-      initialParts = [...path];
+      initialParts = [...path, { type: "string", value: "" }];
     }
 
     if (initialParts.length > 0) {
@@ -138,7 +148,7 @@ export default function KvEntryForm({
   };
 
   return (
-    <form class="form-control w-full flex flex-col gap-4" onSubmit={doSubmit}>
+    <form class="form-control w-full flex flex-col" onSubmit={doSubmit}>
       {error && (
         <div class="alert alert-error">
           <span>{error}</span>
@@ -151,84 +161,189 @@ export default function KvEntryForm({
       )}
 
       <div class="flex flex-col gap-2">
-        <label class="label font-bold">Key</label>
-        <div class="flex flex-col gap-2">
-          {keyParts.map((part, i) => (
-            <div class="flex gap-2 items-center" key={i}>
-              <select
-                class="select select-bordered select-sm w-24"
-                value={part.type}
-                onChange={(e) =>
-                  updatePart(i, "type", (e.target as HTMLSelectElement).value)}
-              >
-                <option value="string">String</option>
-                <option value="number">Number</option>
-                <option value="bigint">BigInt</option>
-                <option value="boolean">Boolean</option>
-                <option value="uint8array">Uint8Array</option>
-              </select>
+        <label class="label font-bold flex justify-between">
+          <span>Key</span>
+          {entry && (
+            <span class="text-xs font-mono opacity-50">
+              {entry.versionstamp ? `v:${entry.versionstamp}` : "New Entry"}
+            </span>
+          )}
+        </label>
 
-              {part.type === "boolean"
-                ? (
+        {/* Key Display / Editor */}
+        {!isEditingKey && entry
+          ? (
+            <div class="flex items-center gap-2 p-2 border border-base-200 rounded-md bg-base-100">
+              <div class="flex-1 flex flex-wrap gap-1">
+                {entry.key.map((p, i) => (
+                  <>
+                    {i > 0 && (
+                      <span class="text-base-content/30 select-none font-mono">
+                        /
+                      </span>
+                    )}
+                    <KeyDisplay key={i} type={p.type} value={p.value} />
+                  </>
+                ))}
+              </div>
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost"
+                onClick={() => setIsEditingKey(true)}
+              >
+                Edit Key
+              </button>
+            </div>
+          )
+          : (
+            <div class="flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100">
+              {keyParts.map((part, i) => (
+                <div class="flex gap-2 items-center" key={i}>
                   <select
-                    class="select select-bordered select-sm flex-1"
-                    value={part.value}
+                    class="select select-bordered select-sm w-24"
+                    value={part.type}
                     onChange={(e) =>
                       updatePart(
                         i,
-                        "value",
+                        "type",
                         (e.target as HTMLSelectElement).value,
                       )}
                   >
-                    <option value="true">true</option>
-                    <option value="false">false</option>
+                    <option value="string">String</option>
+                    <option value="number">Number</option>
+                    <option value="bigint">BigInt</option>
+                    <option value="boolean">Boolean</option>
+                    <option value="uint8array">Uint8Array</option>
                   </select>
-                )
-                : (
-                  <input
-                    type={part.type === "number" ? "number" : "text"}
-                    class="input input-bordered input-sm flex-1"
-                    value={part.value}
-                    onChange={(e) =>
-                      updatePart(
-                        i,
-                        "value",
-                        (e.target as HTMLInputElement).value,
-                      )}
-                    placeholder={part.type === "uint8array"
-                      ? "e.g. 1, 2, 255"
-                      : "Key part value"}
-                  />
-                )}
 
-              <button
-                type="button"
-                class="btn btn-square btn-sm btn-ghost"
-                onClick={() =>
-                  removePart(i)}
-              >
-                ✕
-              </button>
+                  {part.type === "boolean"
+                    ? (
+                      <select
+                        class="select select-bordered select-sm flex-1 max-w-xs"
+                        value={part.value}
+                        onChange={(e) =>
+                          updatePart(
+                            i,
+                            "value",
+                            (e.target as HTMLSelectElement).value,
+                          )}
+                      >
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                      </select>
+                    )
+                    : (
+                      <input
+                        type={part.type === "number" ? "number" : "text"}
+                        class={`input input-bordered input-sm flex-1 ${
+                          part.type === "uint8array" || part.type === "string"
+                            ? "max-w-lg"
+                            : "max-w-xs"
+                        }`}
+                        value={part.value}
+                        onChange={(e) =>
+                          updatePart(
+                            i,
+                            "value",
+                            (e.target as HTMLInputElement).value,
+                          )}
+                        placeholder={part.type === "uint8array"
+                          ? "e.g. 1, 2, 255"
+                          : "Key part value"}
+                      />
+                    )}
+
+                  <button
+                    type="button"
+                    class="btn btn-square btn-sm btn-ghost"
+                    onClick={() =>
+                      removePart(i)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <div class="flex gap-2 mt-2 justify-between items-center">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-ghost gap-2"
+                  onClick={addPart}
+                >
+                  + Add Key Part
+                </button>
+                {entry && (
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost text-error"
+                    onClick={() => setIsEditingKey(false)}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost self-start gap-2"
-          onClick={addPart}
+          )}
+      </div>
+
+      <div class="mt-4 tabs tabs-boxed tabs-sm bg-base-200/50 p-1">
+        <a
+          class={`tab ${activeTab === "editor" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("editor")}
         >
-          + Add Key Part
-        </button>
+          Editor
+        </a>
+        <a
+          class={`tab ${activeTab === "json" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("json")}
+        >
+          Structure
+        </a>
       </div>
 
       <div class="form-control">
-        <label class="label">
-          <span class="label-text font-bold">Value</span>
-        </label>
-        <RichValueEditor
-          value={richValue}
-          onChange={setRichValue}
-        />
+        {activeTab === "editor"
+          ? (
+            <RichValueEditor
+              value={richValue}
+              onChange={setRichValue}
+              label={""}
+            />
+          )
+          : (
+            <div class="flex flex-col gap-2">
+              <textarea
+                class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
+                value={jsonError
+                  ? jsonString
+                  : JSON.stringify(richValue, null, 2)}
+                onInput={(e) => {
+                  const val = (e.target as HTMLTextAreaElement).value;
+                  setJsonString(val);
+                  try {
+                    const parsed = JSON.parse(val);
+                    if (
+                      parsed && typeof parsed === "object" &&
+                      "type" in parsed && "value" in parsed
+                    ) {
+                      setRichValue(parsed as RichValue);
+                      setJsonError(null);
+                    } else {
+                      setJsonError(
+                        "Invalid RichValue structure (missing type or value)",
+                      );
+                    }
+                  } catch (err) {
+                    setJsonError((err as Error).message);
+                  }
+                }}
+              />
+              {jsonError && (
+                <div class="text-error text-xs font-bold">
+                  Error: {jsonError}
+                </div>
+              )}
+            </div>
+          )}
       </div>
 
       <div class="flex justify-between gap-4 mt-4">
