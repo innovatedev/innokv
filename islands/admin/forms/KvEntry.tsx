@@ -13,7 +13,7 @@ export default function KvEntryForm({
   error,
   success,
 }: {
-  onSubmit?: (data: any, form: HTMLFormElement) => void;
+  onSubmit?: (data: unknown, form: HTMLFormElement) => void;
   onCancel?: () => void;
   onDelete?: () => void;
   entry?: ApiKvEntry | null;
@@ -306,7 +306,7 @@ export default function KvEntryForm({
             <RichValueEditor
               value={richValue}
               onChange={setRichValue}
-              label={""}
+              label=""
             />
           )
           : (

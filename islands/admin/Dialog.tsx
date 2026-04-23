@@ -12,6 +12,7 @@ const Dialog = forwardRef<
         ref={ref}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
+            // deno-lint-ignore no-explicit-any
             (ref as any)?.current?.close();
           }
         }}
@@ -25,6 +26,7 @@ const Dialog = forwardRef<
                 type="button"
                 class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                 onClick={() => {
+                  // deno-lint-ignore no-explicit-any
                   (ref as any)?.current?.close();
                 }}
               >

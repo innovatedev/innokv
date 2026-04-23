@@ -1,7 +1,8 @@
 import { Command } from "@cliffy/command";
-import { db as coreDb } from "../../lib/db.ts";
+import { db as coreDb } from "@/kv/db.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
 import { resolvePath } from "../utils.ts";
+import { doGet } from "../actions.ts";
 
 /**
  * Command to get a value from a database.
@@ -23,12 +24,7 @@ export const get: Command<any> = new Command()
       const kv = await repo.connectDatabase(db as any);
 
       const targetPath = resolvePath([], path);
-      const res = await kv.get(targetPath as Deno.KvKey);
-
-      if (res.versionstamp) {
-        console.log(res.value);
-      }
-      // Else output nothing, consistent with repl
+      await doGet(kv, slug, targetPath);
 
       kv.close();
     } catch (e) {

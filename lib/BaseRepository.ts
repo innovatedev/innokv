@@ -1,8 +1,10 @@
-import { db } from "./db.ts";
+import { db } from "@/kv/db.ts";
 import { json } from "./http.ts";
 import { FreshContext } from "fresh";
+import { type State } from "@/utils.ts";
 
 export class DatabaseError extends Error {
+  // deno-lint-ignore no-explicit-any
   constructor(message: string, public details?: any) {
     super(message);
     this.name = "DatabaseError";
@@ -14,20 +16,23 @@ export class BaseRepository {
     // Automatically bind all methods to the instance
     const proto = Object.getPrototypeOf(this);
     for (const key of Object.getOwnPropertyNames(proto)) {
+      // deno-lint-ignore no-explicit-any
       const value = (this as any)[key];
       if (typeof value === "function" && key !== "constructor") {
+        // deno-lint-ignore no-explicit-any
         (this as any)[key] = value.bind(this);
       }
     }
   }
 
+  // deno-lint-ignore no-explicit-any
   protected parseModel<T>(model: { parse: (data: any) => T }, data: any): T {
     return model.parse(data);
   }
 
-  async handleApiCall<T>(
-    ctx: FreshContext,
-    callback: (data: any) => Promise<T>,
+  async handleApiCall<T, S = State>(
+    ctx: FreshContext<S>,
+    callback: (data: unknown) => Promise<T>,
   ): Promise<Response> {
     try {
       const data = ["POST", "DELETE", "PATCH", "PUT"].includes(ctx.req.method)
@@ -35,20 +40,26 @@ export class BaseRepository {
         : undefined;
       const result = await callback(data);
       return json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof Error ? 400 : 500;
       console.error(error);
+      const message = error instanceof Error
+        ? error.message
+        : "Internal Server Error";
+      // deno-lint-ignore no-explicit-any
+      const details = (error as any).details;
+
       return json({
-        error: error.message || "Internal Server Error",
-        details: error.details,
+        error: message,
+        details,
       }, status);
     }
   }
 
-  static handlers(
-    handlersMap: Record<string, (ctx: FreshContext) => Promise<Response>>,
-  ): (ctx: FreshContext) => Promise<Response> {
-    return async (ctx: FreshContext) => {
+  static handlers<S = State>(
+    handlersMap: Record<string, (ctx: FreshContext<S>) => Promise<Response>>,
+  ): (ctx: FreshContext<S>) => Promise<Response> {
+    return async (ctx: FreshContext<S>) => {
       const method = ctx.req.method.toUpperCase();
       const handler = handlersMap[method];
 

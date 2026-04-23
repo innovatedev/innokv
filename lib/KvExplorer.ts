@@ -5,6 +5,29 @@ export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
 
   /**
+   * Retrieves tree structure under a prefix.
+   * Uses a "skip scan" strategy for top-level keys to be efficient.
+   */
+  async getTree(
+    prefix: Deno.KvKey,
+    options: {
+      limit?: number;
+      cursor?: string;
+      recursive?: boolean;
+      loadValues?: boolean;
+      loadDetails?: boolean;
+    } = {},
+  ): Promise<{ keys: DbNode[]; cursor: string }> {
+    if (options.recursive) {
+      // For recursive, we could implement a full tree walk
+      // but for now we just use the skip scan to get top-level keys
+      // and let the UI request more as needed.
+    }
+
+    return await this.getTopLevelKeys(prefix, options);
+  }
+
+  /**
    * Retrieves top-level keys under a prefix using a "skip scan" strategy.
    * This is efficient for large datasets as it avoids iterating over all children.
    *
@@ -25,7 +48,8 @@ export class KvExplorer {
       try {
         currentStart = KeyCodec.decode(options.cursor).map((p) =>
           this.parseKeyPart(p)
-        );
+          // deno-lint-ignore no-explicit-any
+        ) as any as Deno.KvKey;
       } catch {
         currentStart = [...prefix];
       }
@@ -33,18 +57,10 @@ export class KvExplorer {
       currentStart = [...prefix];
     }
 
-    // `[...prefix]` sorts before any child.
-
     let processedCount = 0;
     let nextCursor = "";
 
     while (processedCount < limit) {
-      // Fetch one item to see what the next key is
-      // We assume `true` is the highest value in KV sort order used for our data model sentinels.
-      // 0: Uint8Array, 1: string, 2: number, 3: bigint, 4: boolean
-
-      // DEBUG:
-
       const selector: { prefix: Deno.KvKey; start?: Deno.KvKey } = { prefix };
       if (processedCount > 0 || options.cursor) {
         selector.start = currentStart;
@@ -59,25 +75,16 @@ export class KvExplorer {
 
       const key = entry.value.key;
 
-      // Safety check: verify we are still under prefix
       if (key.length <= depth) {
-        // This means we matched the prefix itself or something shorter?
-        // list({prefix}) should only return keys starting with prefix.
-        // If key == prefix, it means the directory has a value. We skip it.
-        currentStart = [...prefix, new Uint8Array([0])]; // Move to first possible child
+        currentStart = [...prefix, new Uint8Array([0])];
         continue;
       }
 
-      const partVal = key[depth]; // The key part at this level
-
-      // Add to results
-      // We need to determine types for DbNode compatibility
+      const partVal = key[depth];
       const partInfo = this.stringifyKeyPart(partVal);
 
-      // To strictly follow requirements, set nextStart to skip all keys starting with `[...prefix, partVal]`.
       let hasChildren = key.length > depth + 1;
 
-      // If it looks like a leaf, double-check for children
       if (!hasChildren) {
         const childIter = this.kv.list({
           prefix: [...prefix, partVal],
@@ -89,7 +96,7 @@ export class KvExplorer {
         }
       }
 
-      const nextStart = [...prefix, partVal, true]; // Sentinel to skip descendants
+      const nextStart = [...prefix, partVal, true];
 
       nodes.push({
         type: partInfo.type,
@@ -99,9 +106,9 @@ export class KvExplorer {
       });
 
       processedCount++;
-      currentStart = nextStart;
+      // deno-lint-ignore no-explicit-any
+      currentStart = nextStart as any;
 
-      // Update cursor for pagination to be the *start* of the next iteration
       nextCursor = KeyCodec.encode(
         currentStart.map((p) => this.stringifyKeyPart(p)),
       );
@@ -112,9 +119,6 @@ export class KvExplorer {
 
   /**
    * Retrieves records under a prefix.
-   *
-   * @param prefix Parent key
-   * @param options.recursive If true, returns all descendants. If false, only immediate children.
    */
   async getRecords(
     prefix: Deno.KvKey,
@@ -134,20 +138,13 @@ export class KvExplorer {
     const records: Deno.KvEntry<unknown>[] = [];
 
     for await (const entry of iter) {
-      // Filter non-recursive
       if (!recursive) {
-        // If key is deeper than prefix + 1, skip it
         if (entry.key.length > prefix.length + 1) {
           continue;
         }
       }
       records.push(entry);
     }
-
-    // Handle pagination
-    // Note: If we filtered out items (recursive=false), we might return fewer than limit.
-    // This is a known trade-off with post-filtering.
-    // Ideally we'd loop until we fill 'limit' or exhaust iterator.
 
     let nextCursor = "";
     if (records.length > limit) {
@@ -160,8 +157,6 @@ export class KvExplorer {
     return { records, cursor: nextCursor };
   }
 
-  // Helper from Database.ts
-  // Modified stringify to use KeyCodec flow
   private stringifyKeyPart(
     part: Deno.KvKeyPart,
   ): { value: string; type: string } {
@@ -173,18 +168,22 @@ export class KvExplorer {
       return { value: part ? "true" : "false", type: "boolean" };
     } else if (typeof part === "bigint") {
       return { value: part.toString(), type: "bigint" };
-    } else if (part instanceof Date) {
-      return { value: part.toISOString(), type: "Date" };
     } else if (part instanceof Uint8Array) {
       return { value: btoa(String.fromCharCode(...part)), type: "Uint8Array" };
-    } else if (Array.isArray(part)) {
-      return { value: JSON.stringify(part), type: "Array" };
     } else {
+      // deno-lint-ignore no-explicit-any
+      const p = part as any;
+      if (p instanceof Date) {
+        return { value: p.toISOString(), type: "Date" };
+      }
+      if (Array.isArray(p)) {
+        return { value: JSON.stringify(p), type: "Array" };
+      }
       return { value: String(part), type: "unknown" };
     }
   }
 
-  private parseKeyPart(part: { type: string; value: string }) {
+  private parseKeyPart(part: { type: string; value: string }): Deno.KvKeyPart {
     try {
       if (part.type === "string") {
         return part.value;
@@ -195,17 +194,36 @@ export class KvExplorer {
       } else if (part.type === "boolean") {
         return part.value === "true";
       } else if (part.type === "Date") {
-        return new Date(part.value);
+        // deno-lint-ignore no-explicit-any
+        return new Date(part.value) as any;
       } else if (part.type === "Uint8Array" || part.type === "uint8array") {
         return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0));
       } else if (part.type === "ArrayBuffer") {
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0)).buffer;
+        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0))
+          // deno-lint-ignore no-explicit-any
+          .buffer as any;
       } else if (part.type === "Array") {
-        return JSON.parse(part.value);
+        // deno-lint-ignore no-explicit-any
+        return JSON.parse(part.value) as any;
       }
     } catch (e) {
       console.error("Failed to parse key part:", e);
     }
     return part.value;
+  }
+
+  parsePath(pathInfo: string): Deno.KvKey {
+    return KeyCodec.decode(pathInfo).map((p) => this.parseKeyPart(p));
+  }
+
+  async deleteRecords(prefix: Deno.KvKey, recursive = true) {
+    const iter = this.kv.list({ prefix });
+    for await (const entry of iter) {
+      if (!recursive && entry.key.length > prefix.length + 1) {
+        continue;
+      }
+      await this.kv.delete(entry.key);
+    }
+    return { ok: true };
   }
 }

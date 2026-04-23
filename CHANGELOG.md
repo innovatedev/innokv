@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.2
+
+- fix stylesheet 404
+- add user settings
+  - reset password
+  - manage api tokens
+- add granular permissions
+- add api token authorization
+- fix windows path issues with routes
+
 ## v0.1.1
 
 - fix default database and installation paths across operating systems

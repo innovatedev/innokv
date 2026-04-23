@@ -1,4 +1,4 @@
-import { Database } from "./models.ts";
+import { Database } from "@/kv/models.ts";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 
@@ -101,13 +101,6 @@ export default class KvAdminClient {
     id: string,
     path?: string,
   ): Promise<Record<string, DbNode>> {
-    // Legacy: path arg was for getKeys. Now we use getNodes if path is used for structure.
-    // Actually, getDatabase was likely just fetching the *structure*.
-    // And older implementation called `/database`.
-    // We redirect to `/database/nodes`.
-
-    // NOTE: getNodes returns { items: ..., cursor: ... }.
-    // getDatabase caller expects Record<string, DbNode>.
     const parentPath = path ? KeyCodec.decode(path) : [];
 
     return this.getNodes(id, parentPath, { limit: 1000 }).then((res) =>
@@ -141,7 +134,12 @@ export default class KvAdminClient {
     oldKey?: unknown[],
   ): Promise<unknown> {
     const wireKey = key.map((k) => this.stringifyKeyPart(k));
-    const payload: any = { id, key: wireKey, value, versionstamp };
+    const payload: Record<string, unknown> = {
+      id,
+      key: wireKey,
+      value,
+      versionstamp,
+    };
     if (oldKey) {
       payload.oldKey = oldKey.map((k: unknown) => this.stringifyKeyPart(k));
     }
@@ -162,11 +160,11 @@ export default class KvAdminClient {
       recursive?: boolean;
     },
   ): Promise<unknown> {
-    const payload: any = { id, all: options.all };
+    const payload: Record<string, unknown> = { id, all: options.all };
 
     if (options.keys) {
       payload.keys = options.keys.map((key) =>
-        key.map((k) => this.stringifyKeyPart(k)) // fixed: double encoding? No, stringifyKeyPart returns {type, value}
+        key.map((k) => this.stringifyKeyPart(k))
       );
     }
 

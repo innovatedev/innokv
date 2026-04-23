@@ -1,7 +1,7 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "jsr:@std/assert@1";
 import { DatabaseRepository } from "../lib/Database.ts";
-import { collection, kvdex, model } from "@olli/kvdex";
-import { DatabaseModel } from "../lib/models.ts";
+import { collection, kvdex } from "@olli/kvdex";
+import { DatabaseModel } from "@/kv/models.ts";
 import { KeyCodec } from "../lib/KeyCodec.ts";
 
 // Mock KV for testing
@@ -18,17 +18,22 @@ const mockDb = kvdex({
 // Mock Repository that uses the SAME KV instance for "connected" databases
 class TestDatabaseRepository extends DatabaseRepository {
   constructor() {
+    // deno-lint-ignore no-explicit-any
     super(mockDb as any);
   }
 
   // Override to return our testKv instead of opening new ones
+  // deno-lint-ignore no-explicit-any
   override async connectDatabase(_info: any) {
-    return testKv;
+    return await Promise.resolve(testKv);
   }
 
   // Helper to bypass database lookup
   override async getDatabase(_id: string) {
-    return { value: { id: "test", type: "memory" } } as any;
+    return await Promise.resolve(
+      // deno-lint-ignore no-explicit-any
+      { value: { id: "test", type: "memory" } } as any,
+    );
   }
 }
 
@@ -93,20 +98,6 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     await setup();
 
     // Action: Delete all matching under "a", recursive=false
-    // pathInfo = "a" (encoded)
-    // prefix = ["a"]
-    // Should delete direct children of "a": ["a", "b"]
-    // Should KEEP grandchildren: ["a", "b", "c"]
-    // Should KEEP parent/sibling: ["a"], ["d"]
-    // Wait, ["a"] represents the folder itself? No, ["a"] is a key.
-    // If prefix is ["a"], ["a"] is NOT a child. It IS the prefix.
-    // list({ prefix: ["a"] }) includes ["a", ...]
-
-    // In DatabaseView, when we are IN folder "a", pathInfo is ["a"].
-    // The list shows children: "b" (which is ["a", "b"]).
-    // So if we select all, we want to delete ["a", "b"].
-    // We do NOT want to delete ["a", "b", "c"].
-
     await repo.deleteRecords("test-db", {
       all: true,
       pathInfo: KeyCodec.encode([{ type: "string", value: "a" }]),
@@ -119,38 +110,7 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     const resABC = await testKv.get(["a", "b", "c"]);
     assert(resABC.value !== null, "Grandchild 'a/b/c' should REMAIN");
 
-    const resA = await testKv.get(["a"]);
-    // Prefix search includes the key itself?
-    // Deno KV list({ prefix: ["a"] }) includes ["a"]?
-    // Yes. But in DatabaseView logic:
-    // If we are IN folder "a", we are usually seeing children.
-    // DOES shallow delete delete the folder key itself?
-    // keysToDelete.push(entry.key);
-    // if recursive=false, it checks depth.
-    // prefix length: 1.
-    // key: ["a"] -> length 1.
-    // key: ["a", "b"] -> length 2.
-    // key: ["a", "b", "c"] -> length 3.
-    // Check: `if (entry.key.length > prefix.length + 1) continue;`
-    // ["a"]: 1 <= 1+1 (True). So ["a"] would be deleted?
-    // User intent: "select matching" in list view.
-    // List view of "a" shows "b".
-    // It does NOT show "a" (current folder).
-    // EXCEPT if "a" has a value.
-    // But usually we filter out the exact prefix key in the UI?
-    // Or maybe we don't.
-    // If we use `kv.list({ prefix })`, it includes the prefix.
-    // If "a" (folder metadata) is deleted, it's acceptable if "All" is selected.
-    // But usually "Select All" means "Select All Visible Items".
-    // If "a" is not visible, it shouldn't be deleted.
-    // However, for SAFETY, deleting ["a"] is fine (it's just a value).
-    // The critical thing is NOT deleting ["a", "b", "c"].
-    // ["a", "b"] is length 2. 2 <= 2. OK.
-    // ["a", "b", "c"] is length 3. 3 > 2. SKIP. Correct.
-
-    // So verification:
-    // ["a", "b"] deleted.
-    // ["a", "b", "c"] KEPT.
+    const _resA = await testKv.get(["a"]);
   });
 
   await t.step("Deep Delete Root (recursive implicit)", async () => {

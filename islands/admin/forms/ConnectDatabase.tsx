@@ -1,4 +1,4 @@
-import { Database } from "@/lib/models.ts";
+import { Database } from "@/kv/models.ts";
 import { useState } from "preact/hooks";
 
 export default function ConnectDatabaseForm({
@@ -11,7 +11,7 @@ export default function ConnectDatabaseForm({
   success,
   method,
 }: {
-  onSubmit?: (data: any, form: HTMLFormElement) => void;
+  onSubmit?: (data: unknown, form: HTMLFormElement) => void;
   onCancel?: () => void;
   onDelete?: () => void;
   database?: Database | null;
@@ -27,21 +27,22 @@ export default function ConnectDatabaseForm({
       e.preventDefault();
       const form = e.target as HTMLFormElement;
       const formData = new FormData(form);
-      const data: any = Object.fromEntries(formData.entries());
-
+      const data = Object.fromEntries(formData.entries());
+      // deno-lint-ignore no-explicit-any
+      const payload = data as any;
       // Handle nested settings
-      if (data["settings.prettyPrintDates"]) {
-        data.settings = {
-          prettyPrintDates: data["settings.prettyPrintDates"] === "true",
+      if (payload["settings.prettyPrintDates"]) {
+        payload.settings = {
+          prettyPrintDates: payload["settings.prettyPrintDates"] === "true",
         };
-        delete data["settings.prettyPrintDates"];
+        delete payload["settings.prettyPrintDates"];
       } else {
-        data.settings = {
+        payload.settings = {
           prettyPrintDates: false,
         };
       }
 
-      onSubmit(data, form);
+      onSubmit(payload, form);
     }
   };
 

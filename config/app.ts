@@ -10,6 +10,10 @@ const settings = {
       .map((e) => e.trim())
       .filter((e) => e.length > 0),
   },
+  env: {
+    isProd: Deno.env.get("DENO_ENV") === "production" ||
+      Deno.env.get("NODE_ENV") === "production",
+  },
 };
 
 export default settings;

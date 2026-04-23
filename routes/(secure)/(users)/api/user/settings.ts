@@ -1,5 +1,5 @@
 import { define } from "@/utils.ts";
-import { db } from "@/lib/db.ts";
+import { db } from "@/kv/db.ts";
 import { HttpError } from "fresh";
 import { deepMerge } from "@std/collections";
 
@@ -30,8 +30,6 @@ export const handler = define.handlers({
       settings: newSettings,
     });
 
-    return new Response(JSON.stringify({ settings: newSettings }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json({ settings: newSettings });
   },
 });

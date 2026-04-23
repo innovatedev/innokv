@@ -27,8 +27,17 @@
     "version": "deno run -A tools/version.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },
-  "lint": { "rules": { "tags": ["fresh", "recommended"] } },
-  "exclude": ["**/_fresh/*"],
+  "lint": {
+    "rules": {
+      "tags": [
+        "fresh",
+        "recommended"
+      ]
+    }
+  },
+  "exclude": [
+    "**/_fresh/*"
+  ],
   "imports": {
     "@/": "./",
     "@std/cli": "jsr:@std/cli@^1.0.24",
@@ -52,8 +61,7 @@
     "@olli/kvdex": "jsr:@olli/kvdex@^3.4.2",
     "zod": "npm:zod@^3.25.75",
     "@felix/argon2": "jsr:@felix/argon2",
-    "@innovatedev/fresh-session/kvdex-store": "jsr:@innovatedev/fresh-session@^0.3.3/kvdex-store",
-    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.3.3"
+    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.4.18"
   },
   "compilerOptions": {
     "lib": [
@@ -81,9 +89,13 @@
       "noscript",
       "template"
     ],
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ]
   },
-  "unstable": ["kv"],
+  "unstable": [
+    "kv"
+  ],
   "license": "MIT",
   "tags": [
     "ai-generated",

@@ -1,10 +1,8 @@
-import { Database, DatabaseModel } from "./models.ts";
+import { Database, DatabaseDoc, DatabaseModel } from "@/kv/models.ts";
 import { ApiKvKeyPart } from "./types.ts";
-import { KeyCodec } from "./KeyCodec.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
-import { ROOT_DB_ID } from "./db.ts";
-import { RichValue, ValueCodec } from "./ValueCodec.ts";
+import { ROOT_DB_ID } from "@/kv/db.ts";
 
 export class DatabaseRepository extends BaseRepository {
   async addDatabase(data: Database) {
@@ -12,29 +10,30 @@ export class DatabaseRepository extends BaseRepository {
       "slug",
       data.slug,
     );
-
     if (existingDatabase) {
       throw new DatabaseError(
         `Database with slug "${data.slug}" already exists`,
       );
     }
 
-    const record = {
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      sort: data.sort || 0,
-    };
-    const databaseFromModel = this.parseModel(DatabaseModel, record);
+    const databaseFromModel = DatabaseModel.safeParse(data);
+    if (!databaseFromModel.success) {
+      console.error(
+        "ERROR: Failed to validate database:",
+        databaseFromModel.error,
+      );
+      throw new DatabaseError(
+        `Invalid database data: ${databaseFromModel.error.message}`,
+      );
+    }
 
+    const record = databaseFromModel.data;
     const database = await this.kvdex.databases.add(record);
 
     if (!database.ok) {
       console.error("ERRFailed to create database:", databaseFromModel);
       throw new DatabaseError(
-        `Failed to create database: ${
-          (database as any).error || "Unknown error"
-        }`,
+        `Failed to create database: Unknown error`,
       );
     }
 
@@ -44,152 +43,69 @@ export class DatabaseRepository extends BaseRepository {
     };
   }
 
-  async updateDatabase(data: Database & { existingSlug: string }) {
-    const { id, ...update } = data;
-    const existingDatabase = await this.kvdex.databases.find(id);
-
-    if (!existingDatabase) {
-      throw new DatabaseError(`Database with id "${id}" does not exist`);
+  async updateDatabase(id: string, data: Partial<Database>) {
+    const databaseFromModel = DatabaseModel.partial().safeParse(data);
+    if (!databaseFromModel.success) {
+      console.error(
+        "ERROR: Failed to validate database update:",
+        databaseFromModel.error,
+      );
+      throw new DatabaseError(
+        `Invalid database data: ${databaseFromModel.error.message}`,
+      );
     }
 
-    const record = {
-      ...existingDatabase.value,
-      ...update,
-      updatedAt: new Date(),
-    };
-    const databaseFromModel = this.parseModel(DatabaseModel, record);
-
-    // cannot update if slug hasn't changed
-    const { slug: newSlug, path: _newPath } = record;
-    if (existingDatabase.value.slug == newSlug) {
-      // record.slug = crypto.randomUUID();
-      // record.path = crypto.randomUUID();
-    }
-    // Exclude slug from update payload as it is a primary index and shouldn't be in the update data unless changing (which requires special handling)
-    // For now, we assume slug doesn't change or we explicitly exclude it to fix the update error.
-    const { slug: _slug, ...updateData } = databaseFromModel;
-    const database = await this.kvdex.databases.update(id, updateData);
+    const record = databaseFromModel.data;
+    const database = await this.kvdex.databases.update(id, record);
 
     if (!database.ok) {
       console.error("ERROR: Failed to update database:", record, database);
       throw new DatabaseError(
-        `Failed to update database: ${
-          (database as any).error || "Unknown error"
-        }`,
+        `Failed to update database: Unknown error`,
       );
     }
 
-    // if (newSlug != record.slug) {
-    //   record.slug = newSlug;
-    //   // record.path = newPath;
-    //   await this.kvdex.databases.update(id, record);
-    // }
-
     return {
-      id,
+      ...database,
       ...record,
     };
   }
 
-  async deleteDatabase({ id }: { id: string }) {
-    const database = await this.kvdex.databases.find(id);
-
-    if (!database) {
-      throw new DatabaseError(`Database with id "${id}" does not exist`);
+  async deleteDatabase(id: string) {
+    if (id === ROOT_DB_ID) {
+      throw new DatabaseError("Cannot delete root database");
     }
-
+    const dbDoc = await this.kvdex.databases.find(id);
+    if (!dbDoc) {
+      throw new DatabaseError(`Database with id "${id}" not found`);
+    }
     await this.kvdex.databases.delete(id);
-
-    return { ok: true, name: database.value.name || database.id };
+    return { ok: true, name: dbDoc.flat().name };
   }
 
-  async getDatabases(
-    { reverse = false, limit = 100 }: { reverse?: boolean; limit?: number } = {
-      reverse: false,
-      limit: 100,
-    },
-  ) {
-    const databases = await this.kvdex.databases.getManyBySecondaryOrder(
-      "sort",
-      {
-        reverse,
-        limit,
-      },
-    );
-
-    return databases;
+  async getDatabases(options?: Deno.KvListOptions) {
+    return await this.kvdex.databases.getMany(options);
   }
 
   async getDatabase(id: string) {
-    const database = await this.kvdex.databases.find(id);
-
-    if (!database) {
-      throw new DatabaseError(`Database with id "${id}" does not exist`);
-    }
-
-    return database;
+    return await this.kvdex.databases.find(id);
   }
 
-  async getDatabaseBySlugOrId(slugOrId: string) {
-    // Try by slug first (primary index)
-    const bySlug = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slugOrId,
-    );
-    if (bySlug) return bySlug;
-
-    // Try by ID
-    const byId = await this.kvdex.databases.find(slugOrId);
-    if (byId) return byId;
-
-    throw new DatabaseError(
-      `Database with slug or id "${slugOrId}" does not exist`,
-    );
-  }
-
-  private static memoryInstances = new Map<string, Deno.Kv>();
-
-  async connectDatabase(database: Database) {
+  async connectDatabase(database: DatabaseDoc): Promise<Deno.Kv> {
     if (database.type === "file") {
-      const { path } = database;
-      if (!path) {
-        throw new DatabaseError(
-          `Database with id "${database.id}" does not have a path`,
-        );
-      }
-
       try {
-        const kv = await Deno.openKv(path);
-        if (!kv) {
-          throw new DatabaseError(`Failed to open database at path "${path}"`);
-        }
-
-        // Recursion Protection: Check if this is the root database
-        try {
-          const meta = await kv.get<{ id: string }>(["__innokv__"]);
-          if (meta.value && meta.value.id === ROOT_DB_ID) {
-            kv.close();
-            throw new DatabaseError(
-              "Cannot mount the InnoKV database running this application.",
-            );
-          }
-        } catch (e) {
-          if (e instanceof DatabaseError) throw e;
-          // Ignore read errors (e.g. if key doesn't exist or other issue), allow connection?
-          // If we can't read metadata, maybe safe to assume it's not root?
-          // Or log it.
-        }
+        const kv = await Deno.openKv(database.path);
 
         if (database.lastError) {
           // Clear error on success
           this.kvdex.databases.update(database.id, {
             lastError: "",
-            lastErrorAt: new Date(0), // Use a zero date or null equivalent if model allows, or just ignore date if error is empty
-          } as any).catch(() => {});
+            lastErrorAt: new Date(0),
+          }).catch(() => {});
         }
 
         return kv;
-      } catch (error: any) {
+      } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
 
         // Track error
@@ -197,7 +113,7 @@ export class DatabaseRepository extends BaseRepository {
           await this.kvdex.databases.update(database.id, {
             lastError: message,
             lastErrorAt: new Date(),
-          } as any);
+          });
         } catch (_) { /* ignore write failure */ }
 
         throw new DatabaseError(message);
@@ -232,16 +148,16 @@ export class DatabaseRepository extends BaseRepository {
           if (database.lastError) {
             this.kvdex.databases.update(
               database.id,
-              { lastError: "", lastErrorAt: new Date(0) } as any,
+              { lastError: "", lastErrorAt: new Date(0) },
             ).catch(() => {});
           }
-        } catch (err: any) { // Catch errors for remote too
+        } catch (err: unknown) { // Catch errors for remote too
           const message = err instanceof Error ? err.message : String(err);
           try {
             await this.kvdex.databases.update(database.id, {
               lastError: message,
               lastErrorAt: new Date(),
-            } as any);
+            });
           } catch (_) { /* ignore */ }
           throw err; // Rethrow
         } finally {
@@ -270,256 +186,251 @@ export class DatabaseRepository extends BaseRepository {
       return { value: part ? "true" : "false", type: "boolean" };
     } else if (typeof part === "bigint") {
       return { value: part.toString(), type: "bigint" }; // Added bigint support
-    } else if (part instanceof Date) {
-      return { value: part.toISOString(), type: "Date" };
     } else if (part instanceof Uint8Array) {
       return { value: btoa(String.fromCharCode(...part)), type: "Uint8Array" };
-    } else if ((part as any) instanceof ArrayBuffer) {
-      return {
-        value: btoa(String.fromCharCode(...new Uint8Array(part as any))),
-        type: "ArrayBuffer",
-      };
-    } else if (Array.isArray(part)) {
-      return { value: JSON.stringify(part), type: "Array" };
     } else {
+      // For types that are not strictly KvKeyPart but we might encounter due to looser typing
+      // deno-lint-ignore no-explicit-any
+      const p = part as any;
+      if (p instanceof Date) {
+        return { value: p.toISOString(), type: "Date" };
+      }
+      if (p instanceof ArrayBuffer) {
+        return {
+          value: btoa(String.fromCharCode(...new Uint8Array(p))),
+          type: "ArrayBuffer",
+        };
+      }
+      if (Array.isArray(p)) {
+        return { value: JSON.stringify(p), type: "Array" };
+      }
       throw new Error(`Unsupported key part type: ${typeof part}`);
     }
   }
 
-  parseKeyPart(part: { type: string; value: string }) {
-    try {
-      if (part.type === "string") {
+  parseKeyPart(part: ApiKvKeyPart): Deno.KvKeyPart {
+    switch (part.type) {
+      case "string":
         return part.value;
-      } else if (part.type === "number") {
-        return parseFloat(part.value);
-      } else if (part.type === "bigint") {
-        return BigInt(part.value); // Added bigint support
-      } else if (part.type === "boolean") {
+      case "number":
+        return Number(part.value);
+      case "boolean":
         return part.value === "true";
-      } else if (part.type === "Date") {
-        return new Date(part.value);
-      } else if (part.type === "Uint8Array" || part.type === "uint8array") {
+      case "bigint":
+        return BigInt(part.value);
+      case "Date":
+        // deno-lint-ignore no-explicit-any
+        return new Date(part.value) as any;
+      case "Uint8Array":
         return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0));
-      } else if (part.type === "ArrayBuffer") {
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0)).buffer;
-      } else if (part.type === "Array") {
-        return JSON.parse(part.value);
-      }
-    } catch (e) {
-      console.error("Failed to parse key part:", e);
+      case "ArrayBuffer":
+        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0))
+          // deno-lint-ignore no-explicit-any
+          .buffer as any;
+      case "Array":
+        // deno-lint-ignore no-explicit-any
+        return JSON.parse(part.value) as any;
+      default:
+        throw new Error(`Unsupported key part type: ${part.type}`);
     }
-
-    return part.value;
   }
 
-  // Helper to handle BigInt in values during JSON parsing/stringifying if needed by API
-  // But here we deal with KV direct access.
+  async getTree(
+    slug: string,
+    prefix: Deno.KvKey = [],
+    options: {
+      recursive?: boolean;
+      loadValues?: boolean;
+      loadDetails?: boolean;
+      limit?: number;
+      cursor?: string;
+    } = {},
+  ) {
+    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slug,
+    );
+    if (!databaseDoc) {
+      throw new DatabaseError(`Database with slug "${slug}" not found`);
+    }
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    const result = await explorer.getTree(prefix, options);
+
+    return result;
+  }
+
+  async getNodes(
+    databaseId: string,
+    parentPath: Deno.KvKey,
+    options: { cursor?: string; limit?: number } = {},
+  ) {
+    const databaseDoc = await this.getDatabase(databaseId);
+    if (!databaseDoc) throw new DatabaseError("Database not found");
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    return await explorer.getTopLevelKeys(parentPath, options);
+  }
+
+  async getEntry(slug: string, key: Deno.KvKey) {
+    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slug,
+    );
+    if (!databaseDoc) {
+      throw new DatabaseError(`Database with slug "${slug}" not found`);
+    }
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const res = await kv.get(key);
+    return res;
+  }
+
+  async setEntry(slug: string, key: Deno.KvKey, value: unknown) {
+    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slug,
+    );
+    if (!databaseDoc) {
+      throw new DatabaseError(`Database with slug "${slug}" not found`);
+    }
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    return await kv.set(key, value);
+  }
+
+  async deleteEntry(slug: string, key: Deno.KvKey) {
+    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slug,
+    );
+    if (!databaseDoc) {
+      throw new DatabaseError(`Database with slug "${slug}" not found`);
+    }
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    return await kv.delete(key);
+  }
+
+  async listEntries(slug: string, options?: Deno.KvListOptions) {
+    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slug,
+    );
+    if (!databaseDoc) {
+      throw new DatabaseError(`Database with slug "${slug}" not found`);
+    }
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const iter = kv.list({ prefix: [] }, options);
+    const entries = [];
+    for await (const entry of iter) {
+      entries.push(entry);
+    }
+    return entries;
+  }
+
+  async getDatabaseBySlugOrId(slugOrId: string) {
+    let database = await this.kvdex.databases.findByPrimaryIndex(
+      "slug",
+      slugOrId,
+    );
+    if (!database) {
+      database = await this.kvdex.databases.find(slugOrId);
+    }
+    if (!database) {
+      throw new DatabaseError(`Database "${slugOrId}" not found`);
+    }
+    return database;
+  }
+
+  async getRecords(
+    databaseId: string,
+    pathInfo: string,
+    cursor?: string,
+    limit = 100,
+    options: { recursive?: boolean } = {},
+  ) {
+    const databaseDoc = await this.getDatabase(databaseId);
+    if (!databaseDoc) throw new DatabaseError("Database not found");
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+    const prefix = pathInfo ? explorer.parsePath(pathInfo) : [];
+
+    return await explorer.getRecords(prefix, { cursor, limit, ...options });
+  }
 
   async saveRecord(
-    id: string,
+    databaseId: string,
     key: Deno.KvKey,
     value: unknown,
     versionstamp: string | null = null,
     oldKey?: Deno.KvKey,
   ) {
-    const database = await this.getDatabase(id);
-    const kv = await this.connectDatabase({ ...database.value, id });
+    const databaseDoc = await this.getDatabase(databaseId);
+    if (!databaseDoc) throw new DatabaseError("Database not found");
 
-    // Decode value if it looks like a RichValue structure sent from API
-    const decodedValue = ValueCodec.decode(value as RichValue);
+    const kv = await this.connectDatabase(databaseDoc.flat());
 
-    console.log(`[Database] Saving record ${id} key=${JSON.stringify(key)}`);
-    console.log(`[Database] Raw Value:`, JSON.stringify(value).slice(0, 200));
-    console.log(`[Database] Decoded Type: ${typeof decodedValue}`);
-    if (decodedValue instanceof Map) {
-      console.log(`[Database] IS MAP. Size: ${decodedValue.size}`);
-      console.log(
-        `[Database] Map Content:`,
-        Array.from(decodedValue.entries()),
-      );
-    } else if (decodedValue && typeof decodedValue === "object") {
-      console.log(`[Database] IS OBJECT. Keys: ${Object.keys(decodedValue)}`);
-    } else {
-      console.log(`[Database] IS PRIMITIVE: ${decodedValue}`);
-    }
-
-    if (oldKey) {
-      const isSameKey = this.keysEqual(key, oldKey);
-      if (!isSameKey) {
-        const atomic = kv.atomic();
-        if (versionstamp) atomic.check({ key: oldKey, versionstamp });
-        atomic.delete(oldKey);
-        atomic.set(key, decodedValue);
-        const result = await atomic.commit();
-        if (!result.ok) {
-          throw new Error(
-            "Failed to move record: version check failed or conflict",
-          );
-        }
-        return result;
-      }
+    if (oldKey && JSON.stringify(oldKey) !== JSON.stringify(key)) {
+      // Move record
+      await kv.delete(oldKey);
     }
 
     if (versionstamp) {
-      const atomic = kv.atomic();
-      atomic.check({ key, versionstamp });
-      atomic.set(key, decodedValue);
-      const result = await atomic.commit();
-      if (!result.ok) {
-        throw new Error("Failed to save record: version check failed");
+      // Check for conflict
+      const existing = await kv.get(key);
+      if (existing.versionstamp !== versionstamp) {
+        throw new DatabaseError("Versionstamp conflict");
       }
-      return result;
     }
 
-    return await kv.set(key, decodedValue);
+    return await kv.set(key, value);
   }
 
-  async deleteRecord(id: string, key: Deno.KvKey) {
-    const database = await this.getDatabase(id);
-    const kv = await this.connectDatabase({ ...database.value, id });
-    await kv.delete(key);
-    return { ok: true };
+  async deleteRecord(databaseId: string, key: Deno.KvKey) {
+    const databaseDoc = await this.getDatabase(databaseId);
+    if (!databaseDoc) throw new DatabaseError("Database not found");
+
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    return await kv.delete(key);
   }
 
   async deleteRecords(
-    id: string,
-    { keys, all, pathInfo, recursive }: {
+    databaseId: string,
+    options: {
       keys?: Deno.KvKey[];
       all?: boolean;
       pathInfo?: string;
       recursive?: boolean;
     },
   ) {
-    const database = await this.getDatabase(id);
-    const kv = await this.connectDatabase({ ...database.value, id });
+    const databaseDoc = await this.getDatabase(databaseId);
+    if (!databaseDoc) throw new DatabaseError("Database not found");
 
-    let keysToDelete: Deno.KvKey[] = [];
-
-    if (all && pathInfo !== undefined) {
-      const pathInfoParsed = KeyCodec.decode(pathInfo);
-      const prefix = pathInfoParsed.map((info) => this.parseKeyPart(info));
-      const iter = kv.list({ prefix });
-      for await (const entry of iter) {
-        if (recursive === false) {
-          if (entry.key.length > prefix.length + 1) continue;
-        }
-        keysToDelete.push(entry.key);
-      }
-    } else if (keys) {
-      keysToDelete = keys;
-    }
-
-    // Batched delete
-    // Deno KV atomic supports limited ops (10 per atomic usually).
-    // Now that key serialization is fixed, we can safely use atomic batches for better performance (fewer commits).
-    const BATCH_SIZE = 10;
-    let deletedCount = 0;
-
-    for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
-      const batch = keysToDelete.slice(i, i + BATCH_SIZE);
-      const atomic = kv.atomic();
-      for (const key of batch) {
-        atomic.delete(key);
-      }
-      const result = await atomic.commit();
-      if (result.ok) {
-        deletedCount += batch.length;
-      } else {
-        console.error("Failed to delete batch of records", result);
-      }
-    }
-    return { ok: true, count: deletedCount };
-  }
-
-  async updateLastAccessed(id: string) {
-    try {
-      const database = await this.getDatabaseBySlugOrId(id);
-      // getDatabaseBySlugOrId throws if not found
-
-      // We need the real ID for the update operation
-      const realId = database.id;
-      await this.kvdex.databases.update(realId, {
-        lastAccessedAt: new Date(),
-      } as any);
-    } catch (e) {
-      // Ignore update errors for lastAccessedAt to prevent blocking reads
-      console.warn(`Failed to update lastAccessedAt for db ${id}`, e);
-    }
-  }
-
-  async getNodes(
-    id: string,
-    parentPath: ApiKvKeyPart[] = [],
-    options: { limit?: number; cursor?: string } = {},
-  ) {
-    // Mark as accessed
-    this.updateLastAccessed(id); // updateLastAccessed also needs slug support? see below.
-
-    const database = await this.getDatabaseBySlugOrId(id);
-    const kv = await this.connectDatabase({
-      ...database.value,
-      id: database.id,
-    });
+    const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
 
-    // Decode parent path to KV Key
-    const prefix = parentPath.map((p) => this.parseKeyPart(p));
-
-    const { keys, cursor } = await explorer.getTopLevelKeys(prefix, options);
-
-    return { nodes: keys, cursor };
-  }
-
-  async getRecords(
-    id: string,
-    pathInfo: string,
-    cursor?: string,
-    limit = 100,
-    options: { recursive?: boolean } = {}, // New options param
-  ) {
-    const pathInfoParsed = KeyCodec.decode(pathInfo);
-    const database = await this.getDatabaseBySlugOrId(id);
-    const kv = await this.connectDatabase({
-      ...database.value,
-      id: database.id,
-    });
-    const explorer = new KvExplorer(kv);
-
-    const prefix = pathInfoParsed.map((info) => this.parseKeyPart(info));
-
-    const { records, cursor: nextCursor } = await explorer.getRecords(prefix, {
-      limit,
-      cursor,
-      recursive: options.recursive ?? true,
-    });
-
-    const parsedRecords = records.map((entry) => {
-      const parsedKey = entry.key.map((part) => this.stringifyKeyPart(part));
-      return {
-        key: parsedKey as any,
-        value: ValueCodec.encode(entry.value),
-        versionstamp: entry.versionstamp,
-      };
-    });
-
-    return { records: parsedRecords, cursor: nextCursor };
-  }
-
-  private keysEqual(a: Deno.KvKey, b: Deno.KvKey): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      const valA = a[i];
-      const valB = b[i];
-      if (valA === valB) continue;
-      if (valA instanceof Uint8Array && valB instanceof Uint8Array) {
-        if (valA.length !== valB.length) return false;
-        for (let j = 0; j < valA.length; j++) {
-          if (valA[j] !== valB[j]) return false;
-        }
-        continue;
-      }
-      return false;
+    if (options.all) {
+      const prefix = options.pathInfo
+        ? explorer.parsePath(options.pathInfo)
+        : [];
+      return await explorer.deleteRecords(prefix, options.recursive ?? true);
     }
-    return true;
+
+    if (options.keys) {
+      for (const key of options.keys) {
+        await kv.delete(key);
+      }
+    }
+
+    return { ok: true };
   }
+
+  static memoryInstances = new Map<string, Deno.Kv>();
 }

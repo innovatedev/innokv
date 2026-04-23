@@ -1,0 +1,225 @@
+import { readConfig } from "./config.ts";
+import { db } from "@/kv/db.ts";
+import { hasPermission, rulesToPermissions } from "../lib/permissions.ts";
+import {
+  changePassword,
+  createUser,
+  type CreateUserOptions,
+  findUserByEmail,
+} from "../lib/users.ts";
+
+export interface UpdateOptions {
+  mergeArrays?: boolean;
+}
+
+/**
+ * Ensures the CLI user is authenticated and returns the user and token.
+ */
+export async function ensureAuthenticated() {
+  const config = await readConfig();
+  if (!config.token) {
+    throw new Error(
+      "Authentication required. Please run 'innokv auth login' to authenticate.",
+    );
+  }
+
+  // Hash the token for lookup
+  const encoder = new TextEncoder();
+  const data = encoder.encode(config.token);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const tokenHash = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const tokenDoc = await db.apiTokens.findByPrimaryIndex(
+    "tokenHash",
+    tokenHash,
+  );
+
+  if (!tokenDoc) {
+    throw new Error(
+      "Invalid or expired session. Please run 'innokv auth login' again.",
+    );
+  }
+
+  // Check expiration
+  if (tokenDoc.value.expiresAt && tokenDoc.value.expiresAt < new Date()) {
+    throw new Error(
+      "Session expired. Please run 'innokv auth login' again.",
+    );
+  }
+
+  const userDoc = await db.users.find(tokenDoc.value.userId);
+  if (!userDoc) {
+    throw new Error("User associated with this token not found.");
+  }
+
+  return {
+    user: { ...userDoc.value, id: userDoc.id },
+    token: { ...tokenDoc.value, id: tokenDoc.id },
+  };
+}
+
+/**
+ * Checks if the current session has permission for an action on a database.
+ */
+async function checkPermission(
+  slug: string,
+  action: "read" | "write" | "manage",
+) {
+  const { user, token } = await ensureAuthenticated();
+
+  let permissions: string[] = [];
+
+  if (token.type === "personal") {
+    permissions = user.permissions;
+  } else {
+    permissions = rulesToPermissions(token.rules);
+  }
+
+  const requiredPerm = `database:${action}:${slug}`;
+  if (!hasPermission(permissions, requiredPerm)) {
+    throw new Error(
+      `Permission denied: You do not have '${action}' access to database '${slug}'.`,
+    );
+  }
+}
+
+/**
+ * Checks if the user can manage other users.
+ * Allows access if no users exist (Bootstrap Mode).
+ */
+export async function checkUserManagePermission() {
+  const userCount = await db.users.count();
+  if (userCount === 0) return; // Bootstrap mode
+
+  const { user, token } = await ensureAuthenticated();
+  let permissions: string[] = [];
+
+  if (token.type === "personal") {
+    permissions = user.permissions;
+  } else {
+    permissions = rulesToPermissions(token.rules);
+  }
+
+  if (!hasPermission(permissions, "users:manage")) {
+    throw new Error(
+      "Permission denied: You do not have 'users:manage' access.",
+    );
+  }
+}
+
+// --- Database Actions ---
+
+export async function doLs(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
+  await checkPermission(slug, "read");
+  const seenKeys = new Set<string>();
+  const iter = kv.list({ prefix: targetPath as Deno.KvKey });
+
+  for await (const entry of iter) {
+    const remainingKey = entry.key.slice(targetPath.length);
+    if (remainingKey.length > 0) {
+      const nextPart = remainingKey[0];
+      let displayKey = String(nextPart);
+      if (typeof nextPart === "string") displayKey = `"${nextPart}"`;
+      else if (typeof nextPart === "bigint") displayKey = `${nextPart}n`;
+      else if (nextPart instanceof Uint8Array) {
+        displayKey = `u8[${nextPart.join(",")}]`;
+      }
+
+      if (!seenKeys.has(displayKey)) {
+        console.log(displayKey);
+        seenKeys.add(displayKey);
+      }
+    }
+  }
+}
+
+export async function doGet(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
+  await checkPermission(slug, "read");
+  const res = await kv.get(targetPath as Deno.KvKey);
+  if (res.versionstamp) {
+    console.log(res.value);
+  }
+  return res;
+}
+
+export async function doSet(
+  kv: Deno.Kv,
+  slug: string,
+  targetPath: unknown[],
+  value: string,
+) {
+  await checkPermission(slug, "write");
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(value);
+  } catch {
+    parsedValue = value;
+  }
+  await kv.set(targetPath as Deno.KvKey, parsedValue);
+}
+
+export async function doUpdate(
+  kv: Deno.Kv,
+  slug: string,
+  targetPath: unknown[],
+  value: string,
+  options: UpdateOptions = {},
+) {
+  await checkPermission(slug, "write");
+  let newValue: unknown;
+  try {
+    newValue = JSON.parse(value);
+  } catch {
+    newValue = value;
+  }
+
+  const res = await kv.get(targetPath as Deno.KvKey);
+  const existingValue = res.value;
+  let mergedValue = newValue;
+
+  if (
+    existingValue !== null && typeof existingValue === "object" &&
+    newValue !== null && typeof newValue === "object"
+  ) {
+    if (Array.isArray(existingValue) && Array.isArray(newValue)) {
+      if (options.mergeArrays) {
+        mergedValue = Array.from(new Set([...existingValue, ...newValue]));
+      } else {
+        mergedValue = newValue;
+      }
+    } else if (!Array.isArray(existingValue) && !Array.isArray(newValue)) {
+      mergedValue = { ...existingValue, ...(newValue as object) };
+    }
+  }
+
+  const commit = await kv.atomic()
+    .check(res)
+    .set(targetPath as Deno.KvKey, mergedValue)
+    .commit();
+
+  if (!commit.ok) {
+    throw new Error("Failed to update: versionstamp check failed or conflict.");
+  }
+}
+
+// --- User Management Actions ---
+
+export async function doUserAdd(options: CreateUserOptions) {
+  await checkUserManagePermission();
+  return await createUser(options);
+}
+
+export async function doUserLs() {
+  await checkUserManagePermission();
+  const { result: users } = await db.users.getMany();
+  return users.map((u) => ({ ...u.value, id: u.id }));
+}
+
+export async function doUserResetPassword(email: string, password: string) {
+  await checkUserManagePermission();
+  const userDoc = await findUserByEmail(email);
+  if (!userDoc) throw new Error(`User with email '${email}' not found.`);
+  return await changePassword(userDoc.id, password);
+}

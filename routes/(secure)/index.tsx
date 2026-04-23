@@ -3,9 +3,13 @@ import HomeView from "@/islands/admin/HomeView.tsx";
 import { DatabaseProvider } from "@/islands/admin/contexts/DatabaseContext.tsx";
 import { UsersIcon } from "@/components/icons/UsersIcon.tsx";
 import { LogoutIcon } from "@/components/icons/LogoutIcon.tsx";
-import { Database } from "@/lib/models.ts";
-import { User } from "@/lib/models.ts";
+import { UserIcon } from "@/components/icons/UserIcon.tsx";
+import { Dropdown } from "@/components/Dropdown.tsx";
+import { Database } from "@/kv/models.ts";
+import { User } from "@/kv/models.ts";
 import BrandHeader from "@/components/BrandHeader.tsx";
+
+import { ComponentChildren } from "preact";
 
 const DBHoC = ({
   databases,
@@ -14,7 +18,7 @@ const DBHoC = ({
 }: {
   databases: Database[];
   userSettings: User["settings"];
-  children: React.ReactNode;
+  children: ComponentChildren;
 }) => {
   return (
     <DatabaseProvider
@@ -40,12 +44,14 @@ export default define.page(function Home({ state }) {
 
   const HomeViewWrapper = ({
     children,
+    userSettings,
   }: {
-    children?: React.ReactNode;
+    children?: ComponentChildren;
+    userSettings?: User["settings"];
   }) => {
     return (
       <div class="relative">
-        <div class="absolute top-4 right-4 z-50 flex gap-2">
+        <div class="absolute top-4 right-4 z-50 flex gap-2 items-center">
           {state.plugins.permissions.has("users:manage") && (
             <a
               href="/admin/users"
@@ -55,13 +61,32 @@ export default define.page(function Home({ state }) {
               Admin
             </a>
           )}
-          <a
-            href="/logout"
-            class="btn btn-sm btn-ghost hover:bg-brand/20 hover:text-brand gap-2 transition-colors"
+          <Dropdown
+            icon={<UserIcon class="w-4 h-4" />}
+            label="Account"
           >
-            <LogoutIcon class="w-4 h-4" />
-            Logout
-          </a>
+            <li class="menu-title px-4 py-2 text-xs font-semibold text-base-content/50 border-b border-base-200 mb-2">
+              {userSettings?.hideEmail ? "User" : state.user?.email}
+            </li>
+            <li>
+              <a href="/user/tokens">API Tokens</a>
+            </li>
+            <li>
+              <a href="/user/settings">Settings</a>
+            </li>
+            <div class="divider my-1"></div>
+            <li>
+              <form id="logout-form" method="POST" action="/logout" class="hidden" />
+              <button
+                form="logout-form"
+                type="submit"
+                class="flex items-center gap-2 text-error hover:text-error"
+              >
+                <LogoutIcon class="w-4 h-4" />
+                Logout
+              </button>
+            </li>
+          </Dropdown>
         </div>
         <div class="flex flex-col w-full max-w-4xl mx-auto p-4 gap-3">
           <div class="mb-8 mt-12">
@@ -94,12 +119,12 @@ export default define.page(function Home({ state }) {
   if (state.plugins.permissions.has("database:manage")) {
     return (
       <DBHoC databases={databases} userSettings={state.user?.settings!}>
-        <HomeViewWrapper>
+        <HomeViewWrapper userSettings={state.user?.settings}>
           <HomeView />
         </HomeViewWrapper>
       </DBHoC>
     );
   }
 
-  return <HomeViewWrapper></HomeViewWrapper>;
+  return <HomeViewWrapper userSettings={state.user?.settings} />;
 });

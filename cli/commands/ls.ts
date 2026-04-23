@@ -1,7 +1,8 @@
 import { Command } from "@cliffy/command";
-import { db as coreDb } from "../../lib/db.ts";
+import { db as coreDb } from "@/kv/db.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
 import { resolvePath } from "../utils.ts";
+import { doLs } from "../actions.ts";
 
 type LsArgs = [string, string | undefined];
 
@@ -26,29 +27,9 @@ export const ls: Command<any> = new Command()
 
       // Resolve path
       const targetPath = resolvePath([], path);
+      await doLs(kv, slug, targetPath);
 
-      const iter = kv.list({ prefix: targetPath as Deno.KvKey });
-      const seenKeys = new Set<string>();
-
-      for await (const entry of iter) {
-        const remainingKey = entry.key.slice(targetPath.length);
-        if (remainingKey.length > 0) {
-          const nextPart = remainingKey[0];
-          let displayKey = String(nextPart);
-          if (typeof nextPart === "string") displayKey = `"${nextPart}"`;
-          else if (typeof nextPart === "bigint") displayKey = `${nextPart}n`;
-          else if (nextPart instanceof Uint8Array) {
-            displayKey = `u8[${nextPart.join(",")}]`;
-          }
-
-          if (!seenKeys.has(displayKey)) {
-            console.log(displayKey);
-            seenKeys.add(displayKey);
-          }
-        }
-      }
-
-      kv.close(); // Important to close connection? Deno Kv usually auto-manages but safe to be explicit if using openKv in loop.
+      kv.close();
       // Actually connectDatabase might return shared instance, careful with close if using in app.
       // But this is CLI one-off.
     } catch (e) {

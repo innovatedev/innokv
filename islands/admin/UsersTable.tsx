@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { UserWithId } from "@/lib/users.ts";
 import Dialog from "./Dialog.tsx";
+import PermissionEditor from "@/islands/admin/PermissionEditor.tsx";
 
 interface UsersTableProps {
   initialUsers: UserWithId[];
@@ -15,32 +16,26 @@ export default function UsersTable(
   const [selectedUser, setSelectedUser] = useState<UserWithId | null>(null);
 
   // State for permissions in the edit modal
-  const [editPreset, setEditPreset] = useState<
-    "admin" | "user_manager" | "manager" | "none"
-  >(
-    "none",
-  );
+  const [customPermissions, setCustomPermissions] = useState<string[]>([]);
+
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const filteredUsers = users.filter((u) =>
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getPermissionType = (perms: string[]) => {
-    if (perms.includes("*")) return "admin";
-    if (perms.includes("users:manage")) return "user_manager";
-    if (perms.includes("database:manage")) return "manager";
-    return "none";
-  };
-
   useEffect(() => {
     if (selectedUser && dialogRef.current) {
-      setEditPreset(getPermissionType(selectedUser.permissions));
       dialogRef.current.showModal();
     } else if (!selectedUser && dialogRef.current) {
       dialogRef.current.close();
     }
   }, [selectedUser]);
+
+  const handleEditUser = (user: UserWithId) => {
+    setCustomPermissions([...user.permissions]);
+    setSelectedUser(user);
+  };
 
   const isSelf = selectedUser?.email === currentUserEmail;
 
@@ -81,22 +76,29 @@ export default function UsersTable(
                   <div class="flex gap-1 flex-wrap">
                     {user.permissions.includes("*")
                       ? <span class="badge badge-sm badge-primary">Admin</span>
-                      : user.permissions.includes("users:manage")
+                      : user.permissions.length === 0
                       ? (
-                        <span class="badge badge-sm badge-success">
-                          User Manager
-                        </span>
-                      )
-                      : user.permissions.includes("database:manage")
-                      ? (
-                        <span class="badge badge-sm badge-secondary">
-                          DB Manager
-                        </span>
-                      )
-                      : (
                         <span class="badge badge-sm badge-ghost opacity-50">
                           No Access
                         </span>
+                      )
+                      : (
+                        <>
+                          <span
+                            class={`badge badge-sm ${
+                              user.permissions[0].startsWith("-")
+                                ? "badge-error badge-outline"
+                                : "badge-neutral"
+                            }`}
+                          >
+                            {user.permissions[0]}
+                          </span>
+                          {user.permissions.length > 1 && (
+                            <span class="badge badge-sm badge-ghost opacity-70">
+                              + {user.permissions.length - 1} more
+                            </span>
+                          )}
+                        </>
                       )}
                   </div>
                 </td>
@@ -104,7 +106,7 @@ export default function UsersTable(
                   <button
                     type="button"
                     class="btn btn-sm btn-ghost"
-                    onClick={() => setSelectedUser(user)}
+                    onClick={() => handleEditUser(user)}
                   >
                     Edit
                   </button>
@@ -140,92 +142,18 @@ export default function UsersTable(
             <form method="POST" class="flex flex-col gap-4">
               <input type="hidden" name="action" value="update_permissions" />
               <input type="hidden" name="userId" value={selectedUser.id} />
-              {/* Map preset back to backend string format */}
               <input
                 type="hidden"
                 name="permissions"
-                value={editPreset === "admin"
-                  ? "*"
-                  : (editPreset === "user_manager"
-                    ? "users:manage"
-                    : (editPreset === "manager" ? "database:manage" : ""))}
+                value={customPermissions.join(",")}
               />
 
               <div class="form-control">
-                <span class="label-text font-bold mb-2">Access Level</span>
-
-                <label class="label cursor-pointer justify-start gap-3 border rounded p-2 hover:bg-base-200 mb-2">
-                  <input
-                    type="radio"
-                    name="permission_preset"
-                    class="radio radio-sm"
-                    value="none"
-                    checked={editPreset === "none"}
-                    onChange={() => setEditPreset("none")}
-                    disabled={isSelf}
-                  />
-                  <div class="flex flex-col">
-                    <span class="label-text font-medium">No Access</span>
-                    <span class="text-xs opacity-60">
-                      User cannot access admin panel.
-                    </span>
-                  </div>
-                </label>
-
-                <label class="label cursor-pointer justify-start gap-3 border rounded p-2 hover:bg-base-200 mb-2">
-                  <input
-                    type="radio"
-                    name="permission_preset"
-                    class="radio radio-sm radio-secondary"
-                    value="manager"
-                    checked={editPreset === "manager"}
-                    onChange={() => setEditPreset("manager")}
-                    disabled={isSelf}
-                  />
-                  <div class="flex flex-col">
-                    <span class="label-text font-medium">DB Manager</span>
-                    <span class="text-xs opacity-60">
-                      Can manage databases.
-                    </span>
-                  </div>
-                </label>
-
-                <label class="label cursor-pointer justify-start gap-3 border rounded p-2 hover:bg-base-200 mb-2">
-                  <input
-                    type="radio"
-                    name="permission_preset"
-                    class="radio radio-sm radio-success"
-                    value="user_manager"
-                    checked={editPreset === "user_manager"}
-                    onChange={() => setEditPreset("user_manager")}
-                    disabled={isSelf}
-                  />
-                  <div class="flex flex-col">
-                    <span class="label-text font-medium">User Manager</span>
-                    <span class="text-xs opacity-60">
-                      Can manage users but not databases.
-                    </span>
-                  </div>
-                </label>
-
-                <label class="label cursor-pointer justify-start gap-3 border rounded p-2 hover:bg-base-200">
-                  <input
-                    type="radio"
-                    name="permission_preset"
-                    class="radio radio-sm radio-primary"
-                    value="admin"
-                    checked={editPreset === "admin"}
-                    onChange={() => setEditPreset("admin")}
-                    disabled={isSelf}
-                  />
-                  <div class="flex flex-col">
-                    <span class="label-text font-medium">Super Admin</span>
-                    <span class="text-xs opacity-60">
-                      Full access to users and databases.
-                    </span>
-                  </div>
-                </label>
-
+                <span class="label-text font-bold mb-2">Permissions</span>
+                <PermissionEditor
+                  initialPermissions={customPermissions}
+                  onChange={setCustomPermissions}
+                />
                 {isSelf && (
                   <div class="alert alert-info text-xs mt-2 py-2">
                     <span>You cannot change your own permissions.</span>
@@ -269,7 +197,7 @@ export default function UsersTable(
                   </button>
                   <button
                     type="submit"
-                    class="btn btn-sm btn-primary"
+                    class="btn btn-sm btn-brand"
                     disabled={isSelf}
                   >
                     Save

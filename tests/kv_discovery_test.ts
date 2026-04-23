@@ -1,11 +1,10 @@
 import { assertEquals } from "https://deno.land/std@0.184.0/testing/asserts.ts";
-import { KeyCodec } from "../lib/KeyCodec.ts";
 
 Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
   const kv = await Deno.openKv(":memory:");
 
   // Helper to add data
-  async function add(key: any[]) {
+  async function add(key: Deno.KvKey) {
     await kv.set(key, "val");
   }
 
@@ -19,26 +18,22 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
   await add(["actions", "action-1"]); // Should appear before sessions/urls/users
 
   // Mock getRecords logic
-  async function getRecords(prefix: any[], limit = 10) {
-    const records: any[] = [];
-    let currentStart = [...prefix];
+  async function _getRecords(prefix: Deno.KvKey, limit = 10) {
+    const records: Deno.KvKey[] = [];
+    let currentStart: Deno.KvKey = [...prefix];
     const depth = prefix.length;
-    let nextCursor = "";
 
     // START TEST LOGIC: (Copied from Database.ts logic)
     // Simplified for verification of logic flow
 
-    // We assume getRecords already fixed:
-    // ...
-    let useStart = false; // Initial fetch uses default unless cursor is present (not testing cursor for now)
+    let useStart = false; // Initial fetch uses default unless cursor is present
 
     while (records.length < limit) {
+      // deno-lint-ignore no-explicit-any
       const selector: any = { prefix };
       if (useStart) {
         selector.start = currentStart;
       }
-
-      // console.log("List with start:", useStart ? currentStart : "DEFAULT");
 
       const iter = kv.list(selector, { limit: 1 });
       const entry = await iter.next();
@@ -51,12 +46,10 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
       if (key.length === depth) {
         currentStart = [...prefix, "\x00"];
         useStart = true;
-        // Note: we don't push root value in this simplified test unless needed
         continue;
       }
 
       const partVal = key[depth];
-      // console.log(`Found part: ${partVal}`);
 
       if (key.length === depth + 1) {
         // Direct child
@@ -64,8 +57,7 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
       }
 
       // SKIP DESCENDANTS LOGIC
-      // const nextStart: any = [...prefix, partVal, "\uFFFF\uFFFF"]; // OLD BAD LOGIC
-      const nextStart: any = [...prefix, partVal, true]; // NEW FIXED LOGIC
+      const nextStart: Deno.KvKey = [...prefix, partVal, true];
 
       currentStart = nextStart;
       useStart = true;
@@ -75,48 +67,18 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
   }
 
   await t.step("Find all top level keys with Small Limit", async () => {
-    // If limit is small (e.g. 5), can we find 'actions', 'sessions', 'urls', 'users'?
-    // Wait, 'sessions' is one KEY.
-    // If strict layer iteration works, we should find ["actions", ...], ["sessions", ...], ["urls", ...], ["users", ...]
-    // BUT since we are at root, we only see the first level parts.
     // getRecords returns RECORDS (leaves/nodes at this level).
-    // Actually, getRecords as implemented currently returns DIRECT CHILDREN only?
-    // And SKIPS descendants.
-    // So for ["sessions", "id1"], it sees "sessions".
-    // Is "sessions" a record? Or a folder?
-    // In strict KV, ["sessions"] might not exist as a key. Only ["sessions", "id1"].
-    // If ["sessions"] does not exist, then `key.length === depth + 1` is FALSE for `["sessions", "id1"]`.
-    // It is `depth + 2`.
-    // So getRecords SKIPS it.
-
-    // Wait. `getRecords` logic:
-    // if (key.length === depth + 1) -> records.push.
-    // else -> SKIP.
-
-    // So `getRecords` ONLY returns direct children (files in current folder).
-    // It does NOT return folders. `getNodes` returns folders.
-
-    // The user's complaint: "Not all top-level keys are being retrieved".
-    // If they are looking at `getNodes` (Folders), then we need to test `getNodes`.
-    // If they are looking at `getRecords` (Files), then `users` won't show up if `users` is just a folder.
-
-    // Let's assume `users` has a record at `["users"]`? Or just children?
-
-    // Let's test `getNodes` logic equivalent.
   });
 
-  async function getNodes(prefix: any[]) {
-    const nodes: any[] = [];
+  async function getNodes(prefix: Deno.KvKey) {
+    const nodes: Deno.KvKeyPart[] = [];
     const depth = prefix.length;
-    let currentStart = [...prefix];
-
-    // Logic from getNodes
-    // const END_SENTINEL = "\uFFFF\uFFFF\uFFFF\uFFFF"; // OLD
-    // const END_SENTINEL = true; // NEW
+    let currentStart: Deno.KvKey = [...prefix];
 
     let useStart = false; // Initial fetch uses default unless verified
 
     while (true) {
+      // deno-lint-ignore no-explicit-any
       const selector: any = { prefix };
       if (useStart) selector.start = currentStart;
 
@@ -133,12 +95,11 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
       }
 
       const partVal = key[depth];
-      // console.log(`[getNodes] Found part: ${partVal}`);
 
       nodes.push(partVal);
 
       // Next start
-      const nextStart = [...prefix, partVal, true];
+      const nextStart: Deno.KvKey = [...prefix, partVal, true];
 
       currentStart = nextStart;
       useStart = true;

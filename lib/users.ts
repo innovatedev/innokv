@@ -1,20 +1,23 @@
-import { db } from "@/lib/db.ts";
+import { db } from "@/kv/db.ts";
 import { hash, verify } from "@felix/argon2";
 import settings from "@/config/app.ts";
-import { type User } from "@/lib/models.ts";
+import { type User, type UserValue, type WithId } from "@/kv/models.ts";
 
-export type UserWithId = User & { id: string };
+export type UserWithId = WithId<User>;
 
 export async function findUserByEmail(email: string) {
   return await db.users.findByPrimaryIndex("email", email);
 }
 
+export interface CreateUserOptions {
+  username?: string;
+  email: string;
+  password: string;
+  permissions?: string[];
+}
+
 export async function createUser(
-  { email, password, permissions = [] }: {
-    email: string;
-    password: string;
-    permissions?: string[];
-  },
+  { username, email, password, permissions = [] }: CreateUserOptions,
 ): Promise<{ ok: boolean; user?: UserWithId; error?: string }> {
   const existing = await findUserByEmail(email);
   if (existing) {
@@ -38,7 +41,8 @@ export async function createUser(
   const id = crypto.randomUUID();
 
   // Save user to DB (without ID in body)
-  const user: User = {
+  const user: UserValue = {
+    username,
     email,
     passwordHash,
     createdAt: new Date(),
@@ -110,7 +114,6 @@ export async function authenticateUser(
   // 3. Admin Permission Check & Update
   const userData = userDoc.value;
   let permissions = userData.permissions;
-  let shouldUpdate = false;
   const updates: Partial<typeof userData> = {
     lastLoginAt: new Date(),
   };
@@ -131,13 +134,45 @@ export async function authenticateUser(
     !permissions.every((p) => userData.permissions.includes(p))
   ) {
     updates.permissions = permissions;
-    shouldUpdate = true;
   }
 
-  // Save updates if needed
-  if (shouldUpdate) {
-    await db.users.update(userDoc.id, updates);
-  }
+  // Always update lastLoginAt and save
+  await db.users.update(userDoc.id, updates);
 
   return { ok: true, user: { ...userData, id: userDoc.id }, id: userDoc.id };
+}
+
+export async function changePassword(
+  userId: string,
+  newPassword: string,
+): Promise<boolean> {
+  const userDoc = await db.users.find(userId);
+  if (!userDoc) return false;
+
+  const passwordHash = await hash(newPassword);
+
+  const result = await db.users.update(userId, {
+    passwordHash,
+    updatedAt: new Date(),
+  });
+
+  return result.ok;
+}
+
+export async function updateUserSettings(
+  userId: string,
+  settings: User["settings"],
+): Promise<boolean> {
+  const userDoc = await db.users.find(userId);
+  if (!userDoc) return false;
+
+  const currentSettings = userDoc.value.settings || {};
+  const newSettings = { ...currentSettings, ...settings };
+
+  const result = await db.users.update(userId, {
+    settings: newSettings,
+    updatedAt: new Date(),
+  });
+
+  return result.ok;
 }

@@ -28,6 +28,7 @@ export default function RichValueEditor({
   );
 
   const handleTypeChange = (newType: RichValueType) => {
+    // deno-lint-ignore no-explicit-any
     let newVal: any;
 
     // Default values for types
@@ -75,12 +76,10 @@ export default function RichValueEditor({
     onChange({ type: newType, value: newVal });
   };
 
+  // deno-lint-ignore no-explicit-any
   const handlePrimitiveChange = (v: any) => {
     onChange({ type, value: v });
   };
-
-  // Reuse our check
-  const isContainer = isContainerType(type);
 
   return (
     <div
@@ -128,7 +127,7 @@ export default function RichValueEditor({
             <textarea
               class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded-2xl font-mono"
               rows={Math.min(5, (String(val) || "").split("\n").length + 1)}
-              value={val}
+              value={val as string}
               onInput={(e) =>
                 handlePrimitiveChange((e.target as HTMLTextAreaElement).value)}
             />
@@ -138,7 +137,7 @@ export default function RichValueEditor({
               type="number"
               step="any"
               class="input input-bordered input-sm w-full max-w-xs"
-              value={val}
+              value={val as number}
               onInput={(e) =>
                 handlePrimitiveChange(
                   Number((e.target as HTMLInputElement).value),
@@ -151,7 +150,7 @@ export default function RichValueEditor({
               class="input input-bordered input-sm w-full max-w-xs font-mono"
               pattern="-?[0-9]+"
               placeholder="e.g. 9007199254740991"
-              value={val}
+              value={val as string}
               onInput={(e) =>
                 handlePrimitiveChange((e.target as HTMLInputElement).value)}
             />
@@ -184,7 +183,9 @@ export default function RichValueEditor({
             <input
               type="datetime-local"
               class="input input-bordered input-sm w-full max-w-xs"
-              value={val ? new Date(val).toISOString().slice(0, 16) : ""}
+              value={val
+                ? new Date(val as string).toISOString().slice(0, 16)
+                : ""}
               onChange={(e) =>
                 handlePrimitiveChange(
                   new Date((e.target as HTMLInputElement).value).toISOString(),
@@ -192,15 +193,12 @@ export default function RichValueEditor({
             />
           )}
           {type === "uint8array" && (
-            // Assuming base64 input or simplified comma separated?
-            // The codec expects base64. Let's provide a text helper.
-            // We'll let user input comma separated list and convert to base64.
             <div class="flex flex-col gap-1">
               <span class="text-xs text-base-content/50">
                 Comma separated bytes (0-255)
               </span>
               <Uint8ArrayInput
-                value={val}
+                value={val as string}
                 onChange={(v) => handlePrimitiveChange(v)}
               />
             </div>
@@ -214,22 +212,22 @@ export default function RichValueEditor({
           )}
           {type === "array" && (
             <ArrayEditor
-              value={val}
+              value={val as RichValue[]}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
             />
           )}
           {type === "set" && (
             <ArrayEditor
-              value={val}
+              value={val as RichValue[]}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
-              isSet
+              _isSet
             />
           )}
           {type === "map" && (
             <MapEditor
-              value={val}
+              value={val as [RichValue, RichValue][]}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
             />
@@ -245,7 +243,9 @@ export default function RichValueEditor({
 
 function ObjectEditor(
   { value, onChange, depth }: {
+    // deno-lint-ignore no-explicit-any
     value: any;
+    // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
   },
@@ -295,9 +295,6 @@ function ObjectEditor(
       const newValue = { ...value };
       delete newValue[oldKey];
       newValue[editKeyName] = val;
-      // Preserve order? It's hard with just object.
-      // JS objects iterate in insertion order usually, but reconstructing it might append to end.
-      // For now, accept that renaming might move it to the end.
       onChange(newValue);
       cancelEditing();
     } else {
@@ -386,7 +383,7 @@ function ObjectEditor(
             />
             <button
               type="button"
-              class="btn btn-xs btn-primary"
+              class="btn btn-xs btn-brand"
               onClick={addField}
               disabled={!newKey || (newKey in (value || {}))}
             >
@@ -415,11 +412,13 @@ function ObjectEditor(
 }
 
 function ArrayEditor(
-  { value, onChange, depth, isSet }: {
+  { value, onChange, depth, _isSet }: {
+    // deno-lint-ignore no-explicit-any
     value: any[];
+    // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
-    isSet?: boolean;
+    _isSet?: boolean;
   },
 ) {
   // value is array of RichValue
@@ -477,6 +476,7 @@ function ArrayEditor(
 function MapEditor(
   { value, onChange, depth }: {
     value: [RichValue, RichValue][];
+    // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
   },
@@ -593,7 +593,7 @@ function Uint8ArrayInput(
       class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded font-mono"
       value={text}
       onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}
-      onFocus={() => focused.current = true}
+      onFocus={() => (focused.current = true)}
       onBlur={() => {
         focused.current = false;
         // On blur, force re-format to canonical

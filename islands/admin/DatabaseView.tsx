@@ -5,18 +5,19 @@ import {
   RemoteDatabaseIcon,
 } from "../../components/icons/DatabaseIcons.tsx";
 import { ExpandIcon } from "@/components/icons/ExpandIcon.tsx";
-import { Database } from "@/lib/models.ts";
+import { Database } from "@/kv/models.ts";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
 import KvEntryForm from "./forms/KvEntry.tsx";
 import { Signal, useSignal } from "@preact/signals";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "@/lib/types.ts";
+import { RichValue } from "@/lib/ValueCodec.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
-import { RecordItem } from "./RecordItem.tsx";
+import RecordItem from "./RecordItem.tsx";
 
 // Helper for Node component
 interface NodeProps {
@@ -176,6 +177,7 @@ const Node = (
           {node.nextCursor && (
             <li class="pl-2 py-1">
               <button
+                type="button"
                 class="btn btn-xs btn-ghost text-xs w-full text-left font-normal opacity-50 hover:opacity-100 flex gap-2"
                 onClick={(e) => {
                   e.preventDefault();
@@ -309,6 +311,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       for (let i = 0; i < path.length; i++) {
         const seg = path[i];
         const keyStr = KeyCodec.encode([seg]);
+        if (!currentLevel) return;
         const node = currentLevel[keyStr];
 
         if (!node) {
@@ -467,8 +470,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           },
         );
       }
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -553,8 +556,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           }
         }
       }
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -796,7 +799,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           <p class="text-base-content/60">
             The database you are looking for does not exist or has been deleted.
           </p>
-          <a href="/" class="btn btn-primary">Go Home</a>
+          <a href="/" class="btn btn-brand">Go Home</a>
         </div>
       );
     }
@@ -1176,11 +1179,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   );
                 }
                 const versionstamp = selectedEntry.value?.versionstamp || null;
+                const entryData = data as { key: unknown[]; value: RichValue };
 
                 api.saveRecord(
                   activeDatabase.slug || activeDatabase.id,
-                  data.key,
-                  data.value,
+                  entryData.key,
+                  entryData.value,
                   versionstamp,
                   oldKey,
                 ).then(() => {
@@ -1240,14 +1244,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   {records.value.map((entry) => (
                     <RecordItem
                       key={KeyCodec.encode(entry.key)}
-                      record={entry}
-                      isSelected={selectAllMatching.value ||
+                      record={entry as ApiKvEntry<RichValue>}
+                      selected={selectAllMatching.value ||
                         selectedKeys.value.has(KeyCodec.encode(entry.key))}
                       onToggleSelection={() => toggleSelection(entry.key)}
+                      prettyPrintDates={activeDatabase?.settings
+                        ?.prettyPrintDates ??
+                        true}
                       isOpen={expandedKeys.value.has(
                         KeyCodec.encode(entry.key),
                       )}
-                      onToggle={(isOpen) => {
+                      onToggle={(isOpen: boolean) => {
                         const strKey = KeyCodec.encode(entry.key);
                         const next = new Set(expandedKeys.value);
                         if (isOpen) next.add(strKey);
@@ -1652,7 +1659,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             onSubmit={(data, _form) => {
               const id = editingDatabase.value?.id || activeDatabase?.id;
               if (id) {
-                api.updateDatabase({ id, ...data })
+                api.updateDatabase({ id, ...(data as Partial<Database>) })
                   .then((updatedDb: unknown) => {
                     const db = updatedDb as Database;
                     const target = activeDatabase?.slug === dbId

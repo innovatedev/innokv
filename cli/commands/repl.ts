@@ -2,8 +2,9 @@ import { Command } from "@cliffy/command";
 import { Input } from "@cliffy/prompt";
 import { state } from "../state.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
-import { db as coreDb } from "../../lib/db.ts";
+import { db as coreDb } from "@/kv/db.ts";
 import { resolvePath } from "../utils.ts";
+import { doGet, doLs, doSet, doUpdate } from "../actions.ts";
 
 export async function startRepl(initialSlug?: string) {
   // If initial slug provided, try to connect immediately
@@ -42,9 +43,10 @@ export async function startRepl(initialSlug?: string) {
       minLength: 0,
     });
 
-    const args = cmdLine.trim().split(" ");
+    const args = parseArgs(cmdLine.trim());
     const cmd = args[0];
 
+    if (!cmd) continue;
     if (cmd === "exit") break;
 
     try {
@@ -82,38 +84,7 @@ export async function startRepl(initialSlug?: string) {
         }
 
         const targetPath = resolvePath(state.currentPath, args[1]);
-        const displayTargetPath = "/" + targetPath.map((p) => {
-          if (typeof p === "string") return `"${p}"`;
-          if (typeof p === "bigint") return `${p}n`;
-          if (p instanceof Uint8Array) return `u8[${p.join(",")}]`;
-          return String(p);
-        }).join("/");
-
-        console.log("Listing keys in path:", displayTargetPath);
-
-        const iter = state.kv.list({ prefix: targetPath as Deno.KvKey });
-
-        const seenKeys = new Set<string>();
-
-        for await (const entry of iter) {
-          const remainingKey = entry.key.slice(targetPath.length);
-          if (remainingKey.length > 0) {
-            const nextPart = remainingKey[0];
-
-            // Encode for display using KeyCodec logic (mimicked)
-            let displayKey = String(nextPart);
-            if (typeof nextPart === "string") displayKey = `"${nextPart}"`;
-            else if (typeof nextPart === "bigint") displayKey = `${nextPart}n`;
-            else if (nextPart instanceof Uint8Array) {
-              displayKey = `u8[${nextPart.join(",")}]`;
-            }
-
-            if (!seenKeys.has(displayKey)) {
-              console.log(displayKey);
-              seenKeys.add(displayKey);
-            }
-          }
-        }
+        await doLs(state.kv, state.currentDbName!, targetPath);
       } else if (cmd === "cd") {
         state.currentPath = resolvePath(state.currentPath, args[1]);
       } else if (cmd === "get") {
@@ -121,19 +92,32 @@ export async function startRepl(initialSlug?: string) {
           console.log("No database connected.");
           continue;
         }
-
         const targetPath = resolvePath(state.currentPath, args[1]);
-
-        // Get current path's value
-        const res = await state.kv.get(targetPath as Deno.KvKey);
-        if (res.versionstamp) {
-          console.log(res.value);
+        await doGet(state.kv, state.currentDbName!, targetPath);
+      } else if (cmd === "set") {
+        if (!state.kv) {
+          console.log("No database connected.");
+          continue;
         }
+        const targetPath = resolvePath(state.currentPath, args[1]);
+        await doSet(state.kv, state.currentDbName!, targetPath, args[2]);
+        console.log("Value set successfully.");
+      } else if (cmd === "update") {
+        if (!state.kv) {
+          console.log("No database connected.");
+          continue;
+        }
+        const targetPath = resolvePath(state.currentPath, args[1]);
+        const mergeArrays = args.includes("--merge-arrays");
+        await doUpdate(state.kv, state.currentDbName!, targetPath, args[2], {
+          mergeArrays,
+        });
+        console.log("Value updated successfully.");
       } else if (cmd === "help") {
         console.log(
-          "Available commands: exit, help, use <slug>, ls <path>, cd <path>, get <path> (show value of key)",
+          "Available commands: exit, help, use <slug>, ls <path>, cd <path>, get <path>, set <path> <value>, update <path> <value>",
         );
-      } else if (cmd.trim() !== "") {
+      } else {
         console.log(`Unknown command: ${cmd}`);
       }
     } catch (e: unknown) {
@@ -142,21 +126,44 @@ export async function startRepl(initialSlug?: string) {
   }
 }
 
+/**
+ * Simple argument parser that handles double quotes.
+ */
+function parseArgs(input: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === " " && !inQuotes) {
+      if (current.length > 0) {
+        args.push(current);
+        current = "";
+      }
+    } else {
+      current += char;
+    }
+  }
+
+  if (current.length > 0) {
+    args.push(current);
+  }
+
+  return args;
+}
+
 type ReplArgs = [string | undefined];
 
 /**
  * Command to start the interactive InnoKV shell.
  */
 // deno-lint-ignore no-explicit-any
-export const repl: Command<void, void, void, [string | undefined]> =
-  new Command<
-    void,
-    void,
-    void,
-    ReplArgs
-  >()
-    .description("Start the interactive InnoKV shell")
-    .arguments("[slug:string]")
-    .action(async (_options, slug) => {
-      await startRepl(slug);
-    }) as any;
+export const repl: Command<any> = new Command()
+  .description("Start the interactive InnoKV shell")
+  .arguments("[slug:string]")
+  .action(async (_options, slug) => {
+    await startRepl(slug);
+  });

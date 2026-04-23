@@ -2,13 +2,14 @@ import { Signal } from "@preact/signals";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
 import { KeyDisplay } from "./KeyDisplay.tsx";
+import { DatabaseDoc } from "@/kv/models.ts";
 
 interface BreadcrumbsProps {
   pathInfo: Signal<ApiKvKeyPart[] | null>;
   dbStructure: Record<string, DbNode> | null;
   currentDbName: string;
   navigateToRoot: () => void;
-  databases: any[];
+  databases: DatabaseDoc[];
   onSwitchDatabase: (id: string) => void;
   prettyPrintDates: boolean;
 }
@@ -108,7 +109,10 @@ export const Breadcrumbs = (
 };
 
 const DatabaseSwitcher = (
-  { databases, onSwitch }: { databases: any[]; onSwitch: (id: string) => void },
+  { databases, onSwitch }: {
+    databases: DatabaseDoc[];
+    onSwitch: (id: string) => void;
+  },
 ) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

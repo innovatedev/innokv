@@ -1,17 +1,24 @@
 import { DatabaseRepository } from "@/lib/Database.ts";
-import { db as kvdex } from "@/lib/db.ts";
+import { db as kvdex } from "@/kv/db.ts";
 import { BaseRepository } from "@/lib/BaseRepository.ts";
+import { AuthState } from "@/utils.ts";
+import { Database } from "@/kv/models.ts";
 
 const db = new DatabaseRepository(kvdex);
 
 export const handler = BaseRepository.handlers({
-  POST: (ctx) => db.handleApiCall(ctx, db.addDatabase),
-  PUT: (ctx) => db.handleApiCall(ctx, db.updateDatabase),
+  POST: (ctx) =>
+    db.handleApiCall(ctx, (data) => db.addDatabase(data as Database)),
+  PUT: (ctx) =>
+    db.handleApiCall(ctx, (data) => {
+      const d = data as { id: string } & Partial<Database>;
+      return db.updateDatabase(d.id, d);
+    }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (data) => {
-      const result = await db.deleteDatabase(data);
+      const result = await db.deleteDatabase(data as string);
       if (result.ok && result.name) {
-        (ctx.state as any).flash(
+        (ctx.state as AuthState).flash(
           "success",
           `Database "${result.name}" deleted`,
         );
@@ -23,10 +30,6 @@ export const handler = BaseRepository.handlers({
       const lookup = await db.getDatabases({ reverse: false, limit: 100 });
       const sortedData = lookup.result.map((doc) => doc.flat()).sort((a, b) => {
         // Treat 0 as "end of list" / Infinity
-        const aSort = a.sort || Infinity; // If 0 or undefined, treat as Infinity? Wait, 0 is explicit.
-        // If sort can be 0.
-        // Logic: Non-zero numbers come first (Desc or Asc?).
-        // If Rank: 1, 2, 3 ... 0.
         const valA = a.sort === 0 || !a.sort ? Number.MAX_SAFE_INTEGER : a.sort;
         const valB = b.sort === 0 || !b.sort ? Number.MAX_SAFE_INTEGER : b.sort;
 
@@ -51,20 +54,3 @@ export const handler = BaseRepository.handlers({
       };
     }),
 });
-
-// export const handler = define.handlers({
-//   GET: async () => {
-//     await db.addDatabase({
-//       slug: "test",
-//       path: ":memory:;",
-//       name: "Test",
-//       description: "Test",
-//       createdAt: new Date(),
-//       updatedAt: new Date(),
-//       sort: 0,
-//       mode: "rw",
-//       type: "memory",
-//     })
-//     return json(await kvdex.numbers.map((doc) => doc.id));
-//   }
-// });

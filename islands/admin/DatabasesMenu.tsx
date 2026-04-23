@@ -2,7 +2,6 @@ import { useContext, useRef } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import Dialog from "./Dialog.tsx";
-import { Database } from "../../lib/models.ts";
 
 export default function DatabasesMenu() {
   const { databases, selectedDatabase, api, activeDatabase } = useContext(
@@ -69,8 +68,9 @@ export default function DatabasesMenu() {
               });
           }}
           onSubmit={(data, form) => {
+            const payload = data as Record<string, unknown>;
             if (!activeDatabase) {
-              api.createDatabase(data)
+              api.createDatabase(payload)
                 .then(async (db) => {
                   selectedDatabase.value = db.id;
                   form.reset();
@@ -78,7 +78,7 @@ export default function DatabasesMenu() {
                   createDatabaseRef.current?.close();
                 });
             } else {
-              api.updateDatabase({ id: activeDatabase.id, ...data })
+              api.updateDatabase({ id: activeDatabase.id, ...payload })
                 .then(async (db) => {
                   selectedDatabase.value = db.id;
                   form.reset();

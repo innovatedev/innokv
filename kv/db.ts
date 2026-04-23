@@ -1,8 +1,8 @@
-import { collection, kvdex, model } from "@olli/kvdex";
-import { DatabaseModel } from "./models.ts";
+import { collection, kvdex } from "@olli/kvdex";
+import { ApiTokenModel, DatabaseModel } from "@/kv/models.ts";
 import { dirname } from "jsr:@std/path@1.0.8";
-import { SessionModel } from "./models.ts";
-import { UserModel } from "./models.ts";
+import { SessionModel } from "@/kv/models.ts";
+import { UserModel } from "@/kv/models.ts";
 import settings from "@/config/app.ts";
 
 const path = settings.db.path;
@@ -10,7 +10,7 @@ const dir = dirname(path);
 await Deno.mkdir(dir, { recursive: true });
 export const kv = await Deno.openKv(path);
 
-import { APP_VERSION, InnoKvMetadata } from "./metadata.ts";
+import { APP_VERSION, InnoKvMetadata } from "@/lib/metadata.ts";
 import { greaterThan, lessThan, parse } from "@std/semver";
 
 const metadataRes = await kv.get<InnoKvMetadata>(["__innokv__"]);
@@ -54,7 +54,6 @@ export const ROOT_DB_ID = metadata.id;
 export const db = kvdex({
   kv: kv,
   schema: {
-    numbers: collection(model<number>()),
     databases: collection(DatabaseModel, {
       indices: {
         slug: "primary",
@@ -83,6 +82,17 @@ export const db = kvdex({
         updatedAt: "secondary",
         lastLoginAt: "secondary",
         email: "primary",
+      },
+    }),
+    apiTokens: collection(ApiTokenModel, {
+      indices: {
+        tokenHash: "primary",
+        userId: "secondary",
+        createdAt: "secondary",
+        expiresAt: "secondary",
+        lastUsedAt: "secondary",
+        name: "secondary",
+        type: "secondary",
       },
     }),
   },

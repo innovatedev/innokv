@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 
 interface ValueDisplayProps {
-  value: any;
+  value: unknown;
   level?: number;
 }
 
@@ -161,14 +161,14 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     );
   }
 
-  // Handle RichValue specifically if passed directly without decoding
   if (
     value && typeof value === "object" && "type" in value && "value" in value
   ) {
+    const rich = value as { type: string; value: unknown };
     return (
       <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50">
-        <span class="text-xs font-bold opacity-50 mr-1">{value.type}</span>
-        <ValueDisplay value={value.value} level={level} />
+        <span class="text-xs font-bold opacity-50 mr-1">{rich.type}</span>
+        <ValueDisplay value={rich.value} level={level} />
       </div>
     );
   }

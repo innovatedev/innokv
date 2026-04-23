@@ -1,6 +1,6 @@
 import { authenticateUser, createUser, findUserByEmail } from "@/lib/users.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { db } from "@/lib/db.ts";
+import { db } from "@/kv/db.ts";
 
 async function cleanup(email: string) {
   const user = await findUserByEmail(email);
@@ -18,6 +18,7 @@ Deno.test("User Management - Create and Authenticate", async (t) => {
 
   await t.step("Create User", async () => {
     const { ok, user, error } = await createUser({
+      username: "testuser",
       email: testEmail,
       password: testPass,
     });
@@ -32,6 +33,7 @@ Deno.test("User Management - Create and Authenticate", async (t) => {
     await cleanup(adminEmail);
 
     const { ok, user } = await createUser({
+      username: "admin",
       email: adminEmail,
       password: testPass,
       permissions: ["*"],
@@ -44,6 +46,7 @@ Deno.test("User Management - Create and Authenticate", async (t) => {
 
   await t.step("Prevent Duplicate User", async () => {
     const { ok, error } = await createUser({
+      username: "testuser2",
       email: testEmail,
       password: "otherpass",
     });

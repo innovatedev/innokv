@@ -43,7 +43,7 @@ export default function Error500({ error, url }: PageProps) {
         <p class="opacity-70">{message}</p>
         {url.pathname !== "/" && (
           <div class="pt-8">
-            <a href="/" class="btn btn-primary">
+            <a href="/" class="btn btn-brand">
               Go Home
             </a>
           </div>

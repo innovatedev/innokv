@@ -7,3 +7,11 @@
 @theme {
   --color-brand: #f4892d;
 }
+
+.btn-brand {
+  @apply btn bg-brand border-brand hover:bg-[#d6731e] hover:border-[#d6731e];
+}
+
+.badge-brand {
+  @apply badge bg-brand border-brand text-black;
+}

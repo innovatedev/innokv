@@ -16,6 +16,7 @@ export type RichValueType =
 
 export interface RichValue {
   type: RichValueType;
+  // deno-lint-ignore no-explicit-any
   value?: any; // The serialized transport format
 }
 
@@ -109,29 +110,44 @@ export class ValueCodec {
       case "bigint":
         return BigInt(encoded.value);
       case "date":
-        return new Date(encoded.value);
+        return new Date(encoded.value as string);
       case "uint8array":
-        return Uint8Array.from(atob(encoded.value), (c) => c.charCodeAt(0));
+        return Uint8Array.from(
+          atob(encoded.value as string),
+          (c) => c.charCodeAt(0),
+        );
       case "arraybuffer":
-        return Uint8Array.from(atob(encoded.value), (c) => c.charCodeAt(0))
+        return Uint8Array.from(
+          atob(encoded.value as string),
+          (c) => c.charCodeAt(0),
+        )
           .buffer;
-      case "regexp":
-        return new RegExp(encoded.value.source, encoded.value.flags);
+      case "regexp": {
+        const v = encoded.value as { source: string; flags: string };
+        return new RegExp(v.source, v.flags);
+      }
       case "map":
-        return new Map(encoded.value.map(([k, v]: [RichValue, RichValue]) => [
-          ValueCodec.decode(k),
-          ValueCodec.decode(v),
-        ]));
+        return new Map(
+          (encoded.value as [RichValue, RichValue][]).map(([k, v]) => [
+            ValueCodec.decode(k),
+            ValueCodec.decode(v),
+          ]),
+        );
       case "set":
         return new Set(
-          encoded.value.map((v: RichValue) => ValueCodec.decode(v)),
+          (encoded.value as RichValue[]).map((v) => ValueCodec.decode(v)),
         );
       case "array":
-        return encoded.value.map((v: RichValue) => ValueCodec.decode(v));
+        return (encoded.value as RichValue[]).map((v) => ValueCodec.decode(v));
       case "object": {
+        // deno-lint-ignore no-explicit-any
         const obj: Record<string, any> = {};
-        for (const [k, v] of Object.entries(encoded.value)) {
-          obj[k] = ValueCodec.decode(v as RichValue);
+        for (
+          const [k, v] of Object.entries(
+            encoded.value as Record<string, RichValue>,
+          )
+        ) {
+          obj[k] = ValueCodec.decode(v);
         }
         return obj;
       }

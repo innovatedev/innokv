@@ -1,8 +1,9 @@
 import { define } from "@/utils.ts";
 import { deleteUser, getAllUsers, updateUserPermissions } from "@/lib/users.ts";
+import { HttpError } from "fresh";
 
 import UsersTable from "@/islands/admin/UsersTable.tsx";
-import { db } from "@/lib/db.ts";
+import { db } from "@/kv/db.ts";
 
 export const handler = define.handlers({
   async POST(ctx) {
@@ -53,19 +54,19 @@ export const handler = define.handlers({
 
     if (!userId) {
       ctx.state.flash("error", "Missing userId");
-      return new Response("Missing userId", { status: 400 });
+      throw new HttpError(400, "Missing userId");
     }
 
     const user = await db.users.find(userId);
     if (!user) {
       ctx.state.flash("error", "User not found");
-      return new Response("User not found", { status: 404 });
+      throw new HttpError(404, "User not found");
     }
 
     // Prevent deleting self
     if (user.value.email === ctx.state.user!.email) {
       ctx.state.flash("error", "Cannot delete self");
-      return new Response("Cannot delete self", { status: 400 });
+      throw new HttpError(400, "Cannot delete self");
     }
 
     await deleteUser(userId);

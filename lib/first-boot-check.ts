@@ -1,13 +1,18 @@
-import { db } from "@/lib/db.ts";
+import { db } from "@/kv/db.ts";
 import settings from "@/config/app.ts";
 import { createUser } from "@/lib/users.ts";
-import { promptSecret } from "jsr:@std/cli";
+import { promptSecret } from "jsr:@std/cli@1";
 
 export async function performFirstBootCheck() {
   const userCount = await db.users.count();
   if (userCount === 0 && settings.admin.emails.length === 0) {
     console.log("\n=== First Boot Detected: No Users Found ===");
     console.log("Please create an admin account to continue.\n");
+
+    let username = "";
+    while (!username) {
+      username = prompt("Enter Admin Username:")?.trim() || "";
+    }
 
     let email = "";
     while (!email) {
@@ -22,6 +27,7 @@ export async function performFirstBootCheck() {
     }
 
     const { ok, error } = await createUser({
+      username,
       email,
       password,
       permissions: ["*"],

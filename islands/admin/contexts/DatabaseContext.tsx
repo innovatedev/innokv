@@ -1,6 +1,6 @@
 import { createContext, FunctionalComponent } from "preact";
 import { Signal, signal, useSignal } from "@preact/signals";
-import { Database, User } from "@/lib/models.ts";
+import { Database, User } from "@/kv/models.ts";
 import { useEffect, useRef, useState } from "preact/hooks";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
 import { ApiKvEntry } from "@/lib/types.ts";

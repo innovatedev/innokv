@@ -16,29 +16,31 @@ import { useSignal } from "@preact/signals";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
-import BrandHeader from "../../components/BrandHeader.tsx";
+import { DatabaseDoc } from "@/kv/models.ts";
 
 export default function HomeView(
-  { successMessage }: { successMessage?: string },
+  { _successMessage }: { _successMessage?: string },
 ) {
   const { databases, selectedDatabase, api } = useContext(DatabaseContext);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
-  const editingDatabase = useSignal<any>(null);
+  const editingDatabase = useSignal<DatabaseDoc | null>(null);
 
   return (
     <>
       {/* Pinned Databases Section */}
-      {databases.value.some((db: any) => db.sort > 0) && (
+      {databases.value.some((db: DatabaseDoc) => (db.sort ?? 0) > 0) && (
         <div class="mb-6">
           <h2 class="text-sm font-bold uppercase tracking-wider opacity-50 mb-3">
             Pinned
           </h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {databases.value
-              .filter((db: any) => db.sort > 0)
-              .sort((a: any, b: any) => b.sort - a.sort)
+              .filter((db: DatabaseDoc) => (db.sort ?? 0) > 0)
+              .sort((a: DatabaseDoc, b: DatabaseDoc) =>
+                (b.sort ?? 0) - (a.sort ?? 0)
+              )
               .slice(0, 5)
-              .map((db: any) => (
+              .map((db: DatabaseDoc) => (
                 <div key={db.id} class="relative group">
                   <a
                     href={`/${db.slug || db.id}`}
@@ -104,8 +106,8 @@ export default function HomeView(
         All Databases
       </h2>
       {databases.value
-        .filter((db: any) => !db.sort || db.sort <= 0)
-        .map((db: any) => {
+        .filter((db: DatabaseDoc) => !db.sort || db.sort <= 0)
+        .map((db: DatabaseDoc) => {
           let Icon = <DatabaseIcon className="w-6 h-6" />;
 
           if (db.type.toLowerCase() === "file") {
@@ -134,7 +136,7 @@ export default function HomeView(
                     <div class="font-bold whitespace-nowrap truncate">
                       {db.name}
                     </div>
-                    {db.mode === "ro" && (
+                    {db.mode === "r" && (
                       <div class="badge badge-xs badge-warning variant-soft uppercase font-bold tracking-wider">
                         Read Only
                       </div>
@@ -225,7 +227,11 @@ export default function HomeView(
           onSubmit={(data, form) => {
             if (editingDatabase.value) {
               // Update existing
-              api.updateDatabase({ ...data, id: editingDatabase.value.id })
+              api.updateDatabase({
+                // deno-lint-ignore no-explicit-any
+                ...data as any,
+                id: editingDatabase.value.id,
+              })
                 .then(() => {
                   api.getDatabases().then((res) => databases.value = res.data);
                   createDatabaseRef.current?.close();
@@ -234,7 +240,10 @@ export default function HomeView(
                 });
             } else {
               // Create new
-              api.createDatabase(data)
+              api.createDatabase(
+                // deno-lint-ignore no-explicit-any
+                data as any,
+              )
                 .then(async (db) => {
                   selectedDatabase.value = db.id;
                   form.reset();
