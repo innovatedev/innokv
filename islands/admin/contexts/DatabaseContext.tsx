@@ -84,7 +84,6 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": "", // CSRF handling might be needed if strictly enforced, checking middleware
         },
         body: JSON.stringify(newSettings),
       }).catch((err) => console.error("Failed to save settings", err));

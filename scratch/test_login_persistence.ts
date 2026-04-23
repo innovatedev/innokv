@@ -2,7 +2,7 @@ import { authenticateUser } from "../lib/users.ts";
 import { db } from "../kv/db.ts";
 
 const email = "admin@example.com";
-const password = "password"; 
+const password = "password";
 
 console.log("Testing authentication for:", email);
 const result = await authenticateUser(email, password);

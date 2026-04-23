@@ -5,12 +5,7 @@ import { KeyCodec } from "./KeyCodec.ts";
 export default class KvAdminClient {
   private baseUri: string;
 
-  constructor(baseUri: string = "/api", private csrfToken: string = "") {
-    if (!csrfToken) {
-      this.csrfToken =
-        globalThis.document?.querySelector('meta[name="csrf-token"]')
-          ?.getAttribute("content") || "";
-    }
+  constructor(baseUri: string = "/api") {
     this.baseUri = baseUri;
   }
 
@@ -23,7 +18,6 @@ export default class KvAdminClient {
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-CSRF-Token": this.csrfToken,
         "Accept": "application/json",
       },
     };

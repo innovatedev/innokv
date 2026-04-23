@@ -23,16 +23,6 @@ export const handler = define.middleware([
       },
     };
 
-    // CSRF Check for API methods
-    if (
-      ctx.url.pathname.includes("/api/") &&
-      ctx.state.session?.csrf &&
-      ["POST", "DELETE", "PUT", "PATCH"].includes(ctx.req.method) &&
-      ctx.req.headers.get("X-CSRF-Token") !== ctx.state.session?.csrf
-    ) {
-      throw new HttpError(403, "Forbidden");
-    }
-
     if (!ctx.state.user) {
       return ctx.redirect("/login");
     }

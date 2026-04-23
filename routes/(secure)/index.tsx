@@ -76,7 +76,12 @@ export default define.page(function Home({ state }) {
             </li>
             <div class="divider my-1"></div>
             <li>
-              <form id="logout-form" method="POST" action="/logout" class="hidden" />
+              <form
+                id="logout-form"
+                method="POST"
+                action="/logout"
+                class="hidden"
+              />
               <button
                 form="logout-form"
                 type="submit"

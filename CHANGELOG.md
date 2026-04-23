@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## v0.1.2
 
+- migrate to Fresh 2.0 origin-based CSRF protection
+- add comprehensive CSRF testing suite
+- bump dependencies:
+  - fresh to v2.2.2
+  - kvdex to v3.6.5
 - fix stylesheet 404
 - add user settings
   - reset password

@@ -59,7 +59,7 @@ export const SessionModel = z.object({
   userAgent: z.string().optional(),
   data: z.object({
     settings: UserSettingsModel.optional(),
-  }).passthrough().describe("Session data"),
+  }).catchall(z.any()).describe("Session data"),
   createdAt: z.date(),
   updatedAt: z.date(),
   expiresAt: z.date(),

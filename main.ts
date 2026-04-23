@@ -1,5 +1,5 @@
 /// <reference lib="deno.unstable" />
-import { App, staticFiles } from "fresh";
+import { App, csrf, staticFiles } from "fresh";
 import { type State } from "./utils.ts";
 import { session } from "@/config/session.ts";
 import { performFirstBootCheck } from "@/lib/first-boot-check.ts";
@@ -19,6 +19,13 @@ if (
 export const app = new App<State>();
 
 app.use(staticFiles());
+const csrfMiddleware = csrf();
+app.use(async (ctx) => {
+  if (ctx.req.headers.has("Authorization")) {
+    return ctx.next();
+  }
+  return await csrfMiddleware(ctx);
+});
 app.use(session);
 app.fsRoutes();
 
