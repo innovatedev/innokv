@@ -113,15 +113,15 @@ export class KeyCodec {
     if (token.startsWith("u8[")) {
       try {
         const content = token.slice(3, -1);
-        if (!content.trim()) return { type: "uint8array", value: btoa("") };
+        if (!content.trim()) return { type: "Uint8Array", value: btoa("") };
         const bytes = content.split(",").map((n) => parseInt(n.trim())).filter(
           (n) => !isNaN(n),
         );
         const u8 = new Uint8Array(bytes);
         const val = btoa(String.fromCharCode(...u8));
-        return { type: "uint8array", value: val };
+        return { type: "Uint8Array", value: val };
       } catch {
-        return { type: "uint8array", value: btoa("") };
+        return { type: "Uint8Array", value: btoa("") };
       }
     }
     if (token.startsWith("[")) {

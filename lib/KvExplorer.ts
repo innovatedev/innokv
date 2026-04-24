@@ -1,6 +1,6 @@
 import { type DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
-import { ValueCodec } from "./ValueCodec.ts";
+import { RichValue, ValueCodec } from "./ValueCodec.ts";
 
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
@@ -175,18 +175,25 @@ export class KvExplorer {
       return { value: part ? "true" : "false", type: "boolean" };
     } else if (typeof part === "bigint") {
       return { value: part.toString(), type: "bigint" };
-    } else if (part instanceof Uint8Array) {
-      return { value: btoa(String.fromCharCode(...part)), type: "Uint8Array" };
+    } else if (ArrayBuffer.isView(part)) {
+      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
+      return { value: btoa(String.fromCharCode(...u8)), type: "Uint8Array" };
     } else {
       // deno-lint-ignore no-explicit-any
       const p = part as any;
       if (p instanceof Date) {
         return { value: p.toISOString(), type: "Date" };
       }
+      if (p instanceof ArrayBuffer) {
+        return {
+          value: btoa(String.fromCharCode(...new Uint8Array(p))),
+          type: "ArrayBuffer",
+        };
+      }
       if (Array.isArray(p)) {
         return { value: JSON.stringify(p), type: "Array" };
       }
-      return { value: String(part), type: "unknown" };
+      return { value: String(part), type: "string" };
     }
   }
 
@@ -224,6 +231,11 @@ export class KvExplorer {
   }
 
   async deleteRecords(prefix: Deno.KvKey, recursive = true) {
+    // Delete the prefix itself if it exists
+    if (prefix.length > 0) {
+      await this.kv.delete(prefix);
+    }
+
     const iter = this.kv.list({ prefix });
     for await (const entry of iter) {
       if (!recursive && entry.key.length > prefix.length + 1) {
@@ -232,5 +244,127 @@ export class KvExplorer {
       await this.kv.delete(entry.key);
     }
     return { ok: true };
+  }
+
+  /**
+   * Moves records from one prefix to another.
+   * Performs an atomic move (delete + set) for each entry found.
+   */
+  async moveRecords(
+    oldPrefix: Deno.KvKey,
+    newPrefix: Deno.KvKey,
+    recursive = true,
+  ) {
+    let movedCount = 0;
+
+    // Handle the prefix key itself
+    if (oldPrefix.length > 0) {
+      const rootEntry = await this.kv.get(oldPrefix);
+      if (rootEntry.value !== null) {
+        const res = await this.kv.atomic()
+          .delete(oldPrefix)
+          .set(newPrefix, rootEntry.value)
+          .commit();
+        if (res.ok) movedCount++;
+      }
+    }
+
+    const iter = this.kv.list({ prefix: oldPrefix });
+
+    for await (const entry of iter) {
+      if (!recursive && entry.key.length > oldPrefix.length + 1) {
+        continue;
+      }
+
+      const suffix = entry.key.slice(oldPrefix.length);
+      const newKey = [...newPrefix, ...suffix];
+
+      // Atomic move per entry to prevent data loss
+      const res = await this.kv.atomic()
+        .delete(entry.key)
+        .set(newKey, entry.value)
+        .commit();
+
+      if (res.ok) {
+        movedCount++;
+      } else {
+        throw new Error(
+          `Failed to move record at key: ${JSON.stringify(entry.key)}`,
+        );
+      }
+    }
+    return { ok: true, movedCount };
+  }
+
+  /**
+   * Copies records from one prefix to another.
+   */
+  async copyRecords(
+    oldPrefix: Deno.KvKey,
+    newPrefix: Deno.KvKey,
+    recursive = false,
+  ) {
+    let copiedCount = 0;
+
+    // Handle the prefix key itself
+    if (oldPrefix.length > 0) {
+      const rootEntry = await this.kv.get(oldPrefix);
+      if (rootEntry.value !== null) {
+        await this.kv.set(newPrefix, rootEntry.value);
+        copiedCount++;
+      }
+    }
+
+    const iter = this.kv.list({ prefix: oldPrefix });
+
+    for await (const entry of iter) {
+      if (!recursive && entry.key.length > oldPrefix.length + 1) {
+        continue;
+      }
+
+      const suffix = entry.key.slice(oldPrefix.length);
+      const newKey = [...newPrefix, ...suffix];
+
+      await this.kv.set(newKey, entry.value);
+      copiedCount++;
+    }
+    return { ok: true, copiedCount };
+  }
+
+  /**
+   * Exports records under a prefix to a JSON-serializable array.
+   */
+  async exportToJson(prefix: Deno.KvKey, recursive = true) {
+    const iter = this.kv.list({ prefix });
+    const entries = [];
+
+    for await (const entry of iter) {
+      if (!recursive && entry.key.length > prefix.length + 1) {
+        continue;
+      }
+
+      entries.push({
+        key: entry.key.map((k) => this.stringifyKeyPart(k)),
+        value: ValueCodec.encode(entry.value),
+      });
+    }
+
+    return entries;
+  }
+
+  /**
+   * Imports records from a JSON-serializable array into the database.
+   */
+  async importFromJson(
+    entries: { key: { type: string; value: string }[]; value: RichValue }[],
+  ) {
+    let importedCount = 0;
+    for (const entry of entries) {
+      const key = entry.key.map((p) => this.parseKeyPart(p));
+      const value = ValueCodec.decode(entry.value);
+      await this.kv.set(key, value);
+      importedCount++;
+    }
+    return { ok: true, importedCount };
   }
 }

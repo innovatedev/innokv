@@ -91,3 +91,12 @@ export const DatabaseModel = z.object({
     prettyPrintDates: z.boolean().optional(),
   }).optional(),
 });
+
+export const AppConfigModel = z.object({
+  port: z.number().optional(),
+  cookieName: z.string().optional(),
+  updatedAt: z.date(),
+});
+
+export type AppConfig = z.infer<typeof AppConfigModel> & { id: string };
+export type AppConfigValue = z.infer<typeof AppConfigModel>;

@@ -1,4 +1,5 @@
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { getDefaultConfigPath } from "@/lib/paths.ts";
 
 export interface CliConfig {
   token?: string;
@@ -6,8 +7,7 @@ export interface CliConfig {
 }
 
 function getConfigPath(): string {
-  const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ".";
-  return join(home, ".innokv", "config.json");
+  return getDefaultConfigPath();
 }
 
 export async function readConfig(): Promise<CliConfig> {
@@ -21,6 +21,9 @@ export async function readConfig(): Promise<CliConfig> {
 
 export async function writeConfig(config: CliConfig) {
   const path = getConfigPath();
+  try {
+    await Deno.mkdir(dirname(path), { recursive: true });
+  } catch (_) { /* ignore */ }
   await Deno.writeTextFile(path, JSON.stringify(config, null, 2));
 }
 

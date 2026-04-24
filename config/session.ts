@@ -17,7 +17,7 @@ export const sessionConfig: SessionOptions<User, SessionData> = {
     // userIndex: "email", // Optional secondary index
   }),
   cookie: {
-    name: "innokv.sid",
+    name: settings.server.cookieName,
     httpOnly: true,
     secure: settings.env.isProd,
     sameSite: "Lax" as const,

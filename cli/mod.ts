@@ -6,8 +6,15 @@ import { ls } from "./commands/ls.ts";
 import { get } from "./commands/get.ts";
 import { set } from "./commands/set.ts";
 import { update } from "./commands/update.ts";
+import { mv } from "./commands/mv.ts";
+import { cp } from "./commands/cp.ts";
+import { rm } from "./commands/rm.ts";
 import { login, logout, whoami } from "./commands/auth.ts";
 import { user } from "./commands/user.ts";
+import { importCmd } from "./commands/import.ts";
+import { exportCmd } from "./commands/export.ts";
+import { tree } from "./commands/tree.ts";
+import { configCmd } from "./commands/config.ts";
 import { deleteConfig } from "./config.ts";
 import { install } from "./commands/install.ts";
 import { app } from "../main.ts";
@@ -28,12 +35,26 @@ export const cmd: Command<any> = new Command()
   .name("innokv")
   .version(APP_VERSION)
   .description("InnoKV Command Line Interface")
-  .action(() => {
-    console.log(
-      "Welcome to InnoKV CLI! Use --help for usage instructions, or 'repl' to enter interactive mode.",
+  .option("-p, --port <number:number>", "Port to run the server on", {
+    default: 8000,
+  })
+  .option("--cookie-name <name:string>", "Name of the session cookie", {
+    default: "innokv_session",
+  })
+  .action(async (options) => {
+    const { performFirstBootCheck } = await import(
+      "../lib/first-boot-check.ts"
     );
+    const { loadGlobalConfig } = await import("../lib/config-loader.ts");
+
+    await performFirstBootCheck();
+    await loadGlobalConfig(options);
+
     console.log(`InnoKV Version: ${APP_VERSION}`);
     console.log(`Using Database: ${settings.db.path}`);
+    console.log(`Listening on: http://localhost:${settings.server.port}`);
+
+    await app.listen({ port: settings.server.port });
   })
   .command("repl", repl)
   .command("db", db)
@@ -41,24 +62,39 @@ export const cmd: Command<any> = new Command()
   .command("get", get)
   .command("set", set)
   .command("update", update)
+  .command("mv", mv)
+  .command("cp", cp)
+  .command("rm", rm)
   .command("login", login)
   .command("logout", logout)
   .command("whoami", whoami)
   .command("user", user)
+  .command("import", importCmd)
+  .command("export", exportCmd)
+  .command("tree", tree)
+  .command("config", configCmd)
   .command(
     "serve",
     new Command()
       .description("Start the InnoKV web server")
-      .action(async () => {
+      .option("-p, --port <number:number>", "Port to run the server on")
+      .option("--cookie-name <name:string>", "Name of the session cookie")
+      .action(async (options) => {
         const { performFirstBootCheck } = await import(
           "../lib/first-boot-check.ts"
         );
-        const { default: settings } = await import("../config/app.ts");
+        const { loadGlobalConfig } = await import("../lib/config-loader.ts");
 
         await performFirstBootCheck();
+        await loadGlobalConfig(
+          options as { port?: number; cookieName?: string },
+        );
+
         console.log(`InnoKV Version: ${APP_VERSION}`);
         console.log(`Using Database: ${settings.db.path}`);
-        await app.listen();
+        console.log(`Listening on: http://localhost:${settings.server.port}`);
+
+        await app.listen({ port: settings.server.port });
       }),
   )
   .command(

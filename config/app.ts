@@ -4,6 +4,10 @@ const settings = {
   db: {
     path: getDefaultDbPath(),
   },
+  server: {
+    port: parseInt(Deno.env.get("PORT") ?? "8000"),
+    cookieName: Deno.env.get("SESSION_COOKIE_NAME") ?? "innokv.sid",
+  },
   admin: {
     emails: (Deno.env.get("ADMIN_EMAILS") ?? "")
       .split(",")

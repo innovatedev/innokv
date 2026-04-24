@@ -12,6 +12,7 @@ export default function KvEntryForm({
   isLoading,
   error,
   success,
+  isReadOnly = false,
 }: {
   onSubmit?: (data: unknown, form: HTMLFormElement) => void;
   onCancel?: () => void;
@@ -21,6 +22,7 @@ export default function KvEntryForm({
   isLoading?: boolean;
   error?: string;
   success?: string;
+  isReadOnly?: boolean;
 }) {
   const [keyParts, setKeyParts] = useState<{ type: string; value: string }[]>(
     [],
@@ -189,6 +191,7 @@ export default function KvEntryForm({
               <button
                 type="button"
                 class="btn btn-xs btn-ghost"
+                disabled={isReadOnly}
                 onClick={() => setIsEditingKey(true)}
               >
                 Edit Key
@@ -202,6 +205,7 @@ export default function KvEntryForm({
                   <select
                     class="select select-bordered select-sm w-24"
                     value={part.type}
+                    disabled={isReadOnly}
                     onChange={(e) =>
                       updatePart(
                         i,
@@ -221,6 +225,7 @@ export default function KvEntryForm({
                       <select
                         class="select select-bordered select-sm flex-1 max-w-xs"
                         value={part.value}
+                        disabled={isReadOnly}
                         onChange={(e) =>
                           updatePart(
                             i,
@@ -241,6 +246,7 @@ export default function KvEntryForm({
                             : "max-w-xs"
                         }`}
                         value={part.value}
+                        disabled={isReadOnly}
                         onChange={(e) =>
                           updatePart(
                             i,
@@ -253,34 +259,37 @@ export default function KvEntryForm({
                       />
                     )}
 
-                  <button
-                    type="button"
-                    class="btn btn-square btn-sm btn-ghost"
-                    onClick={() =>
-                      removePart(i)}
-                  >
-                    ✕
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      class="btn btn-square btn-sm btn-ghost"
+                      onClick={() => removePart(i)}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               ))}
-              <div class="flex gap-2 mt-2 justify-between items-center">
-                <button
-                  type="button"
-                  class="btn btn-sm btn-ghost gap-2"
-                  onClick={addPart}
-                >
-                  + Add Key Part
-                </button>
-                {entry && (
+              {!isReadOnly && (
+                <div class="flex gap-2 mt-2 justify-between items-center">
                   <button
                     type="button"
-                    class="btn btn-xs btn-ghost text-error"
-                    onClick={() => setIsEditingKey(false)}
+                    class="btn btn-sm btn-ghost gap-2"
+                    onClick={addPart}
                   >
-                    Cancel Edit
+                    + Add Key Part
                   </button>
-                )}
-              </div>
+                  {entry && (
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-ghost text-error"
+                      onClick={() => setIsEditingKey(false)}
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
       </div>
@@ -307,6 +316,7 @@ export default function KvEntryForm({
               value={richValue}
               onChange={setRichValue}
               label=""
+              isReadOnly={isReadOnly}
             />
           )
           : (
@@ -348,7 +358,7 @@ export default function KvEntryForm({
 
       <div class="flex justify-between gap-4 mt-4">
         <div>
-          {entry && onDelete && (
+          {!isReadOnly && entry && onDelete && (
             <button
               class="btn btn-error btn-outline btn-sm"
               type="button"
@@ -366,15 +376,17 @@ export default function KvEntryForm({
             onClick={doCancel}
             disabled={isLoading}
           >
-            Cancel
+            {isReadOnly ? "Close" : "Cancel"}
           </button>
-          <button
-            class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
-            type="submit"
-            disabled={isLoading}
-          >
-            {isLoading ? "Loading..." : (entry ? "Save Changes" : "Create")}
-          </button>
+          {!isReadOnly && (
+            <button
+              class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
+              type="submit"
+              disabled={isLoading}
+            >
+              {isLoading ? "Loading..." : (entry ? "Save Changes" : "Create")}
+            </button>
+          )}
         </div>
       </div>
     </form>

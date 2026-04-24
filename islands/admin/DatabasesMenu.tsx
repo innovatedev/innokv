@@ -58,6 +58,7 @@ export default function DatabasesMenu() {
         title={activeDatabase ? "Edit Database" : "Connect Database"}
       >
         <ConnectDatabaseForm
+          key={activeDatabase?.id || "new"}
           onCancel={() => createDatabaseRef.current?.close()}
           onDelete={() => {
             api.deleteDatabase(activeDatabase!.id)

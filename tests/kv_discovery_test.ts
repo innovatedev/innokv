@@ -109,7 +109,6 @@ Deno.test("KV Key Discovery Bug Reproduction", async (t) => {
 
   await t.step("getNodes execution", async () => {
     const nodes = await getNodes([]);
-    console.log("Nodes found:", nodes);
     // specific order check
     // actions, sessions, urls, users
     assertEquals(nodes.includes("actions"), true, "actions found");

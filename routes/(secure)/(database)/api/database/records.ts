@@ -3,6 +3,8 @@ import { db as kvdex } from "@/kv/db.ts";
 import { BaseRepository } from "@/lib/BaseRepository.ts";
 import { ApiKvKeyPart } from "@/lib/types.ts";
 
+import { RichValue } from "@/lib/ValueCodec.ts";
+
 const db = new DatabaseRepository(kvdex);
 
 export const handler = BaseRepository.handlers({
@@ -17,6 +19,29 @@ export const handler = BaseRepository.handlers({
 
       const database = await db.getDatabaseBySlugOrId(dbId);
       const pathInfo = ctx.url.searchParams.get("pathInfo") || "";
+
+      // Handle Export
+      if (ctx.url.searchParams.has("export")) {
+        const recursive = ctx.url.searchParams.get("recursive") === "true";
+        const all = ctx.url.searchParams.get("all") === "true";
+        const wireKeys = ctx.url.searchParams.get("keys");
+        let keys: Deno.KvKey[] | undefined;
+
+        if (wireKeys) {
+          const parsed = JSON.parse(wireKeys);
+          keys = (parsed as ApiKvKeyPart[][]).map((k) =>
+            k.map((p) => db.parseKeyPart(p))
+          );
+        }
+
+        return db.exportRecords(database.id, {
+          pathInfo,
+          recursive,
+          all,
+          keys,
+        });
+      }
+
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
       const limit = parseInt(ctx.url.searchParams.get("limit") || "100");
       const recursiveParam = ctx.url.searchParams.get("recursive");
@@ -52,6 +77,32 @@ export const handler = BaseRepository.handlers({
         versionstamp as string | null,
         oldKey,
       );
+    }),
+  PATCH: (ctx) =>
+    db.handleApiCall(ctx, async (rawData) => {
+      const data = rawData as {
+        id: string;
+        oldPath: string;
+        newPath: string;
+        recursive?: boolean;
+      };
+      const { id, oldPath, newPath, recursive } = data;
+      if (!id || !oldPath || !newPath) {
+        throw new Error("Missing required fields (id, oldPath, newPath)");
+      }
+      ctx.state.plugins.permissions.requires(`database:write:${id}`);
+      return await db.moveRecords(id, oldPath, newPath, recursive);
+    }),
+  PUT: (ctx) =>
+    db.handleApiCall(ctx, async (rawData) => {
+      const data = rawData as {
+        id: string;
+        entries: { key: ApiKvKeyPart[]; value: RichValue }[];
+      };
+      const { id, entries } = data;
+      if (!id || !entries) throw new Error("Missing required fields");
+      ctx.state.plugins.permissions.requires(`database:write:${id}`);
+      return await db.importRecords(id, entries);
     }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (rawData) => {

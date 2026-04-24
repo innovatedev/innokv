@@ -6,6 +6,7 @@ interface RichValueEditorProps {
   onChange: (value: RichValue) => void;
   label?: string;
   depth?: number;
+  isReadOnly?: boolean;
 }
 
 export default function RichValueEditor({
@@ -13,6 +14,7 @@ export default function RichValueEditor({
   onChange,
   label = "Value",
   depth = 0,
+  isReadOnly = false,
 }: RichValueEditorProps) {
   // Derived state directly from props to avoid sync issues
   const type = value.type;
@@ -101,6 +103,7 @@ export default function RichValueEditor({
         <select
           class="select select-bordered select-xs"
           value={type}
+          disabled={isReadOnly}
           onChange={(e) =>
             handleTypeChange(
               (e.target as HTMLSelectElement).value as RichValueType,
@@ -128,6 +131,7 @@ export default function RichValueEditor({
               class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded-2xl font-mono"
               rows={Math.min(5, (String(val) || "").split("\n").length + 1)}
               value={val as string}
+              disabled={isReadOnly}
               onInput={(e) =>
                 handlePrimitiveChange((e.target as HTMLTextAreaElement).value)}
             />
@@ -138,6 +142,7 @@ export default function RichValueEditor({
               step="any"
               class="input input-bordered input-sm w-full max-w-xs"
               value={val as number}
+              disabled={isReadOnly}
               onInput={(e) =>
                 handlePrimitiveChange(
                   Number((e.target as HTMLInputElement).value),
@@ -151,6 +156,7 @@ export default function RichValueEditor({
               pattern="-?[0-9]+"
               placeholder="e.g. 9007199254740991"
               value={val as string}
+              disabled={isReadOnly}
               onInput={(e) =>
                 handlePrimitiveChange((e.target as HTMLInputElement).value)}
             />
@@ -164,6 +170,7 @@ export default function RichValueEditor({
                   name={`bool-${Math.random()}`}
                   class="radio radio-sm"
                   checked={val === true}
+                  disabled={isReadOnly}
                   onChange={() => handlePrimitiveChange(true)}
                 />
               </label>
@@ -174,6 +181,7 @@ export default function RichValueEditor({
                   name={`bool-${Math.random()}`}
                   class="radio radio-sm"
                   checked={val === false}
+                  disabled={isReadOnly}
                   onChange={() => handlePrimitiveChange(false)}
                 />
               </label>
@@ -186,6 +194,7 @@ export default function RichValueEditor({
               value={val
                 ? new Date(val as string).toISOString().slice(0, 16)
                 : ""}
+              disabled={isReadOnly}
               onChange={(e) =>
                 handlePrimitiveChange(
                   new Date((e.target as HTMLInputElement).value).toISOString(),
@@ -199,6 +208,7 @@ export default function RichValueEditor({
               </span>
               <Uint8ArrayInput
                 value={val as string}
+                disabled={isReadOnly}
                 onChange={(v) => handlePrimitiveChange(v)}
               />
             </div>
@@ -208,6 +218,7 @@ export default function RichValueEditor({
               value={val}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
+              isReadOnly={isReadOnly}
             />
           )}
           {type === "array" && (
@@ -215,6 +226,7 @@ export default function RichValueEditor({
               value={val as RichValue[]}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
+              isReadOnly={isReadOnly}
             />
           )}
           {type === "set" && (
@@ -223,6 +235,7 @@ export default function RichValueEditor({
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
               _isSet
+              isReadOnly={isReadOnly}
             />
           )}
           {type === "map" && (
@@ -230,6 +243,7 @@ export default function RichValueEditor({
               value={val as [RichValue, RichValue][]}
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
+              isReadOnly={isReadOnly}
             />
           )}
           {(type === "undefined" || type === "null") && (
@@ -242,12 +256,13 @@ export default function RichValueEditor({
 }
 
 function ObjectEditor(
-  { value, onChange, depth }: {
+  { value, onChange, depth, isReadOnly }: {
     // deno-lint-ignore no-explicit-any
     value: any;
     // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
+    isReadOnly: boolean;
   },
 ) {
   const entries = Object.entries(value || {});
@@ -343,82 +358,92 @@ function ObjectEditor(
               )
               : (
                 <span
-                  class="font-bold text-sm bg-base-200 px-2 py-0.5 rounded cursor-text hover:bg-base-300 transition-colors"
-                  onClick={() => startEditing(key)}
-                  title="Click to rename"
+                  class={`font-bold text-sm bg-base-200 px-2 py-0.5 rounded ${
+                    isReadOnly
+                      ? "cursor-default"
+                      : "cursor-text hover:bg-base-300 transition-colors"
+                  }`}
+                  onClick={() => !isReadOnly && startEditing(key)}
+                  title={isReadOnly ? undefined : "Click to rename"}
                 >
                   {key}
                 </span>
               )}
-            <button
-              type="button"
-              onClick={() => removeField(key)}
-              class="btn btn-xs btn-ghost text-error"
-            >
-              Remove
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => removeField(key)}
+                class="btn btn-xs btn-ghost text-error"
+              >
+                Remove
+              </button>
+            )}
           </div>
           <RichValueEditor
             value={val as RichValue}
             onChange={(v) => updateField(key, v)}
             depth={depth}
+            isReadOnly={isReadOnly}
           />
         </div>
       ))}
 
-      {isAdding
-        ? (
-          <div class="flex gap-2 items-center">
-            <input
-              type="text"
-              class="input input-bordered input-xs"
-              placeholder="Field name"
-              value={newKey}
-              onInput={(e) => setNewKey((e.target as HTMLInputElement).value)}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addField(e);
-                if (e.key === "Escape") setIsAdding(false);
-              }}
-            />
+      {!isReadOnly && (
+        isAdding
+          ? (
+            <div class="flex gap-2 items-center">
+              <input
+                type="text"
+                class="input input-bordered input-xs"
+                placeholder="Field name"
+                value={newKey}
+                onInput={(e) => setNewKey((e.target as HTMLInputElement).value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addField(e);
+                  if (e.key === "Escape") setIsAdding(false);
+                }}
+              />
+              <button
+                type="button"
+                class="btn btn-xs btn-brand"
+                onClick={addField}
+                disabled={!newKey || (newKey in (value || {}))}
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost"
+                onClick={() => setIsAdding(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )
+          : (
             <button
               type="button"
-              class="btn btn-xs btn-brand"
-              onClick={addField}
-              disabled={!newKey || (newKey in (value || {}))}
+              onClick={() => setIsAdding(true)}
+              class="btn btn-xs btn-outline self-start"
             >
-              Add
+              + Add Field
             </button>
-            <button
-              type="button"
-              class="btn btn-xs btn-ghost"
-              onClick={() => setIsAdding(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        )
-        : (
-          <button
-            type="button"
-            onClick={() => setIsAdding(true)}
-            class="btn btn-xs btn-outline self-start"
-          >
-            + Add Field
-          </button>
-        )}
+          )
+      )}
     </div>
   );
 }
 
 function ArrayEditor(
-  { value, onChange, depth, _isSet }: {
+  { value, onChange, depth, _isSet, isReadOnly }: {
     // deno-lint-ignore no-explicit-any
     value: any[];
     // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
     _isSet?: boolean;
+    isReadOnly: boolean;
   },
 ) {
   // value is array of RichValue
@@ -447,38 +472,44 @@ function ArrayEditor(
         >
           <div class="flex items-center justify-between">
             <span class="text-xs opacity-50">Item {idx}</span>
-            <button
-              type="button"
-              onClick={() => removeItem(idx)}
-              class="btn btn-xs btn-ghost text-error"
-            >
-              Remove
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => removeItem(idx)}
+                class="btn btn-xs btn-ghost text-error"
+              >
+                Remove
+              </button>
+            )}
           </div>
           <RichValueEditor
             value={val}
             onChange={(v) => updateItem(idx, v)}
             depth={depth}
+            isReadOnly={isReadOnly}
           />
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addItem}
-        class="btn btn-xs btn-outline self-start"
-      >
-        + Add Item
-      </button>
+      {!isReadOnly && (
+        <button
+          type="button"
+          onClick={addItem}
+          class="btn btn-xs btn-outline self-start"
+        >
+          + Add Item
+        </button>
+      )}
     </div>
   );
 }
 
 function MapEditor(
-  { value, onChange, depth }: {
+  { value, onChange, depth, isReadOnly }: {
     value: [RichValue, RichValue][];
     // deno-lint-ignore no-explicit-any
     onChange: (v: any) => void;
     depth: number;
+    isReadOnly: boolean;
   },
 ) {
   // value is array of [Key(RichValue), Value(RichValue)]
@@ -517,13 +548,15 @@ function MapEditor(
         >
           <div class="flex justify-between items-center text-xs opacity-70">
             <span>Entry {idx + 1}</span>
-            <button
-              type="button"
-              onClick={() => removeItem(idx)}
-              class="text-error hover:underline"
-            >
-              Remove
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => removeItem(idx)}
+                class="text-error hover:underline"
+              >
+                Remove
+              </button>
+            )}
           </div>
           <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
             <RichValueEditor
@@ -531,6 +564,7 @@ function MapEditor(
               onChange={(v) => updateEntry(idx, "key", v)}
               depth={depth + 1}
               label="Key"
+              isReadOnly={isReadOnly}
             />
             <span class="mt-8 text-base-content/50">→</span>
             <RichValueEditor
@@ -538,23 +572,30 @@ function MapEditor(
               onChange={(v) => updateEntry(idx, "value", v)}
               depth={depth + 1}
               label="Value"
+              isReadOnly={isReadOnly}
             />
           </div>
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addItem}
-        class="btn btn-xs btn-outline self-start"
-      >
-        + Add Entry
-      </button>
+      {!isReadOnly && (
+        <button
+          type="button"
+          onClick={addItem}
+          class="btn btn-xs btn-outline self-start"
+        >
+          + Add Entry
+        </button>
+      )}
     </div>
   );
 }
 
 function Uint8ArrayInput(
-  { value, onChange }: { value: string; onChange: (v: string) => void },
+  { value, onChange, disabled }: {
+    value: string;
+    onChange: (v: string) => void;
+    disabled?: boolean;
+  },
 ) {
   // Value is base64 string
   const format = (v: string) => {
@@ -592,6 +633,7 @@ function Uint8ArrayInput(
     <textarea
       class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded font-mono"
       value={text}
+      disabled={disabled}
       onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}
       onFocus={() => (focused.current = true)}
       onBlur={() => {

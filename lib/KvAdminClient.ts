@@ -2,6 +2,8 @@ import { Database } from "@/kv/models.ts";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 
+import { RichValue } from "./ValueCodec.ts";
+
 export default class KvAdminClient {
   private baseUri: string;
 
@@ -172,6 +174,61 @@ export default class KvAdminClient {
     }
 
     return this.request("/database/records", "DELETE", payload);
+  }
+
+  public moveRecords(
+    id: string,
+    oldPath: string,
+    newPath: string,
+    recursive = true,
+  ): Promise<{ ok: boolean; movedCount: number }> {
+    return this.request("/database/records", "PATCH", {
+      id,
+      oldPath,
+      newPath,
+      recursive,
+    });
+  }
+
+  public exportRecords(
+    id: string,
+    options: {
+      pathInfo?: string;
+      recursive?: boolean;
+      keys?: unknown[][];
+      all?: boolean;
+    } = {},
+  ): Promise<{ key: ApiKvKeyPart[]; value: RichValue }[]> {
+    const payload: Record<string, unknown> = {
+      id,
+      export: "true",
+      recursive: options.recursive !== undefined
+        ? String(options.recursive)
+        : undefined,
+      all: options.all !== undefined ? String(options.all) : undefined,
+    };
+
+    if (options.pathInfo !== undefined) {
+      payload.pathInfo = options.pathInfo;
+    }
+
+    if (options.keys) {
+      payload.keys = JSON.stringify(
+        options.keys.map((key) => key.map((k) => this.stringifyKeyPart(k))),
+      );
+    }
+
+    return this.request("/database/records", "GET", payload);
+  }
+
+  public importRecords(
+    id: string,
+    entries: { key: ApiKvKeyPart[]; value: RichValue }[],
+  ): Promise<{ ok: boolean; importedCount: number }> {
+    return this.request("/database/records", "PUT", {
+      id,
+      entries,
+    });
   }
 
   private stringifyKeyPart(part: unknown): { type: string; value: string } {

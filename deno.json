@@ -1,6 +1,6 @@
 {
   "nodeModulesDir": "auto",
-  "version": "0.1.3",
+  "version": "0.2.0-alpha.1",
   "name": "@innovatedev/innokv",
   "exports": {
     ".": "./cli/mod.ts"
@@ -14,7 +14,7 @@
     ]
   },
   "tasks": {
-    "check": "deno fmt --check . && deno lint . && deno check",
+    "check": "deno fmt --check . && deno lint . && deno check && deno task build && deno task test",
     "dev": "vite",
     "build": "vite build",
     "start": "deno serve -A _fresh/server.js",
@@ -24,7 +24,7 @@
     "compile:win": "deno compile -A --icon static/favicon.ico --exclude=node_modules --target=x86_64-pc-windows-msvc --output target/innokv-win.exe --include _fresh _fresh/compiled-entry.js",
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
     "cli": "deno run -A cli/mod.ts",
-    "test": "deno test -A --node-modules-dir=auto",
+    "test": "INNOKV_DB_PATH=test.db deno test -A --node-modules-dir=auto && rm -f test.db test.db-shm test.db-wal",
     "version": "deno run -A tools/version.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },

@@ -1,5 +1,5 @@
 import { collection, kvdex } from "@olli/kvdex";
-import { ApiTokenModel, DatabaseModel } from "@/kv/models.ts";
+import { ApiTokenModel, AppConfigModel, DatabaseModel } from "@/kv/models.ts";
 import { dirname } from "jsr:@std/path@1.0.8";
 import { SessionModel } from "@/kv/models.ts";
 import { UserModel } from "@/kv/models.ts";
@@ -31,10 +31,9 @@ if (!metadata) {
     const appVersion = parse(APP_VERSION);
 
     if (greaterThan(dbVersion, appVersion)) {
-      console.error(
-        `CRITICAL: Database version (${metadata.version}) is newer than App version (${APP_VERSION}). Cannot start.`,
+      console.warn(
+        `WARNING: Database version (${metadata.version}) is newer than App version (${APP_VERSION}). This may cause issues.`,
       );
-      Deno.exit(1);
     } else if (lessThan(dbVersion, appVersion)) {
       console.log(
         `Migrating database from ${metadata.version} to ${APP_VERSION}...`,
@@ -95,5 +94,6 @@ export const db = kvdex({
         type: "secondary",
       },
     }),
+    config: collection(AppConfigModel),
   },
 });

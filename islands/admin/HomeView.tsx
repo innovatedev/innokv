@@ -59,7 +59,30 @@ export default function HomeView(
                           : <DatabaseIcon className="w-5 h-5" />}
                       </div>
                       <div class="min-w-0 flex-1">
-                        <div class="font-bold truncate text-sm">{db.name}</div>
+                        <div class="font-bold truncate text-sm flex items-center gap-1">
+                          {db.name}
+                          {db.mode === "r" && (
+                            <div
+                              class="tooltip tooltip-right flex items-center"
+                              data-tip="Read Only"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke-width="2"
+                                stroke="currentColor"
+                                class="w-3.5 h-3.5 text-warning shrink-0"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                                />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                         {db.description && (
                           <div class="text-xs text-base-content/60 truncate">
                             {db.description}
@@ -135,8 +158,24 @@ export default function HomeView(
                       {db.name}
                     </div>
                     {db.mode === "r" && (
-                      <div class="badge badge-xs badge-warning variant-soft uppercase font-bold tracking-wider">
-                        Read Only
+                      <div
+                        class="tooltip tooltip-top flex items-center"
+                        data-tip="Read Only"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="2"
+                          stroke="currentColor"
+                          class="w-4 h-4 text-warning shrink-0"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                          />
+                        </svg>
                       </div>
                     )}
                   </div>
@@ -220,6 +259,7 @@ export default function HomeView(
         title={editingDatabase.value ? "Edit Database" : "Connect Database"}
       >
         <ConnectDatabaseForm
+          key={editingDatabase.value?.id || "new"}
           database={editingDatabase.value}
           onCancel={() => createDatabaseRef.current?.close()}
           onSubmit={(data, form) => {

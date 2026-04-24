@@ -30,14 +30,23 @@ export default function ConnectDatabaseForm({
       const data = Object.fromEntries(formData.entries());
       // deno-lint-ignore no-explicit-any
       const payload = data as any;
+
+      // Don't overwrite existing token with empty string on update
+      if (database && payload.accessToken === "") {
+        delete payload.accessToken;
+      }
+
       // Handle nested settings
+      const settings = database?.settings || {};
       if (payload["settings.prettyPrintDates"]) {
         payload.settings = {
+          ...settings,
           prettyPrintDates: payload["settings.prettyPrintDates"] === "true",
         };
         delete payload["settings.prettyPrintDates"];
       } else {
         payload.settings = {
+          ...settings,
           prettyPrintDates: false,
         };
       }

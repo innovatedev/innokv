@@ -18,6 +18,7 @@ import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import RecordItem from "./RecordItem.tsx";
+import MoveRecords from "./forms/MoveRecords.tsx";
 
 // Helper for Node component
 interface NodeProps {
@@ -241,6 +242,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const selectedEntry = useSignal<ApiKvEntry | null>(null);
   const editingDatabase = useSignal<Database | null>(null);
   const error = useSignal<string | null>(null);
+  const moveRef = useRef<HTMLDialogElement>(null);
+  const movePath = useSignal<ApiKvKeyPart[]>([]);
 
   // Clear error when database changes
   useEffect(() => {
@@ -561,6 +564,146 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     }
   };
 
+  const handleMove = async (newPathStr: string, recursive: boolean) => {
+    if (!activeDatabase || !movePath.value) return;
+    const dbId = (activeDatabase.slug || activeDatabase.id) as string;
+    const oldPathStr = KeyCodec.encode(movePath.value);
+
+    try {
+      const res = await api.moveRecords(
+        dbId,
+        oldPathStr,
+        newPathStr,
+        recursive,
+      );
+      if (res.ok) {
+        // Refresh current view if needed
+        if (pathInfo.value) {
+          const currentStr = KeyCodec.encode(pathInfo.value);
+          if (currentStr.startsWith(oldPathStr)) {
+            // If we moved the current path or its parent, go to root
+            pathInfo.value = [];
+          } else {
+            // Refresh records
+            const target =
+              (activeDatabase?.slug || selectedDatabase.value) as string;
+            api.getRecords(target, pathInfo.value, cursor.value, limit.value, {
+              recursive: false,
+            }).then((res) => {
+              records.value = res.records;
+              nextCursor.value = res.cursor;
+            });
+          }
+        }
+        // Refresh structure
+        api.getDatabase(dbId).then((s) => setDbStructure(s));
+      }
+    } catch (err: unknown) {
+      alert(`Move failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const handleExport = async (recursive = true) => {
+    if (!activeDatabase) return;
+    const dbId = (activeDatabase.slug || activeDatabase.id) as string;
+
+    try {
+      let data;
+      let fileName = `${dbId}`;
+
+      if (selectAllMatching.value) {
+        data = await api.exportRecords(dbId, {
+          pathInfo: KeyCodec.encode(pathInfo.value || []),
+          recursive: true,
+          all: true,
+        });
+        fileName += "-all-matching.json";
+      } else if (selectedKeys.value.size > 0) {
+        const keys = Array.from(selectedKeys.value).map((k) =>
+          KeyCodec.decode(k)
+        );
+        data = await api.exportRecords(dbId, { keys });
+        fileName += `-selected-${selectedKeys.value.size}.json`;
+      } else {
+        const path = pathInfo.value || [];
+        const pathStr = KeyCodec.encode(path);
+        data = await api.exportRecords(dbId, {
+          pathInfo: pathStr,
+          recursive,
+        });
+        fileName += `-${
+          path.length > 0 ? path.map((p) => p.value).join("_") : "root"
+        }.json`;
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleImport = () => {
+    if (!activeDatabase) return;
+    const dbId = (activeDatabase.slug || activeDatabase.id) as string;
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (re: ProgressEvent<FileReader>) => {
+        try {
+          const result = re.target?.result as string;
+          const data = JSON.parse(result);
+          if (!Array.isArray(data)) throw new Error("Invalid format");
+
+          api.importRecords(dbId, data).then((res) => {
+            alert(`Imported ${res.importedCount} records`);
+
+            // Refresh
+            const dbTarget =
+              (activeDatabase?.slug || selectedDatabase.value) as string;
+            if (pathInfo.value) {
+              api.getRecords(
+                dbTarget,
+                pathInfo.value,
+                cursor.value,
+                limit.value,
+                {
+                  recursive: false,
+                },
+              ).then((res) => {
+                records.value = res.records;
+                nextCursor.value = res.cursor;
+              });
+            }
+            api.getDatabase(dbId).then((s) => setDbStructure(s));
+          });
+        } catch (err: unknown) {
+          alert(
+            `Import failed: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   // Derived DB Name
   const currentDbName = activeDatabase
     ? (activeDatabase.name || activeDatabase.id)
@@ -658,6 +801,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   useEffect(() => {
     selectedKeys.value = new Set();
     selectAllMatching.value = false;
+    error.value = null;
   }, [pathInfo.value, selectedDatabase.value]);
 
   // CSS injection for tree view
@@ -895,6 +1039,27 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       <span class="flex-1 truncate opacity-70">
                         {db.name || db.id}
                       </span>
+                      {db.mode === "r" && (
+                        <div
+                          class="tooltip tooltip-right flex items-center"
+                          data-tip="Read Only"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.5"
+                            stroke="currentColor"
+                            class="w-3 h-3 opacity-40 text-warning shrink-0"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                            />
+                          </svg>
+                        </div>
+                      )}
                     </a>
                   </li>
                 );
@@ -925,6 +1090,27 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         {DbIcon}
                       </span>
                       <span class="flex-1 truncate">{db.name || db.id}</span>
+                      {db.mode === "r" && (
+                        <div
+                          class="tooltip tooltip-right flex items-center"
+                          data-tip="Read Only"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="2"
+                            stroke="currentColor"
+                            class="w-3.5 h-3.5 text-warning shrink-0"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                            />
+                          </svg>
+                        </div>
+                      )}
                     </summary>
                     {dbStructure && (
                       <ul>
@@ -997,76 +1183,26 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       <div class="flex-1 flex flex-col h-full min-w-0 bg-base-100">
         <div class="px-4 py-1 flex-none border-b border-base-300">
           <div class="flex justify-between items-center py-1">
-            <div class="flex items-center gap-2">
-              {/* Bulk Actions / Selection Info */}
-              {(selectedKeys.value.size > 0 || selectAllMatching.value)
-                ? (
-                  <div class="flex items-center gap-2 bg-base-200 px-2 py-1 rounded">
-                    <span class="text-xs font-bold">
-                      {selectionCount} selected
-                    </span>
-                    {activeDatabase?.mode !== "r" && (
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-error btn-outline"
-                        onClick={handleBulkDelete}
-                      >
-                        Delete
-                      </button>
-                    )}
-                    {/* "Select All Matching" Offer */}
-                    {!selectAllMatching.value && allVisibleSelected && (
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost text-xs"
-                        onClick={() => selectAllMatching.value = true}
-                      >
-                        Select all matching
-                      </button>
-                    )}
-                  </div>
-                )
-                : (
-                  /* Standard Header Controls */
-                  !sidebarOpen.value && (
-                    <>
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-xs btn-square shrink-0"
-                        onClick={() => sidebarOpen.value = true}
-                        title="Open Sidebar"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke-width="1.5"
-                          stroke="currentColor"
-                          class="w-4 h-4"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                          />
-                        </svg>
-                      </button>
-                      <a
-                        href="/"
-                        class="btn btn-ghost btn-xs normal-case font-bold px-2 shrink-0"
-                        title="Home"
-                        style={{
-                          fontFamily: '"Press Start 2P"',
-                          color: "#F4892D",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        InnoKV
-                      </a>
-                    </>
-                  )
-                )}
+            <div class="flex items-center gap-2 overflow-hidden min-w-0 flex-1 px-2">
+              {/* Selection Info on Left */}
+              {(selectedKeys.value.size > 0 || selectAllMatching.value) && (
+                <div class="flex items-center gap-2 bg-base-200 px-2 py-1 rounded shrink-0">
+                  <span class="text-xs font-bold">
+                    {selectionCount} selected
+                  </span>
+                  {!selectAllMatching.value && allVisibleSelected && (
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-ghost text-xs"
+                      onClick={() => selectAllMatching.value = true}
+                    >
+                      Select all matching
+                    </button>
+                  )}
+                </div>
+              )}
 
+              {/* Breadcrumbs in Center-ish */}
               <Breadcrumbs
                 pathInfo={pathInfo}
                 dbStructure={dbStructure}
@@ -1080,20 +1216,124 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                 }}
                 prettyPrintDates={activeDatabase?.settings?.prettyPrintDates ??
                   true}
+                isReadOnly={activeDatabase?.mode === "r"}
               />
+
+              {activeDatabase && activeDatabase.mode !== "r" && (
+                <button
+                  class="btn btn-xs btn-square bg-brand hover:bg-brand/80 text-black border-none shrink-0 ml-1 shadow-sm hover:shadow-md transition-all"
+                  type="button"
+                  title="New Record"
+                  onClick={() => {
+                    selectedEntry.value = null;
+                    createEntryRef.current?.showModal();
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="2"
+                    stroke="currentColor"
+                    class="w-3 h-3"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
-            {activeDatabase && activeDatabase.mode !== "r" && (
-              <button
-                class="btn btn-xs bg-brand hover:bg-brand/80 text-black border-none shrink-0 shadow-sm hover:shadow-md transition-all"
-                type="button"
-                onClick={() => {
-                  selectedEntry.value = null;
-                  createEntryRef.current?.showModal();
-                }}
-              >
-                +
-              </button>
-            )}
+
+            <div class="flex items-center gap-1 shrink-0 px-2">
+              {/* Bulk Actions on Right */}
+              {(selectedKeys.value.size > 0 || selectAllMatching.value) &&
+                activeDatabase?.mode !== "r" && (
+                <button
+                  type="button"
+                  class="btn btn-xs btn-error btn-outline"
+                  onClick={handleBulkDelete}
+                >
+                  Delete
+                </button>
+              )}
+
+              {/* Transfer Menu */}
+              {activeDatabase && (
+                <div class="dropdown dropdown-end">
+                  <label
+                    tabindex={0}
+                    class="btn btn-xs btn-ghost px-1 opacity-70 hover:opacity-100"
+                    title="Export / Import"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke-width="1.5"
+                      stroke="currentColor"
+                      class="w-4 h-4"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+                      />
+                    </svg>
+                  </label>
+                  <ul
+                    tabindex={0}
+                    class="dropdown-content z-20 menu p-2 shadow-xl bg-base-100 rounded-box w-60 border border-base-300"
+                  >
+                    {selectAllMatching.value && (
+                      <li>
+                        <a
+                          onClick={() => handleExport(true)}
+                          class="font-bold text-primary"
+                        >
+                          Export All Matching ({selectionCount})
+                        </a>
+                      </li>
+                    )}
+                    {selectedKeys.value.size > 0 && !selectAllMatching.value &&
+                      (
+                        <li>
+                          <a
+                            onClick={() => handleExport(false)}
+                            class="font-bold text-primary"
+                          >
+                            Export Selected ({selectedKeys.value.size})
+                          </a>
+                        </li>
+                      )}
+                    {(selectedKeys.value.size > 0 || selectAllMatching.value) &&
+                      <div class="divider my-0 opacity-50"></div>}
+                    <li>
+                      <a onClick={() => handleExport(true)}>
+                        Export Folder (Recursive)
+                      </a>
+                    </li>
+                    <li>
+                      <a onClick={() => handleExport(false)}>
+                        Export Folder (Shallow)
+                      </a>
+                    </li>
+                    {activeDatabase.mode !== "r" && (
+                      <>
+                        <div class="divider my-0"></div>
+                        <li>
+                          <a onClick={handleImport}>
+                            Import JSON file
+                          </a>
+                        </li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1124,6 +1364,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             <KvEntryForm
               entry={selectedEntry.value}
               path={pathInfo.value}
+              isReadOnly={activeDatabase.mode === "r"}
               onCancel={() => createEntryRef.current?.close()}
               onDelete={() => {
                 if (!activeDatabase || !selectedEntry.value) return;
@@ -1382,7 +1623,23 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     }
                     // For empty root or empty folder
                     if (activeDatabase) {
-                      return <p class="text-sm">No records found</p>;
+                      return (
+                        <div class="flex flex-col items-center gap-4 py-10">
+                          <p class="text-sm">No records found</p>
+                          {activeDatabase.mode !== "r" && (
+                            <button
+                              type="button"
+                              class="btn btn-brand btn-sm"
+                              onClick={() => {
+                                selectedEntry.value = null;
+                                createEntryRef.current?.showModal();
+                              }}
+                            >
+                              Create your first record
+                            </button>
+                          )}
+                        </div>
+                      );
                     }
 
                     return (
@@ -1610,27 +1867,56 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   Refresh
                 </button>
                 {activeDatabase?.mode !== "r" && (
-                  <button
-                    type="button"
-                    class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
-                    onClick={handleFolderDelete}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke-width="1.5"
-                      stroke="currentColor"
-                      class="w-4 h-4"
+                  <>
+                    <button
+                      type="button"
+                      class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
+                      onClick={() => {
+                        if (contextMenu.value) {
+                          movePath.value = contextMenu.value.path;
+                          moveRef.current?.showModal();
+                          contextMenu.value = null;
+                        }
+                      }}
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                      />
-                    </svg>
-                    Delete
-                  </button>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-4 h-4"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                        />
+                      </svg>
+                      Move / Rename
+                    </button>
+                    <button
+                      type="button"
+                      class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
+                      onClick={handleFolderDelete}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-4 h-4"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                        />
+                      </svg>
+                      Delete
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -1672,6 +1958,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           />
         )}
       </Dialog>
+      <MoveRecords
+        dialogRef={moveRef}
+        currentPath={movePath.value}
+        onMove={handleMove}
+      />
     </div>
   );
 }

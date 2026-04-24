@@ -44,17 +44,23 @@ async function doLocalLogin() {
   }
 }
 
+import { getDefaultDbPath } from "../../lib/paths.ts";
+
 export const whoami = new Command()
-  .description("Show current authentication status")
+  .description("Show current authentication status and environment")
   .action(async () => {
     const config = await readConfig();
+    const dbPath = getDefaultDbPath();
+
+    console.log("\nInnoKV Status:");
+    console.log(`Internal DB: ${dbPath}`);
+
     if (config.token) {
-      console.log("\nStatus: Logged In");
-      console.log(`Email:  ${config.email || "Unknown"}`);
-      console.log(`Token:  ${config.token.slice(0, 8)}...`);
+      console.log(`Session:     Logged In`);
+      console.log(`Email:       ${config.email || "Unknown"}`);
     } else {
-      console.log("\nStatus: Not Logged In");
-      console.log("Run 'innokv login' to authenticate.");
+      console.log("Session:     Not Logged In");
+      console.log("\nRun 'innokv login' to authenticate.");
     }
   });
 

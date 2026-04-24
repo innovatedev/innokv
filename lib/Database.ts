@@ -193,8 +193,9 @@ export class DatabaseRepository extends BaseRepository {
       return { value: part ? "true" : "false", type: "boolean" };
     } else if (typeof part === "bigint") {
       return { value: part.toString(), type: "bigint" }; // Added bigint support
-    } else if (part instanceof Uint8Array) {
-      return { value: btoa(String.fromCharCode(...part)), type: "Uint8Array" };
+    } else if (ArrayBuffer.isView(part)) {
+      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
+      return { value: btoa(String.fromCharCode(...u8)), type: "Uint8Array" };
     } else {
       // For types that are not strictly KvKeyPart but we might encounter due to looser typing
       // deno-lint-ignore no-explicit-any
@@ -211,7 +212,7 @@ export class DatabaseRepository extends BaseRepository {
       if (Array.isArray(p)) {
         return { value: JSON.stringify(p), type: "Array" };
       }
-      throw new Error(`Unsupported key part type: ${typeof part}`);
+      return { value: String(part), type: "string" };
     }
   }
 
@@ -285,6 +286,7 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async setEntry(slug: string, key: Deno.KvKey, value: unknown) {
+    await this.ensureWritable(slug);
     const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
@@ -292,6 +294,7 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async deleteEntry(slug: string, key: Deno.KvKey) {
+    await this.ensureWritable(slug);
     const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
@@ -347,6 +350,7 @@ export class DatabaseRepository extends BaseRepository {
     versionstamp: string | null = null,
     oldKey?: Deno.KvKey,
   ) {
+    await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
 
@@ -379,6 +383,7 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async deleteRecord(databaseId: string, key: Deno.KvKey) {
+    await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
@@ -394,6 +399,7 @@ export class DatabaseRepository extends BaseRepository {
       recursive?: boolean;
     },
   ) {
+    await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
@@ -413,6 +419,115 @@ export class DatabaseRepository extends BaseRepository {
     }
 
     return { ok: true };
+  }
+
+  async moveRecords(
+    databaseId: string,
+    oldPath: string,
+    newPath: string,
+    recursive = true,
+  ) {
+    await this.ensureWritable(databaseId);
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    const oldPrefix = explorer.parsePath(oldPath);
+    const newPrefix = explorer.parsePath(newPath);
+
+    return await explorer.moveRecords(oldPrefix, newPrefix, recursive);
+  }
+
+  async copyRecords(
+    databaseId: string,
+    oldPath: string,
+    newPath: string,
+    recursive = false,
+  ) {
+    await this.ensureWritable(databaseId);
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    const oldPrefix = explorer.parsePath(oldPath);
+    const newPrefix = explorer.parsePath(newPath);
+
+    return await explorer.copyRecords(oldPrefix, newPrefix, recursive);
+  }
+
+  async exportRecords(
+    databaseId: string,
+    options: {
+      pathInfo?: string;
+      recursive?: boolean;
+      keys?: Deno.KvKey[];
+      all?: boolean;
+    } = {},
+  ) {
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    if (options.keys) {
+      const results = [];
+      for (const key of options.keys) {
+        const res = await kv.get(key);
+        if (res.value !== null) {
+          results.push({
+            key: key.map((k) => this.serializeKeyPart(k)),
+            value: ValueCodec.encode(res.value),
+          });
+        }
+      }
+      return results;
+    }
+
+    const prefix = explorer.parsePath(options.pathInfo || "");
+    return await explorer.exportToJson(prefix, options.recursive ?? true);
+  }
+
+  private serializeKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
+    if (typeof part === "string") return { type: "string", value: part };
+    if (typeof part === "number") {
+      return { type: "number", value: String(part) };
+    }
+    if (typeof part === "boolean") {
+      return { type: "boolean", value: part ? "true" : "false" };
+    }
+    if (typeof part === "bigint") {
+      return { type: "bigint", value: part.toString() };
+    }
+    if (ArrayBuffer.isView(part)) {
+      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
+      return { type: "Uint8Array", value: btoa(String.fromCharCode(...u8)) };
+    }
+    return { type: "string", value: String(part) };
+  }
+
+  async importRecords(
+    databaseId: string,
+    entries: { key: ApiKvKeyPart[]; value: RichValue }[],
+  ) {
+    await this.ensureWritable(databaseId);
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+
+    let importedCount = 0;
+    for (const entry of entries) {
+      const key = entry.key.map((p) => this.parseKeyPart(p));
+      const value = ValueCodec.decode(entry.value);
+      await kv.set(key, value);
+      importedCount++;
+    }
+
+    return { ok: true, importedCount };
+  }
+
+  private async ensureWritable(slugOrId: string) {
+    const databaseDoc = await this.getDatabaseBySlugOrId(slugOrId);
+    if (databaseDoc.value.mode === "r") {
+      throw new DatabaseError(`Database "${slugOrId}" is read-only`);
+    }
   }
 
   static memoryInstances = new Map<string, Deno.Kv>();

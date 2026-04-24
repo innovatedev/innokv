@@ -113,17 +113,25 @@ if (!changelogContent.includes(header)) {
   console.log("CHANGELOG.md already has section for this version. Proceeding.");
 }
 
-// 3. Update deno.json
-console.log(`Bumping version: ${currentVersionStr} -> ${newVersionStr}`);
 const newDenoJsonContent = denoJsonContent.replace(
   `"version": "${currentVersionStr}"`,
   `"version": "${newVersionStr}"`,
 );
 await Deno.writeTextFile(denoJsonPath, newDenoJsonContent);
 
+// 3.1 Update lib/metadata.ts
+const metadataPath = "lib/metadata.ts";
+const metadataContent = await Deno.readTextFile(metadataPath);
+const newMetadataContent = metadataContent.replace(
+  /export const APP_VERSION = "[^"]+";/,
+  `export const APP_VERSION = "${newVersionStr}";`,
+);
+await Deno.writeTextFile(metadataPath, newMetadataContent);
+console.log(`Updated version in ${metadataPath} to ${newVersionStr}`);
+
 // 4. Git operations
 const commands = [
-  ["git", "add", "deno.json", "CHANGELOG.md"],
+  ["git", "add", "deno.json", "CHANGELOG.md", "lib/metadata.ts"],
   ["git", "commit", "-m", `chore: release v${newVersionStr}`],
   ["git", "tag", `v${newVersionStr}`],
   ["git", "push", "origin", "HEAD"],

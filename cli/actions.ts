@@ -7,6 +7,7 @@ import {
   type CreateUserOptions,
   findUserByEmail,
 } from "../lib/users.ts";
+import { KvExplorer } from "../lib/KvExplorer.ts";
 
 export interface UpdateOptions {
   mergeArrays?: boolean;
@@ -222,4 +223,136 @@ export async function doUserResetPassword(email: string, password: string) {
   const userDoc = await findUserByEmail(email);
   if (!userDoc) throw new Error(`User with email '${email}' not found.`);
   return await changePassword(userDoc.id, password);
+}
+
+export async function doMv(
+  kv: Deno.Kv,
+  slug: string,
+  oldPath: unknown[],
+  newPath: unknown[],
+  recursive = false,
+) {
+  await checkPermission(slug, "write");
+  const explorer = new KvExplorer(kv);
+  const result = await explorer.moveRecords(
+    oldPath as Deno.KvKey,
+    newPath as Deno.KvKey,
+    recursive,
+  );
+  console.log(`Successfully moved ${result.movedCount} records.`);
+  return result;
+}
+
+export async function doCp(
+  kv: Deno.Kv,
+  slug: string,
+  oldPath: unknown[],
+  newPath: unknown[],
+  recursive = false,
+) {
+  await checkPermission(slug, "write");
+  const explorer = new KvExplorer(kv);
+  const result = await explorer.copyRecords(
+    oldPath as Deno.KvKey,
+    newPath as Deno.KvKey,
+    recursive,
+  );
+  console.log(`Successfully copied ${result.copiedCount} records.`);
+  return result;
+}
+
+export async function doExport(
+  kv: Deno.Kv,
+  slug: string,
+  path: unknown[],
+  recursive = true,
+) {
+  await checkPermission(slug, "read");
+  const explorer = new KvExplorer(kv);
+  return await explorer.exportToJson(path as Deno.KvKey, recursive);
+}
+
+export async function doImport(
+  kv: Deno.Kv,
+  slug: string,
+  // deno-lint-ignore no-explicit-any
+  entries: any[],
+) {
+  await checkPermission(slug, "write");
+  const explorer = new KvExplorer(kv);
+  const result = await explorer.importFromJson(entries);
+  console.log(`Successfully imported ${result.importedCount} records.`);
+  return result;
+}
+
+export async function doTree(
+  kv: Deno.Kv,
+  slug: string,
+  targetPath: unknown[],
+) {
+  await checkPermission(slug, "read");
+
+  const prefix = targetPath as Deno.KvKey;
+  const iter = kv.list({ prefix });
+
+  interface TreeNode {
+    children: Map<string, TreeNode>;
+    isValue: boolean;
+    type?: string;
+  }
+
+  const root: TreeNode = { children: new Map(), isValue: false };
+
+  for await (const entry of iter) {
+    const relativeKey = entry.key.slice(prefix.length);
+    let current = root;
+
+    for (let i = 0; i < relativeKey.length; i++) {
+      const part = relativeKey[i];
+      // Format key part for display
+      let keyStr = String(part);
+      if (typeof part === "string") keyStr = `"${part}"`;
+      else if (typeof part === "bigint") keyStr = `${part}n`;
+      else if (part instanceof Uint8Array) keyStr = `u8[${part.length}]`;
+
+      if (!current.children.has(keyStr)) {
+        current.children.set(keyStr, { children: new Map(), isValue: false });
+      }
+      current = current.children.get(keyStr)!;
+
+      if (i === relativeKey.length - 1) {
+        current.isValue = true;
+        // Determine type
+        if (entry.value === null) current.type = "null";
+        else if (entry.value instanceof Uint8Array) current.type = "Uint8Array";
+        else if (entry.value instanceof Date) current.type = "Date";
+        else if (Array.isArray(entry.value)) current.type = "Array";
+        else current.type = typeof entry.value;
+      }
+    }
+  }
+
+  function print(node: TreeNode, indent = "", isLast = true, label = "") {
+    if (label !== "") {
+      const connector = isLast ? "└── " : "├── ";
+      const typeInfo = node.isValue ? ` \x1b[90m(${node.type})\x1b[0m` : "";
+      console.log(`${indent}${connector}${label}${typeInfo}`);
+    }
+
+    const childIndent = indent +
+      (label === "" ? "" : (isLast ? "    " : "│   "));
+    const entries = Array.from(node.children.entries()).sort(([a], [b]) =>
+      a.localeCompare(b)
+    );
+
+    for (let i = 0; i < entries.length; i++) {
+      const [name, child] = entries[i];
+      print(child, childIndent, i === entries.length - 1, name);
+    }
+  }
+
+  const header = `\x1b[1m${slug}\x1b[0m` +
+    (prefix.length > 0 ? ` \x1b[90m[${prefix.join("/")}]\x1b[0m` : "");
+  console.log(header);
+  print(root);
 }

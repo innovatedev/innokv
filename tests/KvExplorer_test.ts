@@ -50,11 +50,7 @@ Deno.test("KvExplorer - Skip Scan (Large Dataset)", async () => {
   const explorer = new KvExplorer(db);
 
   // Should find 'a', 'b', 'c' quickly without iterating 1000 'a's
-  const start = performance.now();
   const { keys } = await explorer.getTopLevelKeys(["large"]);
-  const duration = performance.now() - start;
-
-  console.log(`Skip scan took ${duration}ms`);
 
   assertEquals(keys.length, 3);
   assertEquals(keys[0].value, "a");
