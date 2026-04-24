@@ -2,12 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.2.0 (2026-04-24)
+
+- **Recursive Operations**: Move, copy, and delete entire KV paths recursively
+  from both UI and CLI.
+- **Bulk Data Management**:
+  - **Selective Export**: Export selected records or all matching entries to
+    JSON from the Web UI.
+  - **JSON Migration**: Import and export large datasets via CLI or UI to
+    facilitate database migrations.
+- **Global Configuration**:
+  - New `config` CLI command to manage persistent server settings (port, cookie
+    name).
+  - Added interactive mode to `config` command for easy guided setup.
+  - Added `-p, --port` and `--cookie-name` flags to the main command for easy
+    local development.
+- **CLI Enhancements**:
+  - New `tree` command for visual hierarchical inspection of KV data.
+  - Refined `rm` command with safety prompts including record counts and
+    `--force` support.
+- **Improved UI/UX**:
+  - Integrated Read-Only indicators with tooltips across Sidebar, Breadcrumbs,
+    and Dashboard.
+  - New "Move / Rename" dialog with recursive support and type-safe key part
+    editor.
+- **System & Stability**:
+  - Migrated configuration paths to OS-standard locations (XDG on Linux).
+  - Robust `Uint8Array` binary key support across all layers (URL, Tree View,
+    API).
+  - Fixed database edit form data loss bug.
+
 ## v0.1.3
 
 - upgrade to `@innovatedev/fresh-session@0.5.1` (stable)
 - implement strictly typed `defineAuth` pattern for authenticated routes
 - fix session validation error for legacy sessions missing `lastSeenAt`
-- remove redundant type aliases (`UserDoc`, `DatabaseDoc`, etc.) and align project with base models
+- remove redundant type aliases (`UserDoc`, `DatabaseDoc`, etc.) and align
+  project with base models
 - improve developer documentation for state and utility helpers
 - update `utils.ts` JSDoc with modern usage examples
 
