@@ -1,6 +1,7 @@
-import { Database, DatabaseDoc, DatabaseModel } from "@/kv/models.ts";
+import { Database, DatabaseModel } from "@/kv/models.ts";
 import { ApiKvKeyPart } from "./types.ts";
 import { KvExplorer } from "./KvExplorer.ts";
+import { RichValue, ValueCodec } from "./ValueCodec.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "@/kv/db.ts";
 
@@ -15,6 +16,10 @@ export class DatabaseRepository extends BaseRepository {
         `Database with slug "${data.slug}" already exists`,
       );
     }
+
+    // Set default timestamps if missing
+    if (!data.createdAt) data.createdAt = new Date();
+    if (!data.updatedAt) data.updatedAt = new Date();
 
     const databaseFromModel = DatabaseModel.safeParse(data);
     if (!databaseFromModel.success) {
@@ -31,7 +36,7 @@ export class DatabaseRepository extends BaseRepository {
     const database = await this.kvdex.databases.add(record);
 
     if (!database.ok) {
-      console.error("ERRFailed to create database:", databaseFromModel);
+      console.error("ERROR: Failed to create database:", record);
       throw new DatabaseError(
         `Failed to create database: Unknown error`,
       );
@@ -43,7 +48,9 @@ export class DatabaseRepository extends BaseRepository {
     };
   }
 
-  async updateDatabase(id: string, data: Partial<Database>) {
+  // deno-lint-ignore no-explicit-any
+  async updateDatabase(id: string, data: any) {
+    data.updatedAt = new Date();
     const databaseFromModel = DatabaseModel.partial().safeParse(data);
     if (!databaseFromModel.success) {
       console.error(
@@ -91,7 +98,7 @@ export class DatabaseRepository extends BaseRepository {
     return await this.kvdex.databases.find(id);
   }
 
-  async connectDatabase(database: DatabaseDoc): Promise<Deno.Kv> {
+  async connectDatabase(database: Database): Promise<Deno.Kv> {
     if (database.type === "file") {
       try {
         const kv = await Deno.openKv(database.path);
@@ -246,13 +253,7 @@ export class DatabaseRepository extends BaseRepository {
       cursor?: string;
     } = {},
   ) {
-    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slug,
-    );
-    if (!databaseDoc) {
-      throw new DatabaseError(`Database with slug "${slug}" not found`);
-    }
+    const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
@@ -267,8 +268,7 @@ export class DatabaseRepository extends BaseRepository {
     parentPath: Deno.KvKey,
     options: { cursor?: string; limit?: number } = {},
   ) {
-    const databaseDoc = await this.getDatabase(databaseId);
-    if (!databaseDoc) throw new DatabaseError("Database not found");
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
@@ -277,13 +277,7 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async getEntry(slug: string, key: Deno.KvKey) {
-    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slug,
-    );
-    if (!databaseDoc) {
-      throw new DatabaseError(`Database with slug "${slug}" not found`);
-    }
+    const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const res = await kv.get(key);
@@ -291,39 +285,21 @@ export class DatabaseRepository extends BaseRepository {
   }
 
   async setEntry(slug: string, key: Deno.KvKey, value: unknown) {
-    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slug,
-    );
-    if (!databaseDoc) {
-      throw new DatabaseError(`Database with slug "${slug}" not found`);
-    }
+    const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     return await kv.set(key, value);
   }
 
   async deleteEntry(slug: string, key: Deno.KvKey) {
-    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slug,
-    );
-    if (!databaseDoc) {
-      throw new DatabaseError(`Database with slug "${slug}" not found`);
-    }
+    const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     return await kv.delete(key);
   }
 
   async listEntries(slug: string, options?: Deno.KvListOptions) {
-    const databaseDoc = await this.kvdex.databases.findByPrimaryIndex(
-      "slug",
-      slug,
-    );
-    if (!databaseDoc) {
-      throw new DatabaseError(`Database with slug "${slug}" not found`);
-    }
+    const databaseDoc = await this.getDatabaseBySlugOrId(slug);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const iter = kv.list({ prefix: [] }, options);
@@ -355,8 +331,7 @@ export class DatabaseRepository extends BaseRepository {
     limit = 100,
     options: { recursive?: boolean } = {},
   ) {
-    const databaseDoc = await this.getDatabase(databaseId);
-    if (!databaseDoc) throw new DatabaseError("Database not found");
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
@@ -372,30 +347,39 @@ export class DatabaseRepository extends BaseRepository {
     versionstamp: string | null = null,
     oldKey?: Deno.KvKey,
   ) {
-    const databaseDoc = await this.getDatabase(databaseId);
-    if (!databaseDoc) throw new DatabaseError("Database not found");
-
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
 
+    // Decode if it's a RichValue from the UI
+    let decodedValue = value;
+    if (
+      value && typeof value === "object" && "type" in value && "value" in value
+    ) {
+      decodedValue = ValueCodec.decode(value as RichValue);
+    }
+
     if (oldKey && JSON.stringify(oldKey) !== JSON.stringify(key)) {
-      // Move record
-      await kv.delete(oldKey);
+      // Move record atomically
+      const atomic = kv.atomic();
+      if (versionstamp) {
+        atomic.check({ key: oldKey, versionstamp });
+      }
+      return await atomic.delete(oldKey).set(key, decodedValue).commit();
     }
 
     if (versionstamp) {
-      // Check for conflict
+      // Check for conflict on existing key
       const existing = await kv.get(key);
       if (existing.versionstamp !== versionstamp) {
         throw new DatabaseError("Versionstamp conflict");
       }
     }
 
-    return await kv.set(key, value);
+    return await kv.set(key, decodedValue);
   }
 
   async deleteRecord(databaseId: string, key: Deno.KvKey) {
-    const databaseDoc = await this.getDatabase(databaseId);
-    if (!databaseDoc) throw new DatabaseError("Database not found");
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     return await kv.delete(key);
@@ -410,8 +394,7 @@ export class DatabaseRepository extends BaseRepository {
       recursive?: boolean;
     },
   ) {
-    const databaseDoc = await this.getDatabase(databaseId);
-    if (!databaseDoc) throw new DatabaseError("Database not found");
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);

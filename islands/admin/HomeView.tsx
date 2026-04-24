@@ -16,31 +16,29 @@ import { useSignal } from "@preact/signals";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
-import { DatabaseDoc } from "@/kv/models.ts";
+import { Database } from "@/kv/models.ts";
 
 export default function HomeView(
   { _successMessage }: { _successMessage?: string },
 ) {
   const { databases, selectedDatabase, api } = useContext(DatabaseContext);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
-  const editingDatabase = useSignal<DatabaseDoc | null>(null);
+  const editingDatabase = useSignal<Database | null>(null);
 
   return (
     <>
       {/* Pinned Databases Section */}
-      {databases.value.some((db: DatabaseDoc) => (db.sort ?? 0) > 0) && (
+      {databases.value.some((db: Database) => (db.sort ?? 0) > 0) && (
         <div class="mb-6">
           <h2 class="text-sm font-bold uppercase tracking-wider opacity-50 mb-3">
             Pinned
           </h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {databases.value
-              .filter((db: DatabaseDoc) => (db.sort ?? 0) > 0)
-              .sort((a: DatabaseDoc, b: DatabaseDoc) =>
-                (b.sort ?? 0) - (a.sort ?? 0)
-              )
+              .filter((db: Database) => (db.sort ?? 0) > 0)
+              .sort((a: Database, b: Database) => (b.sort ?? 0) - (a.sort ?? 0))
               .slice(0, 5)
-              .map((db: DatabaseDoc) => (
+              .map((db: Database) => (
                 <div key={db.id} class="relative group">
                   <a
                     href={`/${db.slug || db.id}`}
@@ -106,8 +104,8 @@ export default function HomeView(
         All Databases
       </h2>
       {databases.value
-        .filter((db: DatabaseDoc) => !db.sort || db.sort <= 0)
-        .map((db: DatabaseDoc) => {
+        .filter((db: Database) => !db.sort || db.sort <= 0)
+        .map((db: Database) => {
           let Icon = <DatabaseIcon className="w-6 h-6" />;
 
           if (db.type.toLowerCase() === "file") {

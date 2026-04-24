@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { UserWithId } from "@/lib/users.ts";
+import { User } from "@/lib/users.ts";
 import Dialog from "./Dialog.tsx";
 import PermissionEditor from "@/islands/admin/PermissionEditor.tsx";
 
 interface UsersTableProps {
-  initialUsers: UserWithId[];
+  initialUsers: User[];
   currentUserEmail: string;
 }
 
 export default function UsersTable(
   { initialUsers, currentUserEmail }: UsersTableProps,
 ) {
-  const [users] = useState<UserWithId[]>(initialUsers);
+  const [users] = useState<User[]>(initialUsers);
   const [search, setSearch] = useState("");
-  const [selectedUser, setSelectedUser] = useState<UserWithId | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // State for permissions in the edit modal
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
@@ -32,7 +32,7 @@ export default function UsersTable(
     }
   }, [selectedUser]);
 
-  const handleEditUser = (user: UserWithId) => {
+  const handleEditUser = (user: User) => {
     setCustomPermissions([...user.permissions]);
     setSelectedUser(user);
   };

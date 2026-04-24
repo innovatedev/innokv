@@ -1,4 +1,4 @@
-import { define } from "@/utils.ts";
+import { defineAuth } from "@/utils.ts";
 import HomeView from "@/islands/admin/HomeView.tsx";
 import { DatabaseProvider } from "@/islands/admin/contexts/DatabaseContext.tsx";
 import { UsersIcon } from "@/components/icons/UsersIcon.tsx";
@@ -30,7 +30,7 @@ const DBHoC = ({
   );
 };
 
-export default define.page(function Home({ state }) {
+export default defineAuth.page(function Home({ state }) {
   const { databases } = state.plugins.kvAdmin!;
   const successMessage = state.flash("success") as string | undefined;
 
@@ -66,7 +66,7 @@ export default define.page(function Home({ state }) {
             label="Account"
           >
             <li class="menu-title px-4 py-2 text-xs font-semibold text-base-content/50 border-b border-base-200 mb-2">
-              {userSettings?.hideEmail ? "User" : state.user?.email}
+              {userSettings?.hideEmail ? "User" : state.user.email}
             </li>
             <li>
               <a href="/user/tokens">API Tokens</a>
@@ -123,13 +123,13 @@ export default define.page(function Home({ state }) {
 
   if (state.plugins.permissions.has("database:manage")) {
     return (
-      <DBHoC databases={databases} userSettings={state.user?.settings!}>
-        <HomeViewWrapper userSettings={state.user?.settings}>
+      <DBHoC databases={databases} userSettings={state.user.settings || {}}>
+        <HomeViewWrapper userSettings={state.user.settings}>
           <HomeView />
         </HomeViewWrapper>
       </DBHoC>
     );
   }
 
-  return <HomeViewWrapper userSettings={state.user?.settings} />;
+  return <HomeViewWrapper userSettings={state.user.settings} />;
 });

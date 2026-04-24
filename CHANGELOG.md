@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.3
+
+- upgrade to `@innovatedev/fresh-session@0.5.1` (stable)
+- implement strictly typed `defineAuth` pattern for authenticated routes
+- fix session validation error for legacy sessions missing `lastSeenAt`
+- remove redundant type aliases (`UserDoc`, `DatabaseDoc`, etc.) and align project with base models
+- improve developer documentation for state and utility helpers
+- update `utils.ts` JSDoc with modern usage examples
+
 ## v0.1.2
 
 - migrate to Fresh 2.0 origin-based CSRF protection
@@ -9,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - bump dependencies:
   - fresh to v2.2.2
   - kvdex to v3.6.5
+  - fresh-session to v0.5.0-alpha.2
 - fix stylesheet 404
 - add user settings
   - reset password

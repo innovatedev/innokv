@@ -56,11 +56,26 @@ export class KeyCodec {
   }
 
   private static encodePart(part: ApiKvKeyPart): string {
+    if (!part) {
+      console.error("KeyCodec: received null/undefined part");
+      return "undefined";
+    }
+
+    if (!part.type) {
+      console.warn("KeyCodec: part missing type", part);
+      return String(part.value || part);
+    }
+
     switch (part.type.toLowerCase()) {
       case "string":
         return JSON.stringify(part.value);
+      case "number":
+      case "boolean":
+        return String(part.value);
       case "bigint":
         return `${part.value}n`;
+      case "date":
+        return `d[${part.value}]`;
       case "uint8array":
         try {
           const bytes = Uint8Array.from(
@@ -71,6 +86,8 @@ export class KeyCodec {
         } catch {
           return "u8[]";
         }
+      case "array":
+        return part.value; // Already JSON stringified from server
       default:
         return String(part.value);
     }
@@ -89,6 +106,9 @@ export class KeyCodec {
     }
     if (token === "true" || token === "false") {
       return { type: "boolean", value: token }; // value matches "true"/"false" string
+    }
+    if (token.startsWith("d[")) {
+      return { type: "date", value: token.slice(2, -1) };
     }
     if (token.startsWith("u8[")) {
       try {

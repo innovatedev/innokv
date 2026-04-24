@@ -1,5 +1,6 @@
 import { type DbNode } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
+import { ValueCodec } from "./ValueCodec.ts";
 
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
@@ -154,7 +155,13 @@ export class KvExplorer {
       }
     }
 
-    return { records, cursor: nextCursor };
+    const apiRecords = records.map((entry) => ({
+      ...entry,
+      key: entry.key.map((p) => this.stringifyKeyPart(p)),
+      value: ValueCodec.encode(entry.value),
+    }));
+
+    return { records: apiRecords, cursor: nextCursor };
   }
 
   private stringifyKeyPart(

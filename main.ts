@@ -24,7 +24,8 @@ app.use(async (ctx) => {
   if (ctx.req.headers.has("Authorization")) {
     return ctx.next();
   }
-  return await csrfMiddleware(ctx);
+  // deno-lint-ignore no-explicit-any
+  return await csrfMiddleware(ctx as any);
 });
 app.use(session);
 app.fsRoutes();

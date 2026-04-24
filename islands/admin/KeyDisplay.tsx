@@ -5,7 +5,7 @@ export const KeyDisplay = (
     prettyPrint?: boolean;
   },
 ) => {
-  const t = type.toLowerCase();
+  const t = type?.toLowerCase() || "unknown";
 
   if (t === "string") {
     return (

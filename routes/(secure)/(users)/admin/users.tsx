@@ -1,11 +1,11 @@
-import { define } from "@/utils.ts";
+import { defineAuth } from "@/utils.ts";
 import { deleteUser, getAllUsers, updateUserPermissions } from "@/lib/users.ts";
 import { HttpError } from "fresh";
 
 import UsersTable from "@/islands/admin/UsersTable.tsx";
 import { db } from "@/kv/db.ts";
 
-export const handler = define.handlers({
+export const handler = defineAuth.handlers({
   async POST(ctx) {
     const form = await ctx.req.formData();
     const action = form.get("action");
@@ -75,7 +75,7 @@ export const handler = define.handlers({
   },
 });
 
-export default define.page(async function AdminUsers({ state }) {
+export default defineAuth.page(async function AdminUsers({ state }) {
   const users = await getAllUsers();
   users.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
@@ -131,7 +131,7 @@ export default define.page(async function AdminUsers({ state }) {
           </div>
         )}
 
-        <UsersTable initialUsers={users} currentUserEmail={state.user!.email} />
+        <UsersTable initialUsers={users} currentUserEmail={state.user.email} />
       </div>
     </div>
   );

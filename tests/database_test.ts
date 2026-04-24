@@ -29,11 +29,17 @@ class TestDatabaseRepository extends DatabaseRepository {
   }
 
   // Helper to bypass database lookup
-  override async getDatabase(_id: string) {
-    return await Promise.resolve(
+  override async getDatabaseBySlugOrId(_id: string) {
+    return await Promise.resolve({
+      flat: () => ({ id: "test", type: "memory" }),
+      id: "test",
+      value: { id: "test", type: "memory" },
       // deno-lint-ignore no-explicit-any
-      { value: { id: "test", type: "memory" } } as any,
-    );
+    } as any);
+  }
+
+  override getDatabase(id: string) {
+    return this.getDatabaseBySlugOrId(id);
   }
 }
 
@@ -132,4 +138,62 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     const resD = await testKv.get(["d"]);
     assertEquals(resD.value, null);
   });
+
+  await t.step("Save Record - Decoding RichValue", async () => {
+    // Action: Save a record using RichValue format (simulating UI)
+    const richValue = {
+      type: "object",
+      value: {
+        id: { type: "number", value: 123 },
+        name: { type: "string", value: "Bob" },
+      },
+    };
+
+    await repo.saveRecord(
+      "test-db",
+      ["rich_test"],
+      richValue,
+    );
+
+    // Expectation: The value in KV should be the DECODED object
+    const res = await testKv.get(["rich_test"]);
+    const val = res.value as Record<string, unknown>;
+    assertEquals(typeof val, "object");
+    assertEquals(val.id, 123);
+    assertEquals(val.name, "Bob");
+    assert(!("type" in val), "Should not have 'type' property");
+  });
+
+  await t.step(
+    "Save Record - Complex Types (Date, BigInt, Uint8Array)",
+    async () => {
+      const now = new Date();
+      const richValue = {
+        type: "object",
+        value: {
+          date: { type: "date", value: now.toISOString() },
+          big: { type: "bigint", value: "900719925474099100" },
+          bytes: { type: "uint8array", value: btoa("\x01\x02\x03") },
+        },
+      };
+
+      await repo.saveRecord(
+        "test-db",
+        ["types_test"],
+        richValue,
+      );
+
+      const res = await testKv.get(["types_test"]);
+      // deno-lint-ignore no-explicit-any
+      const val = res.value as Record<string, any>;
+
+      assertEquals(val.date instanceof Date, true);
+      assertEquals(val.date.getTime(), now.getTime());
+      assertEquals(typeof val.big, "bigint");
+      assertEquals(val.big, 900719925474099100n);
+      assertEquals(val.bytes instanceof Uint8Array, true);
+      assertEquals(val.bytes[0], 1);
+      assertEquals(val.bytes[2], 3);
+    },
+  );
 });

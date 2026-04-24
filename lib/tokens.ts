@@ -1,9 +1,5 @@
 import { db } from "@/kv/db.ts";
-import {
-  type ApiToken,
-  type ApiTokenDoc,
-  type ApiTokenValue,
-} from "@/kv/models.ts";
+import { type ApiToken, type ApiTokenValue } from "@/kv/models.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 /**
@@ -19,7 +15,7 @@ export async function createToken(
     expiresAt?: Date;
   },
 ): Promise<
-  { ok: boolean; secret?: string; token?: ApiTokenDoc; error?: string }
+  { ok: boolean; secret?: string; token?: ApiToken; error?: string }
 > {
   // Generate a random 32-byte secret
   const randomBytes = new Uint8Array(32);
@@ -60,7 +56,7 @@ export async function createToken(
 /**
  * Lists all API tokens for a specific user.
  */
-export async function listTokens(userId: string): Promise<ApiTokenDoc[]> {
+export async function listTokens(userId: string): Promise<ApiToken[]> {
   const { result } = await db.apiTokens.getMany({
     filter: (doc) => doc.value.userId === userId,
   });

@@ -1,6 +1,7 @@
 import { define } from "@/utils.ts";
 
-export default define.page(function App({ Component }) {
+export default define.page(function App(ctx) {
+  const { Component } = ctx;
   return (
     <html>
       <head>

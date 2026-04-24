@@ -1,9 +1,8 @@
 import { db } from "@/kv/db.ts";
 import { hash, verify } from "@felix/argon2";
 import settings from "@/config/app.ts";
-import { type User, type UserValue, type WithId } from "@/kv/models.ts";
-
-export type UserWithId = WithId<User>;
+import { type User, type UserValue } from "@/kv/models.ts";
+export type { User, UserValue };
 
 export async function findUserByEmail(email: string) {
   return await db.users.findByPrimaryIndex("email", email);
@@ -18,7 +17,7 @@ export interface CreateUserOptions {
 
 export async function createUser(
   { username, email, password, permissions = [] }: CreateUserOptions,
-): Promise<{ ok: boolean; user?: UserWithId; error?: string }> {
+): Promise<{ ok: boolean; user?: User; error?: string }> {
   const existing = await findUserByEmail(email);
   if (existing) {
     return { ok: false, error: "User already exists" };
@@ -60,7 +59,7 @@ export async function createUser(
   }
 }
 
-export async function getAllUsers(): Promise<UserWithId[]> {
+export async function getAllUsers(): Promise<User[]> {
   const { result } = await db.users.getMany();
   return result.map((doc) => ({ ...doc.value, id: doc.id }));
 }
@@ -97,7 +96,7 @@ export async function deleteUser(id: string): Promise<boolean> {
 export async function authenticateUser(
   email: string,
   password: string,
-): Promise<{ ok: boolean; user?: UserWithId; error?: string; id?: string }> {
+): Promise<{ ok: boolean; user?: User; error?: string; id?: string }> {
   // 1. Fetch user from DB
   const userDoc = await findUserByEmail(email);
 

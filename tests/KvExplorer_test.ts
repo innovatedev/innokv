@@ -81,7 +81,10 @@ Deno.test("KvExplorer - Nested Records (Recursive vs Flat)", async () => {
   // So flat should return ["nest", "parent"].
   const flat = await explorer.getRecords(["nest"], { recursive: false });
   assertEquals(flat.records.length, 1);
-  assertEquals(flat.records[0].key, ["nest", "parent"]);
+  assertEquals(flat.records[0].key, [
+    { type: "string", value: "nest" },
+    { type: "string", value: "parent" },
+  ]);
 });
 
 Deno.test("KvExplorer - Mixed Record and Folder", async () => {
@@ -121,6 +124,28 @@ Deno.test("KvExplorer - Mixed Record and Folder", async () => {
   const children = await explorer.getTopLevelKeys(["mixed", "charlie"]);
   assertEquals(children.keys.length, 1);
   assertEquals(children.keys[0].value, "deep");
+});
+
+Deno.test("KvExplorer - RichValue Encoding in getRecords", async () => {
+  const testKey = ["encoding_test"];
+  const testVal = { id: 1, name: "Alice" };
+  await db.set(testKey, testVal);
+
+  const explorer = new KvExplorer(db);
+  const { records } = await explorer.getRecords([], { recursive: true });
+
+  const record = records.find((r) =>
+    r.key.length === 1 && r.key[0].value === "encoding_test"
+  );
+  assert(record, "Record should exist");
+
+  // Verify it is a RichValue object
+  assertEquals(typeof record.value, "object");
+  assertEquals(record.value.type, "object");
+  assertEquals(record.value.value.id.type, "number");
+  assertEquals(record.value.value.id.value, 1);
+  assertEquals(record.value.value.name.type, "string");
+  assertEquals(record.value.value.name.value, "Alice");
 });
 
 // Cleanup

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sessionSchemaFactory } from "@innovatedev/fresh-session/kvdex-store";
 
 /**
  * Common types for the application.
@@ -19,16 +20,7 @@ export type DatabaseValue = z.infer<typeof DatabaseModel>;
 export type SessionValue = z.infer<typeof SessionModel>;
 export type ApiTokenValue = z.infer<typeof ApiTokenModel>;
 
-/**
- * Utility type for objects that include their database ID.
- */
-export type WithId<T> = T & { id: string };
-
-// Compatibility aliases
-export type UserDoc = User;
-export type DatabaseDoc = Database;
-export type SessionDoc = Session;
-export type ApiTokenDoc = ApiToken;
+// Compatibility aliases removed. Use User, Database, Session, ApiToken instead.
 
 export const UserSettingsModel = z.object({
   databases: z.record(z.object({
@@ -53,16 +45,11 @@ export const UserModel = z.object({
   updatedAt: z.date(),
 });
 
-export const SessionModel = z.object({
-  userId: z.string().optional(),
-  ip: z.string().optional(),
-  userAgent: z.string().optional(),
+export const SessionModel = sessionSchemaFactory(z).extend({
+  lastSeenAt: z.number().default(Date.now),
   data: z.object({
     settings: UserSettingsModel.optional(),
   }).catchall(z.any()).describe("Session data"),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-  expiresAt: z.date(),
 });
 
 export type SessionData = z.infer<typeof SessionModel>["data"];
