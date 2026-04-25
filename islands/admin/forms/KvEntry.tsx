@@ -41,7 +41,9 @@ export default function KvEntryForm({
     toRichValue(entry?.value),
   );
 
-  const [activeTab, setActiveTab] = useState<"editor" | "json">("editor");
+  const [activeTab, setActiveTab] = useState<"editor" | "value-json" | "key-json">(
+    "editor",
+  );
   const [isEditingKey, setIsEditingKey] = useState(!entry); // Default to editing if new entry
   const [jsonString, setJsonString] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -203,7 +205,7 @@ export default function KvEntryForm({
               {keyParts.map((part, i) => (
                 <div class="flex gap-2 items-center" key={i}>
                   <select
-                    class="select select-bordered select-sm w-24"
+                    class="select select-bordered select-xs w-24"
                     value={part.type}
                     disabled={isReadOnly}
                     onChange={(e) =>
@@ -223,7 +225,7 @@ export default function KvEntryForm({
                   {part.type === "boolean"
                     ? (
                       <select
-                        class="select select-bordered select-sm flex-1 max-w-xs"
+                        class="select select-bordered select-xs flex-1 max-w-xs"
                         value={part.value}
                         disabled={isReadOnly}
                         onChange={(e) =>
@@ -240,7 +242,7 @@ export default function KvEntryForm({
                     : (
                       <input
                         type={part.type === "number" ? "number" : "text"}
-                        class={`input input-bordered input-sm flex-1 ${
+                        class={`input input-bordered input-xs flex-1 ${
                           part.type === "uint8array" || part.type === "string"
                             ? "max-w-lg"
                             : "max-w-xs"
@@ -274,7 +276,7 @@ export default function KvEntryForm({
                 <div class="flex gap-2 mt-2 justify-between items-center">
                   <button
                     type="button"
-                    class="btn btn-sm btn-ghost gap-2"
+                    class="btn btn-xs btn-outline gap-2"
                     onClick={addPart}
                   >
                     + Add Key Part
@@ -294,7 +296,7 @@ export default function KvEntryForm({
           )}
       </div>
 
-      <div class="mt-4 tabs tabs-boxed tabs-sm bg-base-200/50 p-1">
+      <div class="mt-4 tabs tabs-boxed tabs-xs bg-base-200/50 p-1">
         <a
           class={`tab ${activeTab === "editor" ? "tab-active" : ""}`}
           onClick={() => setActiveTab("editor")}
@@ -302,58 +304,83 @@ export default function KvEntryForm({
           Editor
         </a>
         <a
-          class={`tab ${activeTab === "json" ? "tab-active" : ""}`}
-          onClick={() => setActiveTab("json")}
+          class={`tab ${activeTab === "value-json" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("value-json")}
         >
-          Structure
+          Value JSON
+        </a>
+        <a
+          class={`tab ${activeTab === "key-json" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("key-json")}
+        >
+          Key JSON
         </a>
       </div>
 
       <div class="form-control">
-        {activeTab === "editor"
-          ? (
-            <RichValueEditor
-              value={richValue}
-              onChange={setRichValue}
-              label=""
-              isReadOnly={isReadOnly}
-            />
-          )
-          : (
-            <div class="flex flex-col gap-2">
-              <textarea
-                class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
-                value={jsonError
-                  ? jsonString
-                  : JSON.stringify(richValue, null, 2)}
-                onInput={(e) => {
-                  const val = (e.target as HTMLTextAreaElement).value;
-                  setJsonString(val);
-                  try {
-                    const parsed = JSON.parse(val);
-                    if (
-                      parsed && typeof parsed === "object" &&
-                      "type" in parsed && "value" in parsed
-                    ) {
-                      setRichValue(parsed as RichValue);
-                      setJsonError(null);
-                    } else {
-                      setJsonError(
-                        "Invalid RichValue structure (missing type or value)",
-                      );
-                    }
-                  } catch (err) {
-                    setJsonError((err as Error).message);
+        {activeTab === "editor" && (
+          <RichValueEditor
+            value={richValue}
+            onChange={setRichValue}
+            label=""
+            isReadOnly={isReadOnly}
+          />
+        )}
+        {activeTab === "value-json" && (
+          <div class="flex flex-col gap-2">
+            <textarea
+              class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
+              value={jsonError
+                ? jsonString
+                : JSON.stringify(richValue, null, 2)}
+              onInput={(e) => {
+                const val = (e.target as HTMLTextAreaElement).value;
+                setJsonString(val);
+                try {
+                  const parsed = JSON.parse(val);
+                  if (
+                    parsed && typeof parsed === "object" &&
+                    "type" in parsed && "value" in parsed
+                  ) {
+                    setRichValue(parsed as RichValue);
+                    setJsonError(null);
+                  } else {
+                    setJsonError(
+                      "Invalid RichValue structure (missing type or value)",
+                    );
                   }
-                }}
-              />
-              {jsonError && (
-                <div class="text-error text-xs font-bold">
-                  Error: {jsonError}
-                </div>
+                } catch (err) {
+                  setJsonError((err as Error).message);
+                }
+              }}
+            />
+            {jsonError && (
+              <div class="text-error text-xs font-bold">
+                Error: {jsonError}
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === "key-json" && (
+          <div class="flex flex-col gap-2">
+            <textarea
+              class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
+              value={JSON.stringify(
+                keyParts.map((p) => {
+                  if (p.type === "number") return { ...p, value: parseFloat(p.value) };
+                  if (p.type === "boolean") return { ...p, value: p.value === "true" };
+                  return p;
+                }),
+                null,
+                2,
               )}
+              readOnly
+            />
+            <div class="text-[10px] opacity-50 px-2">
+              Key JSON is read-only. Use the Editor tab to modify the key.
             </div>
-          )}
+          </div>
+        )}
       </div>
 
       <div class="flex justify-between gap-4 mt-4">

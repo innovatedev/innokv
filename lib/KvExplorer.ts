@@ -1,4 +1,4 @@
-import { type DbNode } from "./types.ts";
+import { type DbNode, type SearchOptions, type SearchResult } from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 import { RichValue, ValueCodec } from "./ValueCodec.ts";
 
@@ -366,5 +366,89 @@ export class KvExplorer {
       importedCount++;
     }
     return { ok: true, importedCount };
+  }
+
+  /**
+   * Searches for keys and values under a prefix.
+   */
+  async search(
+    prefix: Deno.KvKey,
+    options: SearchOptions,
+  ): Promise<{ results: SearchResult[]; cursor: string }> {
+    const limit = options.limit ?? 50;
+    const recursive = options.recursive ?? true;
+    const regex = options.regex
+      ? new RegExp(options.query, options.caseSensitive ? "" : "i")
+      : null;
+    const queryLower = options.query.toLowerCase();
+
+    let start: Deno.KvKey | undefined;
+    if (options.cursor) {
+      try {
+        start = JSON.parse(options.cursor);
+      } catch { /* ignore */ }
+    }
+
+    const iter = this.kv.list({ prefix, start }, {
+      // We might need to scan more than 'limit' to find enough matches
+      // But we don't want to scan forever.
+      batchSize: 100,
+    });
+
+    const results: SearchResult[] = [];
+    let lastKey: Deno.KvKey | undefined;
+    let foundCount = 0;
+
+    for await (const entry of iter) {
+      lastKey = entry.key;
+
+      if (!recursive && entry.key.length > prefix.length + 1) {
+        continue;
+      }
+
+      let match: "key" | "value" | null = null;
+
+      // Search Key
+      if (options.target === "key" || options.target === "all") {
+        const keyStr = JSON.stringify(entry.key);
+        if (regex) {
+          if (regex.test(keyStr)) match = "key";
+        } else if (options.caseSensitive) {
+          if (keyStr.includes(options.query)) match = "key";
+        } else {
+          if (keyStr.toLowerCase().includes(queryLower)) match = "key";
+        }
+      }
+
+      // Search Value
+      if (!match && (options.target === "value" || options.target === "all")) {
+        const valStr = JSON.stringify(entry.value);
+        if (regex) {
+          if (regex.test(valStr)) match = "value";
+        } else if (options.caseSensitive) {
+          if (valStr.includes(options.query)) match = "value";
+        } else {
+          if (valStr.toLowerCase().includes(queryLower)) match = "value";
+        }
+      }
+
+      if (match) {
+        results.push({
+          key: entry.key.map((p) => this.stringifyKeyPart(p)),
+          value: ValueCodec.encode(entry.value),
+          versionstamp: entry.versionstamp,
+          matchTarget: match,
+        });
+        foundCount++;
+        if (foundCount >= limit) break;
+      }
+    }
+
+    let nextCursor = "";
+    if (foundCount >= limit && lastKey) {
+      nextCursor = JSON.stringify(lastKey);
+    }
+
+    return { results, cursor: nextCursor };
   }
 }

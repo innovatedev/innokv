@@ -23,6 +23,7 @@ interface DatabaseContextType<DB extends Database = Database> {
   nextCursor: Signal<string | undefined>;
   cursorStack: Signal<Array<string | undefined>>;
   limit: Signal<number>;
+  forceExpandValues: Signal<boolean | undefined>;
 }
 
 // Create default values for the context
@@ -42,6 +43,7 @@ const defaultContext: DatabaseContextType = {
   nextCursor: signal(undefined),
   cursorStack: signal([]),
   limit: signal(25),
+  forceExpandValues: signal(undefined),
 };
 
 // Create the context
@@ -121,6 +123,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   const nextCursor = useSignal<string | undefined>(undefined);
   const cursorStack = useSignal<Array<string | undefined>>([]);
   const limit = useSignal<number>(25);
+  const forceExpandValues = useSignal<boolean | undefined>(undefined);
 
   useEffect(() => {
     // Initialize from URL
@@ -256,6 +259,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         nextCursor,
         cursorStack,
         limit,
+        forceExpandValues,
       }}
     >
       {children}

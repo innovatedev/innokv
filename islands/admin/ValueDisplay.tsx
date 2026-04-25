@@ -1,12 +1,61 @@
-import { useState } from "preact/hooks";
+import { useContext, useEffect, useState } from "preact/hooks";
+import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 
 interface ValueDisplayProps {
   value: unknown;
   level?: number;
+  recursiveExpand?: boolean;
 }
 
-export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
+export function ValueDisplay(
+  { value, level = 0, recursiveExpand: propRecursiveExpand }: ValueDisplayProps,
+) {
+  const { forceExpandValues } = useContext(DatabaseContext);
   const [expanded, setExpanded] = useState(level < 2);
+  const [localRecursive, setLocalRecursive] = useState<boolean | undefined>(
+    undefined,
+  );
+
+  // Sync with global signal
+  useEffect(() => {
+    if (forceExpandValues?.value !== undefined) {
+      setExpanded(forceExpandValues.value);
+      setLocalRecursive(forceExpandValues.value);
+    }
+  }, [forceExpandValues?.value]);
+
+  // Sync with parent's recursive command
+  useEffect(() => {
+    if (propRecursiveExpand !== undefined) {
+      setExpanded(propRecursiveExpand);
+      setLocalRecursive(propRecursiveExpand);
+    }
+  }, [propRecursiveExpand]);
+
+  const toggleExpanded = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpanded(!expanded);
+    setLocalRecursive(undefined); // Stop forcing children once user manually toggles
+  };
+
+  const handleRecursive = (e: MouseEvent, expand: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpanded(expand);
+    setLocalRecursive(expand);
+  };
+
+  const RecursiveToggle = () => (
+    <button
+      type="button"
+      title={localRecursive === true ? "Recursive Collapse" : "Recursive Expand"}
+      class="ml-1 px-1.5 rounded border border-base-300 hover:bg-base-300 text-xs font-bold opacity-50 hover:opacity-100 transition-colors"
+      onClick={(e) => handleRecursive(e, localRecursive !== true)}
+    >
+      {localRecursive === true ? "«" : "»"}
+    </button>
+  );
 
   if (value === null) return <span class="text-error font-mono">null</span>;
   if (value === undefined) {
@@ -47,19 +96,15 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     const arr = value instanceof Uint8Array ? value : Object.values(value);
 
     return (
-      <div class="ml-2">
+      <div class="ml-2 inline-block align-top">
         <div
-          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }}
+          class="cursor-pointer hover:bg-base-200 inline-flex items-center px-1 rounded text-base-content/70 select-none gap-1"
+          onClick={toggleExpanded}
         >
-          {expanded ? "▼" : "▶"} Uint8Array({arr.length})
+          <span>{expanded ? "▼" : "▶"} Uint8Array({arr.length})</span>
         </div>
         {expanded && (
-          <div class="border-l-2 border-base-300 pl-2 mt-1 font-mono text-xs break-all bg-base-200/30 p-2 rounded">
-            {/* Show as list of numbers for now, or maybe hex? User said "full value", list is safe */}
+          <div class="border-l-2 border-base-300 pl-2 mt-1 font-mono text-xs break-all bg-base-200/30 p-2 rounded max-w-2xl">
             [{Array.from(arr).join(", ")}]
           </div>
         )}
@@ -71,15 +116,15 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     if (value.length === 0) return <span class="text-base-content/50">[]</span>;
 
     return (
-      <div class="ml-2">
-        <div
-          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }}
-        >
-          {expanded ? "▼" : "▶"} Array({value.length})
+      <div class="ml-2 inline-block align-top">
+        <div class="flex items-center gap-1">
+          <div
+            class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+            onClick={toggleExpanded}
+          >
+            {expanded ? "▼" : "▶"} Array({value.length})
+          </div>
+          <RecursiveToggle />
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
@@ -88,7 +133,11 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
                 <span class="text-base-content/50 font-mono text-xs mt-1">
                   {i}:
                 </span>
-                <ValueDisplay value={item} level={level + 1} />
+                <ValueDisplay
+                  value={item}
+                  level={level + 1}
+                  recursiveExpand={localRecursive}
+                />
               </div>
             ))}
           </div>
@@ -103,24 +152,31 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
       return <span class="text-base-content/50">Map(0)</span>;
     }
     return (
-      <div class="ml-2">
-        <div
-          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }}
-        >
-          {expanded ? "▼" : "▶"} Map({value.size})
+      <div class="ml-2 inline-block align-top">
+        <div class="flex items-center gap-1">
+          <div
+            class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+            onClick={toggleExpanded}
+          >
+            {expanded ? "▼" : "▶"} Map({value.size})
+          </div>
+          <RecursiveToggle />
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
             {entries.map(([k, v], i) => (
               <div key={i} class="flex items-start gap-2">
                 <span class="text-primary font-mono text-sm flex items-start">
-                  <ValueDisplay value={k} />:
+                  <ValueDisplay
+                    value={k}
+                    recursiveExpand={localRecursive}
+                  />:
                 </span>
-                <ValueDisplay value={v} level={level + 1} />
+                <ValueDisplay
+                  value={v}
+                  level={level + 1}
+                  recursiveExpand={localRecursive}
+                />
               </div>
             ))}
           </div>
@@ -135,15 +191,15 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
       return <span class="text-base-content/50">Set(0)</span>;
     }
     return (
-      <div class="inline-block align-top">
-        <div
-          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }}
-        >
-          {expanded ? "▼" : "▶"} Set({value.size})
+      <div class="inline-block align-top ml-2">
+        <div class="flex items-center gap-1">
+          <div
+            class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+            onClick={toggleExpanded}
+          >
+            {expanded ? "▼" : "▶"} Set({value.size})
+          </div>
+          <RecursiveToggle />
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
@@ -152,7 +208,11 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
                 <span class="text-base-content/50 font-mono text-xs mt-1">
                   {i}:
                 </span>
-                <ValueDisplay value={item} level={level + 1} />
+                <ValueDisplay
+                  value={item}
+                  level={level + 1}
+                  recursiveExpand={localRecursive}
+                />
               </div>
             ))}
           </div>
@@ -168,7 +228,11 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     return (
       <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50">
         <span class="text-xs font-bold opacity-50 mr-1">{rich.type}</span>
-        <ValueDisplay value={rich.value} level={level} />
+        <ValueDisplay
+          value={rich.value}
+          level={level}
+          recursiveExpand={propRecursiveExpand}
+        />
       </div>
     );
   }
@@ -180,22 +244,26 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
     }
 
     return (
-      <div class="inline-block align-top">
-        <div
-          class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }}
-        >
-          {expanded ? "▼" : "▶"} Object
+      <div class="inline-block align-top ml-2">
+        <div class="flex items-center gap-1">
+          <div
+            class="cursor-pointer hover:bg-base-200 inline-block px-1 rounded text-base-content/70 select-none"
+            onClick={toggleExpanded}
+          >
+            {expanded ? "▼" : "▶"} Object
+          </div>
+          <RecursiveToggle />
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 flex flex-col gap-1">
             {entries.map(([k, v]) => (
               <div key={k} class="flex items-start gap-2">
                 <span class="text-primary font-mono text-sm">{k}:</span>
-                <ValueDisplay value={v} level={level + 1} />
+                <ValueDisplay
+                  value={v}
+                  level={level + 1}
+                  recursiveExpand={localRecursive}
+                />
               </div>
             ))}
           </div>
@@ -206,3 +274,4 @@ export function ValueDisplay({ value, level = 0 }: ValueDisplayProps) {
 
   return <span>{String(value)}</span>;
 }
+

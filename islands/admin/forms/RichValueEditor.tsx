@@ -128,7 +128,7 @@ export default function RichValueEditor({
         <div class="mt-1">
           {type === "string" && (
             <textarea
-              class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded-2xl font-mono"
+              class="textarea textarea-bordered textarea-xs w-full max-w-lg rounded-2xl font-mono"
               rows={Math.min(5, (String(val) || "").split("\n").length + 1)}
               value={val as string}
               disabled={isReadOnly}
@@ -140,7 +140,7 @@ export default function RichValueEditor({
             <input
               type="number"
               step="any"
-              class="input input-bordered input-sm w-full max-w-xs"
+              class="input input-bordered input-xs w-full max-w-xs"
               value={val as number}
               disabled={isReadOnly}
               onInput={(e) =>
@@ -152,7 +152,7 @@ export default function RichValueEditor({
           {type === "bigint" && (
             <input
               type="text"
-              class="input input-bordered input-sm w-full max-w-xs font-mono"
+              class="input input-bordered input-xs w-full max-w-xs font-mono"
               pattern="-?[0-9]+"
               placeholder="e.g. 9007199254740991"
               value={val as string}
@@ -190,7 +190,7 @@ export default function RichValueEditor({
           {type === "date" && (
             <input
               type="datetime-local"
-              class="input input-bordered input-sm w-full max-w-xs"
+              class="input input-bordered input-xs w-full max-w-xs"
               value={val
                 ? new Date(val as string).toISOString().slice(0, 16)
                 : ""}
@@ -406,7 +406,7 @@ function ObjectEditor(
               />
               <button
                 type="button"
-                class="btn btn-xs btn-brand"
+                class="btn btn-xs btn-outline"
                 onClick={addField}
                 disabled={!newKey || (newKey in (value || {}))}
               >
@@ -631,7 +631,7 @@ function Uint8ArrayInput(
 
   return (
     <textarea
-      class="textarea textarea-bordered textarea-sm w-full max-w-lg rounded font-mono"
+      class="textarea textarea-bordered textarea-xs w-full max-w-lg rounded font-mono"
       value={text}
       disabled={disabled}
       onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}

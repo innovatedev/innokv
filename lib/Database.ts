@@ -530,5 +530,35 @@ export class DatabaseRepository extends BaseRepository {
     }
   }
 
+  async searchRecords(
+    databaseId: string,
+    options: {
+      query: string;
+      target: "key" | "value" | "all";
+      pathInfo?: string;
+      recursive?: boolean;
+      regex?: boolean;
+      caseSensitive?: boolean;
+      limit?: number;
+      cursor?: string;
+    },
+  ) {
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+
+    const prefix = options.pathInfo ? explorer.parsePath(options.pathInfo) : [];
+
+    return await explorer.search(prefix, {
+      query: options.query,
+      target: options.target,
+      recursive: options.recursive,
+      regex: options.regex,
+      caseSensitive: options.caseSensitive,
+      limit: options.limit,
+      cursor: options.cursor,
+    });
+  }
+
   static memoryInstances = new Map<string, Deno.Kv>();
 }

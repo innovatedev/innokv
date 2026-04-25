@@ -2,7 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.2.0 (2026-04-24)
+## v0.2.1
+
+- **Record Editor Overhaul**:
+  - **Recursive Value Exploration**: Added recursive toggle buttons for deep expansion/collapse of complex types (Objects, Arrays, Maps, Sets).
+  - **Global Value Controls**: New "Expand/Collapse All Values" toolbar action to control all record value previews on the page simultaneously via a global signal.
+  - **Enhanced JSON Views**: Added dedicated **Key JSON** and **Value JSON** tabs to the record editor for precise structural inspection and editing.
+  - **Improved Input Sizing**: Standardized all form inputs, selects, and tabs to `xs` sizing for a more compact and consistent administrative UI.
+  - **Refined Buttons**: Updated "Add" buttons to use the preferred outline style and fixed readability issues with disabled states.
+- **UI & Navigation Improvements**:
+  - **Optimized Record Layout**: Moved value previews to their own row below the key parts, indented for better readability and alignment.
+  - **Streamlined Toolbar**: Repositioned and resized the search box for better visibility and ergonomics on large screens.
+  - **Header Cleanup**: Removed top-level record JSON expansion in favor of interactive value previews and a unified editor experience.
+  - **Integrated Action Area**: Consolidated "Copy Key", "Copy Path", and "Copy JSON" actions into a compact header section.
+  - **Perfect Alignment**: Refined layout of checkboxes and icons to ensure exact vertical centering with record content.
+  - **Dropdown Clarity**: Updated search target dropdowns with full labels instead of abbreviations.
+
+## v0.2.0
 
 - **Recursive Operations**: Move, copy, and delete entire KV paths recursively
   from both UI and CLI.

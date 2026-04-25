@@ -1,0 +1,90 @@
+import { ApiKvEntry, ApiKvKeyPart, SearchResult } from "@/lib/types.ts";
+import { RichValue } from "@/lib/ValueCodec.ts";
+import RecordItem from "./RecordItem.tsx";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
+
+interface SearchResultsProps {
+  databaseId: string;
+  results: SearchResult[];
+  prettyPrintDates: boolean;
+  isReadOnly: boolean;
+  onEditRecord: (record: ApiKvEntry<RichValue>) => void;
+  isLoading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  selectedKeys: Set<string>;
+  onToggleSelection: (key: ApiKvKeyPart[]) => void;
+}
+
+export default function SearchResults(
+  {
+    results,
+    prettyPrintDates,
+    isReadOnly,
+    onEditRecord,
+    isLoading,
+    hasMore,
+    onLoadMore,
+    selectedKeys,
+    onToggleSelection,
+  }: SearchResultsProps,
+) {
+  if (results.length === 0 && !isLoading) {
+    return (
+      <div class="flex flex-col items-center justify-center py-12 text-base-content/40">
+        <div class="text-4xl mb-4">🔍</div>
+        <p>No results found matching your query.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div class="flex flex-col gap-2">
+      {results.map((result) => {
+        const record: ApiKvEntry<RichValue> = {
+          key: result.key,
+          value: result.value as RichValue,
+          versionstamp: result.versionstamp,
+        };
+        const keyStr = KeyCodec.encode(result.key);
+
+        return (
+          <div key={keyStr} class="relative">
+            <div
+              class={`absolute top-0 right-0 z-10 px-2 py-0.5 text-[10px] uppercase font-bold rounded-bl-lg bg-primary/20 text-primary-content/60`}
+            >
+              Match in {result.matchTarget}
+            </div>
+            <RecordItem
+              record={record}
+              selected={selectedKeys.has(keyStr)}
+              onToggleSelection={onToggleSelection}
+              prettyPrintDates={prettyPrintDates}
+              onEdit={() => onEditRecord(record)}
+              isReadOnly={isReadOnly}
+            />
+          </div>
+        );
+      })}
+
+      {hasMore && (
+        <div class="flex justify-center py-4">
+          <button
+            type="button"
+            class={`btn btn-ghost btn-sm ${isLoading ? "loading" : ""}`}
+            onClick={onLoadMore}
+            disabled={isLoading}
+          >
+            Load More Results
+          </button>
+        </div>
+      )}
+
+      {isLoading && results.length === 0 && (
+        <div class="flex justify-center py-12">
+          <span class="loading loading-spinner loading-lg text-primary"></span>
+        </div>
+      )}
+    </div>
+  );
+}

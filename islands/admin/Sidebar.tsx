@@ -1,0 +1,341 @@
+import { Signal } from "@preact/signals";
+import { Database } from "@/kv/models.ts";
+import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
+import { KeyDisplay } from "./KeyDisplay.tsx";
+import {
+  DatabaseIcon,
+  FileDatabaseIcon,
+  MemoryDatabaseIcon,
+  RemoteDatabaseIcon,
+} from "../../components/icons/DatabaseIcons.tsx";
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "../../components/icons/ActionIcons.tsx";
+
+interface NodeProps {
+  node: DbNode;
+  parents?: ApiKvKeyPart[];
+  pathInfo: Signal<ApiKvKeyPart[] | null>;
+  openPaths: Set<string>;
+  gonePaths: Set<string>;
+  prettyPrintDates: boolean;
+  onToggle: (
+    path: ApiKvKeyPart[],
+    isOpen: boolean,
+    hasChildren: boolean,
+  ) => void;
+  onContextMenu: (e: MouseEvent, path: ApiKvKeyPart[]) => void;
+  onLoadMore: (path: ApiKvKeyPart[], cursor: string) => void;
+}
+
+const Node = (
+  {
+    node,
+    parents = [],
+    pathInfo,
+    openPaths,
+    gonePaths,
+    prettyPrintDates,
+    onToggle,
+    onContextMenu,
+    onLoadMore,
+  }: NodeProps,
+) => {
+  const myPath = [...parents, node];
+  const myPathStr = KeyCodec.encode(myPath);
+
+  const isActive = pathInfo.value &&
+    KeyCodec.encode(pathInfo.value) === myPathStr;
+  const isOpen = openPaths.has(myPathStr);
+  const isGone = gonePaths.has(myPathStr);
+
+  const hasChildren = node.hasChildren ||
+    (node.children && Object.keys(node.children).length > 0);
+
+  if (!hasChildren) return null;
+
+  const childrenLoaded = node.children && Object.keys(node.children).length > 0;
+  const hasVisibleSubFolders = childrenLoaded
+    ? Object.values(node.children!).some((child: DbNode) => child.hasChildren)
+    : false;
+
+  const showChevron = node.hasChildren;
+  const dimChevron = childrenLoaded && !hasVisibleSubFolders;
+
+  const toggleOpen = (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggle(myPath, !isOpen, !!hasChildren);
+  };
+
+  const selectNode = (e: Event) => {
+    e.preventDefault();
+    if (isActive) {
+      onToggle(myPath, !isOpen, !!hasChildren);
+    } else {
+      pathInfo.value = myPath;
+    }
+  };
+
+  const handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu(e, myPath);
+  };
+
+  return (
+    <li>
+      <details open={isOpen}>
+        <summary
+          class={`w-full group flex items-center gap-2 py-0.5 px-1 rounded cursor-pointer list-none ${
+            isActive
+              ? "bg-neutral text-neutral-content font-bold hover:bg-neutral"
+              : "hover:bg-base-300"
+          }`}
+          onClick={selectNode}
+          onContextMenu={handleContextMenu}
+        >
+          {showChevron && (
+            <span
+              class={`w-4 h-4 flex items-center justify-center p-0 rounded hover:bg-base-300/50 ${
+                dimChevron ? "opacity-30 hover:opacity-100" : ""
+              }`}
+              onClick={toggleOpen}
+            >
+              <ChevronRightIcon
+                className={`w-3 h-3 transition-transform duration-200 ${
+                  isOpen ? "rotate-90" : ""
+                }`}
+              />
+            </span>
+          )}
+
+          <div
+            class={`flex-1 truncate ${
+              isGone && !hasChildren
+                ? "line-through opacity-50 decoration-2"
+                : ""
+            }`}
+          >
+            <KeyDisplay
+              type={node.type}
+              value={node.value}
+              prettyPrint={prettyPrintDates}
+            />
+          </div>
+        </summary>
+        <ul>
+          {hasChildren &&
+            Object.values(node.children || {})
+              .filter((child: DbNode) => child.hasChildren ||
+                (child.children && Object.keys(child.children).length > 0)
+              )
+              .map((child: DbNode) => (
+                <Node
+                  key={child.value}
+                  node={child}
+                  parents={myPath}
+                  pathInfo={pathInfo}
+                  openPaths={openPaths}
+                  gonePaths={gonePaths}
+                  prettyPrintDates={prettyPrintDates}
+                  onToggle={onToggle}
+                  onContextMenu={onContextMenu}
+                  onLoadMore={onLoadMore}
+                />
+              ))}
+          {node.nextCursor && (
+            <li class="pl-2 py-1">
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost text-xs w-full text-left font-normal opacity-50 hover:opacity-100 flex gap-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onLoadMore(myPath, node.nextCursor!);
+                }}
+              >
+                <ChevronDownIcon className="w-3 h-3" />
+                Load more...
+              </button>
+            </li>
+          )}
+        </ul>
+      </details>
+    </li>
+  );
+};
+
+interface SidebarProps {
+  databases: Database[];
+  activeDatabase: Database | null;
+  dbStructure: Record<string, DbNode> | null;
+  pathInfo: Signal<ApiKvKeyPart[] | null>;
+  openPaths: Set<string>;
+  gonePaths: Set<string>;
+  sidebarOpen: Signal<boolean>;
+  sidebarWidth: Signal<number>;
+  isResizing: Signal<boolean>;
+  onTogglePath: (
+    path: ApiKvKeyPart[],
+    isOpen: boolean,
+    hasChildren: boolean,
+  ) => void;
+  onNavigateToRoot: () => void;
+  onContextMenu: (
+    e: MouseEvent,
+    type: "database" | "folder",
+    path: ApiKvKeyPart[],
+    dbId?: string,
+  ) => void;
+  onLoadMoreNodes: (path: ApiKvKeyPart[], cursor: string) => void;
+}
+
+export default function Sidebar(
+  {
+    databases,
+    activeDatabase,
+    dbStructure,
+    pathInfo,
+    openPaths,
+    gonePaths,
+    sidebarOpen,
+    sidebarWidth,
+    isResizing,
+    onTogglePath,
+    onNavigateToRoot,
+    onContextMenu,
+    onLoadMoreNodes,
+  }: SidebarProps,
+) {
+  const getDbIcon = (type: string, className = "w-4 h-4") => {
+    if (type === "file") return <FileDatabaseIcon className={className} />;
+    if (type === "memory") return <MemoryDatabaseIcon className={className} />;
+    if (type === "remote") return <RemoteDatabaseIcon className={className} />;
+    return <DatabaseIcon className={className} />;
+  };
+
+  return (
+    <div
+      class={`relative flex flex-col bg-base-200 border-r border-base-300 transition-all duration-75 ease-out ${
+        !sidebarOpen.value ? "w-0 min-w-0 overflow-hidden border-none" : ""
+      }`}
+      style={{
+        width: sidebarOpen.value ? `${sidebarWidth.value}px` : "0px",
+      }}
+    >
+      <div class="flex-1 overflow-y-auto overflow-x-hidden">
+        <ul class="menu w-full p-0 block">
+          <li class="border-b border-neutral-600 flex flex-row items-center p-1! gap-1 sticky top-0 bg-base-200 z-10">
+            <a
+              href="/"
+              class="flex-1 group flex items-center gap-2 rounded hover:bg-base-300 cursor-pointer list-none font-bold"
+            >
+              <span
+                class="truncate"
+                style={{
+                  fontFamily: '"Press Start 2P"',
+                  color: "#F4892D",
+                  fontSize: "0.8rem",
+                }}
+              >
+                InnoKV
+              </span>
+            </a>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs btn-square"
+              onClick={() => sidebarOpen.value = false}
+              title="Close Sidebar"
+            >
+              <ChevronLeftIcon className="w-4 h-4" />
+            </button>
+          </li>
+          {databases.map((db) => {
+            const isActive = activeDatabase?.id === db.id;
+            const DbIcon = getDbIcon(db.type, "w-4 h-4");
+
+            if (!isActive) {
+              return (
+                <li key={db.id}>
+                  <a
+                    href={`/${db.slug || db.id}`}
+                    class="w-full group flex items-center gap-2 p-1 rounded cursor-pointer list-none hover:bg-base-300"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onContextMenu(e, "database", [], db.id);
+                    }}
+                  >
+                    <span class="w-4 h-4 flex items-center justify-center shrink-0 opacity-50">
+                      {DbIcon}
+                    </span>
+                    <span class="flex-1 truncate opacity-70">
+                      {db.name || db.id}
+                    </span>
+                  </a>
+                </li>
+              );
+            }
+
+            return (
+              <li key={db.id} class="db-root-item">
+                <details open class="group">
+                  <summary
+                    class="w-full group flex items-center gap-2 p-1 rounded cursor-pointer list-none bg-neutral text-neutral-content font-bold hover:bg-neutral relative"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigateToRoot();
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onContextMenu(e, "database", [], db.id);
+                    }}
+                  >
+                    <span class="w-4 h-4 flex items-center justify-center shrink-0">
+                      {DbIcon}
+                    </span>
+                    <span class="flex-1 truncate">{db.name || db.id}</span>
+                  </summary>
+                  {dbStructure && (
+                    <ul>
+                      {Object.entries(dbStructure)
+                        .filter(([_, node]) =>
+                          node.hasChildren ||
+                          (node.children &&
+                            Object.keys(node.children).length > 0)
+                        )
+                        .map(([key, node]) => (
+                          <Node
+                            node={node}
+                            key={key}
+                            pathInfo={pathInfo}
+                            openPaths={openPaths}
+                            gonePaths={gonePaths}
+                            prettyPrintDates={activeDatabase?.settings
+                              ?.prettyPrintDates ??
+                              true}
+                            onToggle={onTogglePath}
+                            onContextMenu={(e, path) =>
+                              onContextMenu(e, "folder", path)}
+                            onLoadMore={onLoadMoreNodes}
+                          />
+                        ))}
+                    </ul>
+                  )}
+                </details>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div
+        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-20"
+        onMouseDown={() => isResizing.value = true}
+      />
+    </div>
+  );
+}
