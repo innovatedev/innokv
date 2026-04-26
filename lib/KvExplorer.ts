@@ -458,7 +458,7 @@ export class KvExplorer {
       if (Array.isArray(v)) {
         return v.map((av) => extractValues(av));
       }
-      
+
       // Standard object
       const obj: Record<string, unknown> = {};
       for (const [ok, ov] of Object.entries(v as object)) {

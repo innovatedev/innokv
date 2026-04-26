@@ -145,14 +145,14 @@ export default function HomeView(
                     <div class="font-bold whitespace-nowrap truncate">
                       {db.name}
                     </div>
-                          {db.mode === "r" && (
-                            <div
-                              class="tooltip tooltip-top flex items-center"
-                              data-tip="Read Only"
-                            >
-                              <LockIcon className="w-4 h-4 text-warning shrink-0" />
-                            </div>
-                          )}
+                    {db.mode === "r" && (
+                      <div
+                        class="tooltip tooltip-top flex items-center"
+                        data-tip="Read Only"
+                      >
+                        <LockIcon className="w-4 h-4 text-warning shrink-0" />
+                      </div>
+                    )}
                   </div>
                   <div class="flex items-center gap-2 text-xs text-base-content/50 mt-0.5">
                     <span class="font-mono bg-base-200 px-1 rounded">

@@ -100,7 +100,9 @@ export const handler = BaseRepository.handlers({
         keys: wireKeys,
         sourcePath,
       } = data;
-      if (!id || newPath === undefined || (oldPath === undefined && !wireKeys)) {
+      if (
+        !id || newPath === undefined || (oldPath === undefined && !wireKeys)
+      ) {
         throw new Error(
           "Missing required fields (id, newPath, and either oldPath or keys)",
         );

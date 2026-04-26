@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { ApiKvEntry, ApiKvKey, ApiKvKeyPart } from "@/lib/types.ts";
-import RichValueEditor from "./RichValueEditor.tsx";
+import RichValueEditor from "./RichValueEditor/index.tsx";
 import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
 import { KeyDisplay } from "../KeyDisplay.tsx";
 import JsonEditor from "./JsonEditor.tsx";
 
@@ -97,20 +98,7 @@ export default function KvEntryForm({
     if (onSubmit) {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
-      const key = keyParts.map((part) => {
-        if (part.type === "number") return parseFloat(part.value);
-        if (part.type === "boolean") return part.value === "true";
-        if (part.type === "bigint") return BigInt(part.value);
-        if (part.type.toLowerCase() === "uint8array") {
-          let val = part.value.trim();
-          if (val.startsWith("[") && val.endsWith("]")) val = val.slice(1, -1);
-          const bytes = val.split(/[,\s]+/).map((n: string) =>
-            parseInt(n.trim())
-          ).filter((n: number) => !isNaN(n));
-          return new Uint8Array(bytes);
-        }
-        return part.value;
-      });
+      const key = KeyCodec.toNative(keyParts as ApiKvKeyPart[]);
 
       onSubmit({ key, value: richValue }, form);
     }

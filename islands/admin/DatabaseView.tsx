@@ -4,33 +4,19 @@ import Dialog from "./Dialog.tsx";
 import KvEntryForm from "./forms/KvEntry.tsx";
 import { useSignal } from "@preact/signals";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "@/lib/types.ts";
-import { RichValue } from "@/lib/ValueCodec.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import MoveRecords from "./forms/MoveRecords.tsx";
 import Sidebar from "./Sidebar.tsx";
 import Toolbar from "./Toolbar.tsx";
 import RecordsView from "./RecordsView.tsx";
-import {
-  DeleteIcon,
-  DuplicateIcon,
-  EditIcon,
-  RefreshIcon,
-} from "../../components/icons/ActionIcons.tsx";
 import { Database } from "@/kv/models.ts";
 
 // Hooks
 import { useKvSearch } from "./hooks/useKvSearch.ts";
 import { useBulkActions } from "./hooks/useBulkActions.ts";
 import { useDbStructure } from "./hooks/useDbStructure.ts";
-
-interface ContextMenuState {
-  x: number;
-  y: number;
-  type: "folder" | "item" | "database";
-  path: ApiKvKeyPart[];
-  dbId?: string;
-}
+import { ContextMenu, ContextMenuState } from "./components/ContextMenu.tsx";
 
 interface DatabaseViewProps {
   initialStructure?: Record<string, DbNode> | null;
@@ -544,158 +530,80 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       </div>
 
       {contextMenu.value && (
-        <div
-          class="fixed z-50 bg-base-100 border border-base-300 shadow-lg rounded py-1 min-w-[150px]"
-          style={{ top: contextMenu.value.y, left: contextMenu.value.x }}
-        >
-          {contextMenu.value.type === "database"
-            ? (
-              <>
-                <button
-                  type="button"
-                  class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
-                  onClick={() => {
-                    const dbId = contextMenu.value?.dbId;
-                    contextMenu.value = null;
-                    if (dbId) {
-                      handleRefresh();
-                    }
-                  }}
-                >
-                  <RefreshIcon className="w-4 h-4" />
-                  {activeDatabase &&
-                      (activeDatabase.id === contextMenu.value?.dbId ||
-                        activeDatabase.slug === contextMenu.value?.dbId)
-                    ? "Refresh"
-                    : "Open"}
-                </button>
-                <button
-                  type="button"
-                  class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
-                  onClick={() => {
-                    const dbId = contextMenu.value?.dbId;
-                    contextMenu.value = null;
-                    if (dbId) {
-                      const db = databases.value.find((d) => d.id === dbId);
-                      if (db) {
-                        editingDatabase.value = db;
-                        createDatabaseRef.current?.showModal();
-                      }
-                    }
-                  }}
-                >
-                  <EditIcon className="w-4 h-4" />
-                  Edit Database Config
-                </button>
-              </>
-            )
-            : (
-              <>
-                <button
-                  type="button"
-                  class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
-                  onClick={() => {
-                    const dbId = activeDatabase?.slug || activeDatabase?.id;
-                    const targetPath = contextMenu.value?.path;
-                    contextMenu.value = null;
+        <ContextMenu
+          state={contextMenu.value}
+          activeDatabase={activeDatabase}
+          databases={databases.value}
+          onRefresh={handleRefresh}
+          onEditDatabase={(dbId) => {
+            contextMenu.value = null;
+            const db = databases.value.find((d) => d.id === dbId);
+            if (db) {
+              editingDatabase.value = db;
+              createDatabaseRef.current?.showModal();
+            }
+          }}
+          onDuplicate={(path) => {
+            movePath.value = path;
+            moveMode.value = "copy";
+            moveRef.current?.showModal();
+            contextMenu.value = null;
+          }}
+          onMove={(path) => {
+            movePath.value = path;
+            moveMode.value = "move";
+            moveRef.current?.showModal();
+            contextMenu.value = null;
+          }}
+          onDeletePath={(_path) => {
+            if (confirm("Delete this entire path recursively?")) {
+              handleFolderDelete();
+              contextMenu.value = null;
+            }
+          }}
+          onRefreshPath={(targetPath) => {
+            const dbId = activeDatabase?.slug || activeDatabase?.id;
+            contextMenu.value = null;
 
-                    if (dbId && targetPath) {
-                      const currentPathStr = KeyCodec.encode(
-                        pathInfo.value || [],
-                      );
-                      const targetPathStr = KeyCodec.encode(targetPath);
+            if (dbId && targetPath) {
+              const currentPathStr = KeyCodec.encode(
+                pathInfo.value || [],
+              );
+              const targetPathStr = KeyCodec.encode(targetPath);
 
-                      if (
-                        currentPathStr === targetPathStr ||
-                        currentPathStr.startsWith(targetPathStr)
-                      ) {
-                        api.getRecords(
-                          dbId,
-                          pathInfo.value || [],
-                          cursor.value,
-                          limit.value,
-                          { recursive: false },
-                        ).then((res) => {
-                          records.value = res.records;
-                          nextCursor.value = res.cursor;
-                        });
-                      }
+              if (
+                currentPathStr === targetPathStr ||
+                currentPathStr.startsWith(targetPathStr)
+              ) {
+                api.getRecords(
+                  dbId,
+                  pathInfo.value || [],
+                  cursor.value,
+                  limit.value,
+                  { recursive: false },
+                ).then((res) => {
+                  records.value = res.records;
+                  nextCursor.value = res.cursor;
+                });
+              }
 
-                      api.getNodes(dbId, targetPath).then((res) => {
-                        const nodes = res.items;
-                        if (nodes) {
-                          setDbStructure((prev) => {
-                            if (!prev) return nodes;
-                            return mergeStructure(
-                              prev,
-                              targetPath,
-                              nodes,
-                              res.cursor,
-                            );
-                          });
-                        }
-                      });
-                    }
-                  }}
-                >
-                  <RefreshIcon className="w-4 h-4" />
-                  Refresh
-                </button>
-                {databases.value.some((d) => d.mode !== "r") && (
-                  <button
-                    type="button"
-                    class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
-                    onClick={() => {
-                      if (contextMenu.value) {
-                        movePath.value = contextMenu.value.path;
-                        moveMode.value = "copy";
-                        moveRef.current?.showModal();
-                        contextMenu.value = null;
-                      }
-                    }}
-                  >
-                    <DuplicateIcon className="w-4 h-4" />
-                    Duplicate
-                  </button>
-                )}
-                {activeDatabase?.mode !== "r" && (
-                  <>
-                    <button
-                      type="button"
-                      class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
-                      onClick={() => {
-                        if (contextMenu.value) {
-                          movePath.value = contextMenu.value.path;
-                          moveMode.value = "move";
-                          moveRef.current?.showModal();
-                          contextMenu.value = null;
-                        }
-                      }}
-                    >
-                      <EditIcon className="w-4 h-4" />
-                      Move / Rename
-                    </button>
-                    <button
-                      type="button"
-                      class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
-                      onClick={() => {
-                        if (
-                          contextMenu.value &&
-                          confirm("Delete this entire path recursively?")
-                        ) {
-                          handleFolderDelete();
-                          contextMenu.value = null;
-                        }
-                      }}
-                    >
-                      <DeleteIcon className="w-4 h-4" />
-                      Delete Path
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-        </div>
+              api.getNodes(dbId, targetPath).then((res) => {
+                const nodes = res.items;
+                if (nodes) {
+                  setDbStructure((prev) => {
+                    if (!prev) return nodes;
+                    return mergeStructure(
+                      prev,
+                      targetPath,
+                      nodes,
+                      res.cursor,
+                    );
+                  });
+                }
+              });
+            }
+          }}
+        />
       )}
 
       {error.value && (
@@ -725,30 +633,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onCancel={() => createEntryRef.current?.close()}
           onDelete={() => {
             if (!activeDatabase || !selectedEntry.value) return;
-            const convertValue = (p: ApiKvKeyPart) => {
-              const t = p.type.toLowerCase();
-              if (t === "number") {
-                return typeof p.value === "number"
-                  ? p.value
-                  : parseFloat(String(p.value));
-              }
-              if (t === "boolean") {
-                return typeof p.value === "boolean"
-                  ? p.value
-                  : String(p.value) === "true";
-              }
-              if (t === "bigint") {
-                return typeof p.value === "bigint"
-                  ? p.value
-                  : BigInt(String(p.value));
-              }
-              if (t === "uint8array") {
-                if (Array.isArray(p.value)) return new Uint8Array(p.value);
-                return new Uint8Array();
-              }
-              return p.value;
-            };
-            const realKey = selectedEntry.value.key.map(convertValue);
+            const realKey = KeyCodec.toNative(selectedEntry.value.key);
 
             api.deleteRecord(
               activeDatabase.slug || activeDatabase.id,
@@ -770,46 +655,19 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           }}
           onSubmit={(data, _form) => {
             if (!activeDatabase) return;
-            const convertValue = (p: ApiKvKeyPart) => {
-              const t = p.type.toLowerCase();
-              if (t === "number") {
-                return typeof p.value === "number"
-                  ? p.value
-                  : parseFloat(String(p.value));
-              }
-              if (t === "boolean") {
-                return typeof p.value === "boolean"
-                  ? p.value
-                  : String(p.value) === "true";
-              }
-              if (t === "bigint") {
-                return typeof p.value === "bigint"
-                  ? p.value
-                  : BigInt(String(p.value));
-              }
-              if (t === "uint8array") {
-                if (Array.isArray(p.value)) return new Uint8Array(p.value);
-                return new Uint8Array();
-              }
-              return p.value;
-            };
-            let oldKey: unknown[] | undefined;
+            let oldKey: Deno.KvKeyPart[] | undefined;
             if (selectedEntry.value) {
-              oldKey = selectedEntry.value.key.map(
-                convertValue,
-              );
+              oldKey = KeyCodec.toNative(selectedEntry.value.key);
             }
-            const versionstamp = selectedEntry.value?.versionstamp ||
-              null;
-            const entryData = data as {
-              key: unknown[];
-              value: RichValue;
-            };
+            const key = data.key;
+            const versionstamp = selectedEntry.value?.versionstamp || null;
+
+            if (!activeDatabase) return;
 
             api.saveRecord(
               activeDatabase.slug || activeDatabase.id,
-              entryData.key,
-              entryData.value,
+              key,
+              data.value,
               versionstamp,
               oldKey,
             ).then(() => {
@@ -817,12 +675,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               if (pathInfo.value) {
                 pathInfo.value = [...pathInfo.value];
               }
-              if (activeDatabase) {
-                api.getDatabase(
-                  activeDatabase.slug || activeDatabase.id,
-                )
-                  .then((s) => setDbStructure(s));
-              }
+              api.getDatabase(
+                activeDatabase.slug || activeDatabase.id,
+              )
+                .then((s) => setDbStructure(s));
             }).catch((e: Error | unknown) =>
               alert(e instanceof Error ? e.message : String(e))
             );

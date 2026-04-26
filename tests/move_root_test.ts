@@ -64,7 +64,7 @@ Deno.test("Recursive Operations - Move to Root", async (t) => {
     assertEquals((await testKv.get(["key1"])).value, "Value 1");
     // folder/sub/key2 -> sub/key2
     assertEquals((await testKv.get(["sub", "key2"])).value, "Value 2");
-    
+
     // Verify old path is gone
     assertEquals((await testKv.get(["folder", "key1"])).value, null);
   });
@@ -78,16 +78,19 @@ Deno.test("Recursive Operations - Move to Root", async (t) => {
     ];
 
     await repo.moveRecords("test", {
-      keys: keys.map(k => k.map(p => repo.parseKeyPart(p))),
+      keys: keys.map((k) => k.map((p) => repo.parseKeyPart(p))),
       newPath,
       recursive: true,
-      sourcePath: KeyCodec.encode([{ type: "string", value: "folder" }])
+      sourcePath: KeyCodec.encode([{ type: "string", value: "folder" }]),
     });
 
     // key1 should be at root now
     assertEquals((await testKv.get(["key1"])).value, "Value 1");
     // folder/sub/key2 should still be there
-    assertEquals((await testKv.get(["folder", "sub", "key2"])).value, "Value 2");
+    assertEquals(
+      (await testKv.get(["folder", "sub", "key2"])).value,
+      "Value 2",
+    );
     // folder/key1 should be gone
     assertEquals((await testKv.get(["folder", "key1"])).value, null);
   });

@@ -49,8 +49,7 @@ export class DatabaseRepository extends BaseRepository {
     };
   }
 
-  // deno-lint-ignore no-explicit-any
-  async updateDatabase(id: string, data: any) {
+  async updateDatabase(id: string, data: Partial<Database>) {
     data.updatedAt = new Date();
     const databaseFromModel = DatabaseModel.partial().safeParse(data);
     if (!databaseFromModel.success) {

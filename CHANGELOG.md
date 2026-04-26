@@ -9,12 +9,20 @@ All notable changes to this project will be documented in this file.
 > standardized to a numeric array format. JSON exports before v0.3.0 are no
 > longer compatible and must be re-exported.
 
-- **Unified URL State**: Navigation paths and search queries are now synchronized with the URL, enabling bookmarking and browser back/forward button support.
-- **Improved Search UI**: New direct toggles for search modes (Regex, Case Sensitive, Target) and support for binary key matching (e.g., `u8[1,2,3]`).
-- **Rapid Navigation**: Breadcrumb items now feature context menus for quick actions (Refresh, Move, Duplicate, Delete) without using the sidebar.
-- **Enhanced Portability**: Improved reliability for cross-database moves/copies, including the ability to move records directly to the database root.
-- **Bulk Operations**: Perform recursive moves, duplications, and deletions on multiple selected records or entire path prefixes.
-- **UX Refinements**: Standardized server port (4665), improved alignment, and persistent search settings when switching databases.
+- **Unified URL State**: Navigation paths and search queries are now
+  synchronized with the URL, enabling bookmarking and browser back/forward
+  button support.
+- **Improved Search UI**: New direct toggles for search modes (Regex, Case
+  Sensitive, Target) and support for binary key matching (e.g., `u8[1,2,3]`).
+- **Rapid Navigation**: Breadcrumb items now feature context menus for quick
+  actions (Refresh, Move, Duplicate, Delete) without using the sidebar.
+- **Enhanced Portability**: Improved reliability for cross-database
+  moves/copies, including the ability to move records directly to the database
+  root.
+- **Bulk Operations**: Perform recursive moves, duplications, and deletions on
+  multiple selected records or entire path prefixes.
+- **UX Refinements**: Standardized server port (4665), improved alignment, and
+  persistent search settings when switching databases.
 
 ## v0.2.0
 

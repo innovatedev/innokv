@@ -161,9 +161,11 @@ export default function Toolbar(
 
       <div class="flex items-center gap-4 pb-1.5 px-4 justify-between">
         <div class="join flex-1 max-w-xl">
-          <div class={`relative flex-1 group join-item border transition-colors bg-base-100/50 focus-within:bg-base-100 ${
-            isSearchActive.value ? "border-primary" : "border-base-300"
-          }`}>
+          <div
+            class={`relative flex-1 group join-item border transition-colors bg-base-100/50 focus-within:bg-base-100 ${
+              isSearchActive.value ? "border-primary" : "border-base-300"
+            }`}
+          >
             <div class="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 group-focus-within:text-primary transition-colors z-10">
               <SearchIcon className="w-4 h-4" />
             </div>
@@ -212,12 +214,14 @@ export default function Toolbar(
                   </svg>
                 </button>
               )}
-              
+
               <div class="flex items-center h-full gap-0.5 border-l border-base-content/10 pl-1.5 ml-1">
                 <button
                   type="button"
                   class={`btn btn-ghost btn-square btn-xs h-6 w-6 min-h-0 transition-all ${
-                    searchRegex.value ? "text-primary opacity-100" : "text-base-content/30 opacity-60 hover:opacity-100"
+                    searchRegex.value
+                      ? "text-primary opacity-100"
+                      : "text-base-content/30 opacity-60 hover:opacity-100"
                   }`}
                   onClick={() => searchRegex.value = !searchRegex.value}
                   title={searchRegex.value ? "Disable Regex" : "Enable Regex"}
@@ -228,10 +232,15 @@ export default function Toolbar(
                 <button
                   type="button"
                   class={`btn btn-ghost btn-square btn-xs h-6 w-6 min-h-0 transition-all ${
-                    searchCaseSensitive.value ? "text-primary opacity-100" : "text-base-content/30 opacity-60 hover:opacity-100"
+                    searchCaseSensitive.value
+                      ? "text-primary opacity-100"
+                      : "text-base-content/30 opacity-60 hover:opacity-100"
                   }`}
-                  onClick={() => searchCaseSensitive.value = !searchCaseSensitive.value}
-                  title={searchCaseSensitive.value ? "Disable Case Sensitive" : "Enable Case Sensitive"}
+                  onClick={() =>
+                    searchCaseSensitive.value = !searchCaseSensitive.value}
+                  title={searchCaseSensitive.value
+                    ? "Disable Case Sensitive"
+                    : "Enable Case Sensitive"}
                 >
                   <AaIcon className="w-3.5 h-3.5" />
                 </button>
@@ -269,8 +278,11 @@ export default function Toolbar(
           >
             Search
           </button>
-          
-          <div class="tooltip tooltip-left ml-1 flex items-center shrink-0 tooltip-neutral" data-tip="Search is in active development. Matches recursively against values (strips type metadata).">
+
+          <div
+            class="tooltip tooltip-left ml-1 flex items-center shrink-0 tooltip-neutral"
+            data-tip="Search is in active development. Matches recursively against values (strips type metadata)."
+          >
             <div class="p-1 rounded-full bg-base-300 text-base-content/50 hover:bg-base-300/80 transition-colors cursor-help">
               <AlertIcon className="w-3.5 h-3.5" />
             </div>

@@ -5,6 +5,40 @@ export class KeyCodec {
     return parts.map((p) => this.encodePart(p)).join("/");
   }
 
+  /**
+   * Converts a list of ApiKvKeyPart (transport format) to native Deno.KvKeyPart.
+   */
+  static toNative(parts: ApiKvKeyPart[]): Deno.KvKeyPart[] {
+    return parts.map((p) => {
+      const t = p.type.toLowerCase();
+      if (t === "number") {
+        return typeof p.value === "number"
+          ? p.value
+          : parseFloat(String(p.value));
+      }
+      if (t === "boolean") {
+        return typeof p.value === "boolean"
+          ? p.value
+          : String(p.value) === "true";
+      }
+      if (t === "bigint") {
+        return typeof p.value === "bigint" ? p.value : BigInt(String(p.value));
+      }
+      if (t === "uint8array") {
+        if (p.value instanceof Uint8Array) return p.value;
+        if (Array.isArray(p.value)) return new Uint8Array(p.value);
+        if (typeof p.value === "string") {
+          const bytes = p.value.split(/[,\s]+/)
+            .map((n) => parseInt(n.trim()))
+            .filter((n) => !isNaN(n));
+          return new Uint8Array(bytes);
+        }
+        return new Uint8Array();
+      }
+      return p.value as string;
+    });
+  }
+
   static decode(str: string): ApiKvKeyPart[] {
     const parts: ApiKvKeyPart[] = [];
     let current = "";
