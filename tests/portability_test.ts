@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { DatabaseRepository } from "../lib/Database.ts";
 import { collection, kvdex } from "@olli/kvdex";
-import { DatabaseModel } from "@/kv/models.ts";
+import { AuditLogModel, DatabaseModel } from "@/kv/models.ts";
 import { KeyCodec } from "../lib/KeyCodec.ts";
 
 // Mock KVs for testing
@@ -13,6 +13,7 @@ const mockDb = kvdex({
   kv: await Deno.openKv(":memory:"),
   schema: {
     databases: collection(DatabaseModel),
+    audit_logs: collection(AuditLogModel),
   },
 });
 

@@ -262,27 +262,35 @@ export class DatabaseRepository extends BaseRepository {
     limit?: number;
     cursor?: string;
   } = {}) {
-    // kvdex getMany supports secondary index filtering if implemented, 
+    // kvdex getMany supports secondary index filtering if implemented,
     // but here we might need to use getMany and filter in JS if kvdex version is old.
     // Actually let's use the most efficient way available.
-    
+
     // For now, we'll list all and filter as kvdex handles the listing.
     // Ideally we'd use findBySecondaryIndex if we only filter by ONE field.
-    
+
     if (options.userId) {
-      return await this.kvdex.audit_logs.findBySecondaryIndex("userId", options.userId, {
-        limit: options.limit,
-        cursor: options.cursor,
-        reverse: true,
-      });
+      return await this.kvdex.audit_logs.findBySecondaryIndex(
+        "userId",
+        options.userId,
+        {
+          limit: options.limit,
+          cursor: options.cursor,
+          reverse: true,
+        },
+      );
     }
 
     if (options.databaseId) {
-      return await this.kvdex.audit_logs.findBySecondaryIndex("databaseId", options.databaseId, {
-        limit: options.limit,
-        cursor: options.cursor,
-        reverse: true,
-      });
+      return await this.kvdex.audit_logs.findBySecondaryIndex(
+        "databaseId",
+        options.databaseId,
+        {
+          limit: options.limit,
+          cursor: options.cursor,
+          reverse: true,
+        },
+      );
     }
 
     return await this.kvdex.audit_logs.getMany({
@@ -625,6 +633,7 @@ export class DatabaseRepository extends BaseRepository {
         newPrefix,
         options.recursive ?? false,
         targetKv,
+        { batchSize: databaseDoc.value.settings?.batchSize },
       );
     }
 
@@ -651,6 +660,7 @@ export class DatabaseRepository extends BaseRepository {
           [...newPrefix, ...relativeKey],
           options.recursive ?? false,
           targetKv,
+          { batchSize: databaseDoc.value.settings?.batchSize },
         );
         totalCopied += result.copiedCount;
       }

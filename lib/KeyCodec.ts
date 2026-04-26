@@ -49,7 +49,9 @@ export class KeyCodec {
     if (typeof part === "string") return { type: "string", value: part };
     if (typeof part === "number") return { type: "number", value: part };
     if (typeof part === "boolean") return { type: "boolean", value: part };
-    if (typeof part === "bigint") return { type: "bigint", value: String(part) };
+    if (typeof part === "bigint") {
+      return { type: "bigint", value: String(part) };
+    }
     if (part instanceof Uint8Array) {
       return { type: "Uint8Array", value: Array.from(part) };
     }

@@ -163,7 +163,9 @@ export default function RichValueEditor({
               ? "Exceeds Deno KV 64KB limit!"
               : "V8 serialized size"}
           >
-            {isCalculatingSize && <span class="loading loading-spinner loading-xs"></span>}
+            {isCalculatingSize && (
+              <span class="loading loading-spinner loading-xs"></span>
+            )}
             {(size / 1024).toFixed(2)} KB
           </div>
         )}

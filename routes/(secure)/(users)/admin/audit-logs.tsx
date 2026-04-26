@@ -6,13 +6,16 @@ import { UsersIcon } from "@/components/icons/UsersIcon.tsx";
 
 export default defineAuth.page(async function AdminAuditLogs({ state }) {
   const dbRepo = new DatabaseRepository(kvdex);
-  
+
   // Ensure the user has admin permissions to view audit logs
   state.plugins.permissions.requires("admin:audit_logs");
 
   const { result: logs } = await dbRepo.getAuditLogs({ limit: 100 });
   const databasesRes = await dbRepo.getDatabases();
-  const databases = databasesRes.result.map((d: any) => ({ id: d.id, name: d.value.name }));
+  const databases = databasesRes.result.map((d) => ({
+    id: d.id,
+    name: d.value.name,
+  }));
 
   return (
     <div class="min-h-screen bg-base-100 text-base-content p-8">
@@ -32,7 +35,10 @@ export default defineAuth.page(async function AdminAuditLogs({ state }) {
           </div>
         </div>
 
-        <AuditLogsView initialLogs={logs.map(l => ({ id: l.id, ...l.value }))} databases={databases} />
+        <AuditLogsView
+          initialLogs={logs.map((l) => ({ id: l.id, ...l.value }))}
+          databases={databases}
+        />
       </div>
     </div>
   );

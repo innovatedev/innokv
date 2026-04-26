@@ -260,7 +260,9 @@ export class KvExplorer {
           // Verify write before delete
           const verify = await destKv.get(newPrefix);
           if (verify.versionstamp === null) {
-            throw new Error(`Failed to verify write for key: ${JSON.stringify(newPrefix)}`);
+            throw new Error(
+              `Failed to verify write for key: ${JSON.stringify(newPrefix)}`,
+            );
           }
           await this.kv.delete(oldPrefix);
           movedCount++;
@@ -291,7 +293,9 @@ export class KvExplorer {
         // Verify write before delete
         const verify = await destKv.get(newKey);
         if (verify.versionstamp === null) {
-          throw new Error(`Failed to verify write for key: ${JSON.stringify(newKey)}`);
+          throw new Error(
+            `Failed to verify write for key: ${JSON.stringify(newKey)}`,
+          );
         }
         await this.kv.delete(entry.key);
         movedCount++;
@@ -328,9 +332,12 @@ export class KvExplorer {
     newPrefix: Deno.KvKey,
     recursive = false,
     targetKv?: Deno.Kv,
+    options: { batchSize?: number } = {},
   ) {
+    const batchSize = options.batchSize ?? 100;
     let copiedCount = 0;
     const destKv = targetKv ?? this.kv;
+    const isCrossDb = destKv !== this.kv;
 
     // Handle the prefix key itself
     if (oldPrefix.length > 0) {
@@ -342,6 +349,8 @@ export class KvExplorer {
     }
 
     const iter = this.kv.list({ prefix: oldPrefix });
+    let atomic = destKv.atomic();
+    let count = 0;
 
     for await (const entry of iter) {
       if (!recursive && entry.key.length > oldPrefix.length + 1) {
@@ -351,9 +360,25 @@ export class KvExplorer {
       const suffix = entry.key.slice(oldPrefix.length);
       const newKey = [...newPrefix, ...suffix];
 
-      await destKv.set(newKey, entry.value);
+      if (isCrossDb) {
+        await destKv.set(newKey, entry.value);
+      } else {
+        atomic.set(newKey, entry.value);
+        count++;
+
+        if (count >= batchSize) {
+          await atomic.commit();
+          atomic = destKv.atomic();
+          count = 0;
+        }
+      }
       copiedCount++;
     }
+
+    if (count > 0 && !isCrossDb) {
+      await atomic.commit();
+    }
+
     return { ok: true, copiedCount };
   }
 
@@ -404,7 +429,9 @@ export class KvExplorer {
       if (count >= batchSize) {
         const res = await atomic.commit();
         if (!res.ok) {
-          throw new Error(`Failed to commit atomic import batch at record ${importedCount}`);
+          throw new Error(
+            `Failed to commit atomic import batch at record ${importedCount}`,
+          );
         }
         atomic = this.kv.atomic();
         count = 0;

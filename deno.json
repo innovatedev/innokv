@@ -24,7 +24,7 @@
     "compile:win": "deno compile -A --icon static/favicon.ico --exclude=node_modules --target=x86_64-pc-windows-msvc --output target/innokv-win.exe --include _fresh _fresh/compiled-entry.js",
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
     "cli": "deno run -A cli/mod.ts",
-    "test": "INNOKV_DB_PATH=test.db deno test -A --node-modules-dir=auto && rm -f test.db test.db-shm test.db-wal",
+    "test": "mkdir -p innokv-data && INNOKV_DB_PATH=innokv-data/test.db deno test -A --node-modules-dir=auto && rm -f innokv-data/test.db innokv-data/test.db-shm innokv-data/test.db-wal",
     "version": "deno run -A tools/version.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },

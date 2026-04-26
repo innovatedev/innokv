@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { User } from "@/lib/users.ts";
 import Dialog from "./Dialog.tsx";
+import { SearchIcon } from "../../components/icons/ActionIcons.tsx";
 import PermissionEditor from "@/islands/admin/PermissionEditor.tsx";
 
 interface UsersTableProps {
@@ -12,7 +13,8 @@ export default function UsersTable(
   { initialUsers, currentUserEmail }: UsersTableProps,
 ) {
   const [users] = useState<User[]>(initialUsers);
-  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // State for permissions in the edit modal
@@ -20,9 +22,24 @@ export default function UsersTable(
 
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const filteredUsers = users.filter((u) =>
-    u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter((u) => {
+    if (!appliedSearch) return true;
+    const searchLower = appliedSearch.toLowerCase();
+    const emailMatch = u.email.toLowerCase().includes(searchLower);
+    const permMatch = u.permissions.some((p) =>
+      p.toLowerCase().includes(searchLower)
+    );
+    return emailMatch || permMatch;
+  });
+
+  const onSearch = () => {
+    setAppliedSearch(searchQuery);
+  };
+
+  const onClearSearch = () => {
+    setSearchQuery("");
+    setAppliedSearch("");
+  };
 
   useEffect(() => {
     if (selectedUser && dialogRef.current) {
@@ -41,14 +58,47 @@ export default function UsersTable(
 
   return (
     <div>
-      <div class="mb-6">
-        <input
-          type="text"
-          placeholder="Search users by email..."
-          class="input input-bordered w-full max-w-md"
-          value={search}
-          onInput={(e) => setSearch(e.currentTarget.value)}
-        />
+      <div class="mb-6 flex flex-col md:flex-row gap-4 justify-between items-end">
+        <div class="join flex-1 max-w-xl">
+          <div
+            class={`relative flex-1 group join-item border transition-colors bg-base-100/50 focus-within:bg-base-100 ${
+              appliedSearch ? "border-primary" : "border-base-300"
+            }`}
+          >
+            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 group-focus-within:text-primary transition-colors z-10">
+              <SearchIcon className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search users..."
+              class="w-full h-10 pl-10 pr-10 text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-base-content"
+              value={searchQuery}
+              onInput={(e) => setSearchQuery(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSearch();
+                if (e.key === "Escape") onClearSearch();
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs opacity-40 hover:opacity-100"
+                onClick={onClearSearch}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            class={`btn btn-sm h-10 join-item px-6 transition-all ${
+              appliedSearch ? "btn-primary" : "btn-neutral"
+            }`}
+            onClick={onSearch}
+          >
+            Search
+          </button>
+        </div>
       </div>
 
       <div class="overflow-x-auto bg-base-200 rounded-box shadow-xl border border-base-300">

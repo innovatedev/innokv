@@ -245,7 +245,9 @@ export default function ConnectDatabaseForm({
 
         <label class="form-control w-full max-w-xs">
           <div class="label py-1">
-            <span class="label-text text-xs opacity-70">Batch Size (1-1000)</span>
+            <span class="label-text text-xs opacity-70">
+              Batch Size (1-1000)
+            </span>
             <span class="label-text-alt text-xs opacity-50">Default: 100</span>
           </div>
           <input
@@ -258,7 +260,8 @@ export default function ConnectDatabaseForm({
           />
           <div class="label pt-1 pb-0">
             <span class="label-text-alt text-[10px] opacity-40 italic">
-              Chunk size for bulk operations (Move, Copy, Import). Larger is faster but risks atomic failure.
+              Chunk size for bulk operations (Move, Copy, Import). Larger is
+              faster but risks atomic failure.
             </span>
           </div>
         </label>

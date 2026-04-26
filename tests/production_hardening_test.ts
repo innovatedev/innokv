@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "jsr:@std/assert@1";
+import { assert, assertEquals } from "jsr:@std/assert@1";
 import { KvExplorer } from "../lib/KvExplorer.ts";
 import { ValueCodec } from "../lib/ValueCodec.ts";
 
@@ -19,35 +19,43 @@ Deno.test("Production Hardening - KvExplorer", async (t) => {
     // Verify all records imported
     const { records } = await explorer.getRecords([]);
     assertEquals(records.length, 25);
-    
+
     // Cleanup
     await explorer.deleteRecords([], true);
   });
 
-  await t.step("moveRecords - Cross-DB Verification (Simulated Failure)", async () => {
-    const targetDb = await Deno.openKv(":memory:");
-    
-    // Insert source record
-    await db.set(["move", "src"], "val");
-    
-    // We want to simulate a failure where set succeeds but delete is not reached 
-    // if verification fails.
-    // In our implementation, we check the versionstamp after set.
-    
-    // Successful move
-    const result = await explorer.moveRecords(["move", "src"], ["move", "dest"], true, targetDb);
-    assert(result.ok);
-    assertEquals(result.movedCount, 1);
-    
-    const src = await db.get(["move", "src"]);
-    const dest = await targetDb.get(["move", "dest"]);
-    assertEquals(src.value, null);
-    assertEquals(dest.value, "val");
-    
-    targetDb.close();
-  });
+  await t.step(
+    "moveRecords - Cross-DB Verification (Simulated Failure)",
+    async () => {
+      const targetDb = await Deno.openKv(":memory:");
 
-  await t.step("calculateSize utility", async () => {
+      // Insert source record
+      await db.set(["move", "src"], "val");
+
+      // We want to simulate a failure where set succeeds but delete is not reached
+      // if verification fails.
+      // In our implementation, we check the versionstamp after set.
+
+      // Successful move
+      const result = await explorer.moveRecords(
+        ["move", "src"],
+        ["move", "dest"],
+        true,
+        targetDb,
+      );
+      assert(result.ok);
+      assertEquals(result.movedCount, 1);
+
+      const src = await db.get(["move", "src"]);
+      const dest = await targetDb.get(["move", "dest"]);
+      assertEquals(src.value, null);
+      assertEquals(dest.value, "val");
+
+      targetDb.close();
+    },
+  );
+
+  await t.step("calculateSize utility", () => {
     const val = { a: 1, b: "hello", c: new Uint8Array([1, 2, 3]) };
     const size = explorer.calculateSize(val);
     assert(size > 0);
