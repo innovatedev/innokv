@@ -1,6 +1,6 @@
 {
   "nodeModulesDir": "auto",
-  "version": "0.3.0-dev",
+  "version": "0.3.0",
   "name": "@innovatedev/innokv",
   "exports": {
     ".": "./cli/mod.ts",
