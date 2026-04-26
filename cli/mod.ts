@@ -14,6 +14,7 @@ import { user } from "./commands/user.ts";
 import { importCmd } from "./commands/import.ts";
 import { exportCmd } from "./commands/export.ts";
 import { tree } from "./commands/tree.ts";
+import { stats } from "./commands/stats.ts";
 import { configCmd } from "./commands/config.ts";
 import { deleteConfig } from "./config.ts";
 import { install } from "./commands/install.ts";
@@ -72,6 +73,7 @@ export const cmd: Command<any> = new Command()
   .command("import", importCmd)
   .command("export", exportCmd)
   .command("tree", tree)
+  .command("stats", stats)
   .command("config", configCmd)
   .command(
     "serve",

@@ -21,4 +21,18 @@ export const handler = BaseRepository.handlers({
         cursor,
       });
     }),
+
+  DELETE: (ctx) =>
+    db.handleApiCall(ctx, async (data: unknown) => {
+      const body = data as { before?: string; databaseId?: string };
+      ctx.state.plugins.permissions.requires("admin:audit_logs");
+
+      const before = body.before ? new Date(body.before) : undefined;
+      const databaseId = body.databaseId || undefined;
+
+      return await db.purgeAuditLogs({
+        before,
+        databaseId,
+      });
+    }),
 });

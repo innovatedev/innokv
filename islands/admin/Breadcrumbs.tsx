@@ -7,8 +7,8 @@ import {
   ChevronRightIcon,
   LockIcon,
 } from "../../components/icons/ActionIcons.tsx";
-import { DatabaseIcon } from "../../components/icons/DatabaseIcons.tsx";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
+import { DatabaseIcon } from "../../components/icons/DatabaseIcons.tsx";
 
 interface BreadcrumbsProps {
   pathInfo: Signal<ApiKvKeyPart[] | null>;
@@ -86,7 +86,7 @@ export const Breadcrumbs = (
   const path = pathInfo.value || [];
 
   return (
-    <div class="breadcrumbs text-sm custom-breadcrumbs flex items-center">
+    <nav class="breadcrumbs text-sm custom-breadcrumbs flex items-center">
       <ul class="flex-wrap flex items-center p-0 m-0">
         <li class="flex items-center gap-0.5">
           <DatabaseSwitcher
@@ -123,6 +123,7 @@ export const Breadcrumbs = (
               </div>
             )}
           </a>
+
           <BreadcrumbSeparator
             candidates={rootChildren}
             basePath={[]}
@@ -179,7 +180,7 @@ export const Breadcrumbs = (
           );
         })}
       </ul>
-    </div>
+    </nav>
   );
 };
 
@@ -196,26 +197,21 @@ const DatabaseSwitcher = (
   },
 ) => {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        isOpen && dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+    globalThis.addEventListener("mousedown", handleClickOutside);
+    return () =>
+      globalThis.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <div
-      class={`dropdown dropdown-bottom mr-1 ${isOpen ? "dropdown-open" : ""}`}
-      ref={dropdownRef}
-    >
+    <div class="relative inline-block text-left">
       <button
         type="button"
         onClick={(e) => {

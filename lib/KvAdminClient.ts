@@ -245,6 +245,15 @@ export default class KvAdminClient {
     });
   }
 
+  public refreshStats(
+    id: string,
+    pathInfo?: ApiKvKeyPart[],
+  ): Promise<{ ok: boolean; stats: unknown }> {
+    return this.request(`/admin/databases/${id}/stats`, "POST", {
+      pathInfo: pathInfo ? KeyCodec.encode(pathInfo) : undefined,
+    });
+  }
+
   private stringifyKeyPart(part: unknown): ApiKvKeyPart {
     return KeySerialization.serialize(part);
   }

@@ -3,6 +3,7 @@ import { User } from "@/lib/users.ts";
 import Dialog from "./Dialog.tsx";
 import { SearchIcon } from "../../components/icons/ActionIcons.tsx";
 import PermissionEditor from "@/islands/admin/PermissionEditor.tsx";
+import { hasPermission } from "@/lib/permissions.ts";
 
 interface UsersTableProps {
   initialUsers: User[];
@@ -124,7 +125,7 @@ export default function UsersTable(
                 </td>
                 <td>
                   <div class="flex gap-1 flex-wrap">
-                    {user.permissions.includes("*")
+                    {hasPermission(user.permissions, "*")
                       ? <span class="badge badge-sm badge-primary">Admin</span>
                       : user.permissions.length === 0
                       ? (

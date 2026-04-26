@@ -25,7 +25,7 @@ export async function ensureAuthenticated() {
   const config = await readConfig();
   if (!config.token) {
     throw new Error(
-      "Authentication required. Please run 'innokv auth login' to authenticate.",
+      "Authentication required. Please run 'innokv login' to authenticate.",
     );
   }
 
@@ -44,14 +44,14 @@ export async function ensureAuthenticated() {
 
   if (!tokenDoc) {
     throw new Error(
-      "Invalid or expired session. Please run 'innokv auth login' again.",
+      "Invalid or expired session. Please run 'innokv login' again.",
     );
   }
 
   // Check expiration
   if (tokenDoc.value.expiresAt && tokenDoc.value.expiresAt < new Date()) {
     throw new Error(
-      "Session expired. Please run 'innokv auth login' again.",
+      "Session expired. Please run 'innokv login' again.",
     );
   }
 
@@ -396,4 +396,16 @@ export async function doTree(
     (prefix.length > 0 ? ` \x1b[90m[${prefix.join("/")}]\x1b[0m` : "");
   console.log(header);
   print(root);
+}
+
+export async function doStats(
+  slug: string,
+  pathInfo?: string,
+  timeoutMs?: number,
+) {
+  await checkPermission(slug, "manage");
+  const { user } = await ensureAuthenticated();
+
+  const repo = new DatabaseRepository(db);
+  return await repo.getDatabaseStats(slug, pathInfo, user.id, timeoutMs);
 }

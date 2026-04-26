@@ -11,6 +11,7 @@ import Sidebar from "./Sidebar.tsx";
 import Toolbar from "./Toolbar.tsx";
 import RecordsView from "./RecordsView.tsx";
 import { Database } from "@/kv/models.ts";
+import { DatabaseStatsView } from "./components/DatabaseStatsView.tsx";
 
 // Hooks
 import { useKvSearch } from "./hooks/useKvSearch.ts";
@@ -38,6 +39,8 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     cursorStack,
     limit,
     forceExpandValues,
+    refreshStats,
+    hasPermission: checkPermission,
   } = useContext(DatabaseContext);
 
   const error = useSignal<string | null>(null);
@@ -94,12 +97,15 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
 
   const createEntryRef = useRef<HTMLDialogElement>(null);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
+  const statsModalRef = useRef<HTMLDialogElement>(null);
   const moveRef = useRef<HTMLDialogElement>(null);
   const movePath = useSignal<ApiKvKeyPart[]>([]);
   const moveKeys = useSignal<ApiKvKeyPart[][] | null>(null);
   const moveMode = useSignal<"move" | "copy">("move");
   const selectedEntry = useSignal<ApiKvEntry | null>(null);
   const editingDatabase = useSignal<Database | null>(null);
+  const viewingStatsDatabase = useSignal<Database | null>(null);
+  const viewingStatsPath = useSignal<ApiKvKeyPart[] | null>(null);
 
   useEffect(() => {
     error.value = null;
@@ -232,6 +238,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const toggleExpandAll = () => {
     const next = forceExpandValues.value === true ? false : true;
     forceExpandValues.value = next;
+  };
+
+  const handleSwitchDatabase = (id: string) => {
+    const db = databases.value.find((d) => d.id === id || d.slug === id);
+    const dest = db?.slug || id;
+    globalThis.location.href = `/${dest}${globalThis.location.search}`;
   };
 
   const handleRefresh = async () => {
@@ -448,6 +460,60 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
         onRefresh={handleRefresh}
       />
 
+      {/* Database Stats Modal */}
+      <Dialog
+        ref={statsModalRef}
+        title={viewingStatsPath.value && viewingStatsPath.value.length > 0
+          ? "Node Statistics"
+          : "Database Statistics"}
+      >
+        {(() => {
+          const db = databases.value.find(
+            (d) =>
+              d.id === viewingStatsDatabase.value?.id ||
+              d.slug === viewingStatsDatabase.value?.slug,
+          );
+          if (!db) return null;
+
+          return (
+            <div class="p-1">
+              <h3 class="text-lg font-bold mb-4 flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <span class="opacity-50 font-normal">Stats for</span>
+                  {db.name}
+                </div>
+                {viewingStatsPath.value && viewingStatsPath.value.length > 0 &&
+                  (
+                    <div class="text-xs font-mono opacity-40 break-all bg-base-200 p-2 rounded mt-1">
+                      {KeyCodec.encode(viewingStatsPath.value)}
+                    </div>
+                  )}
+              </h3>
+              <DatabaseStatsView
+                key={`${db.id}-${
+                  KeyCodec.encode(viewingStatsPath.value || [])
+                }`}
+                database={db}
+                path={viewingStatsPath.value || undefined}
+                onRefreshStats={(dbId, path, data) =>
+                  refreshStats(dbId, path, data)}
+              />
+              <div class="modal-action mt-6">
+                <button
+                  type="button"
+                  class="btn"
+                  onClick={() => {
+                    statsModalRef.current?.close();
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Dialog>
+
       <div class="flex-1 flex flex-col h-full min-w-0 bg-base-100">
         <Toolbar
           activeDatabase={activeDatabase}
@@ -462,11 +528,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           searchRegex={searchRegex}
           searchCaseSensitive={searchCaseSensitive}
           onNavigateToRoot={navigateToRoot}
-          onSwitchDatabase={(id) => {
-            const db = databases.value.find((d) => d.id === id);
-            const dest = db?.slug || id;
-            globalThis.location.href = `/${dest}${globalThis.location.search}`;
-          }}
+          onSwitchDatabase={handleSwitchDatabase}
           onNewRecord={() => {
             selectedEntry.value = null;
             createEntryRef.current?.showModal();
@@ -559,13 +621,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           state={contextMenu.value}
           activeDatabase={activeDatabase}
           databases={databases.value}
+          onViewStats={(dbId, path) => {
+            contextMenu.value = null;
+            const db = databases.value.find((d) =>
+              d.id === dbId || d.slug === dbId
+            );
+            if (db) {
+              viewingStatsDatabase.value = db;
+              viewingStatsPath.value = path || null;
+              statsModalRef.current?.showModal();
+            }
+          }}
           onRefresh={handleRefresh}
           onEditDatabase={(dbId) => {
             contextMenu.value = null;
             const db = databases.value.find((d) =>
               d.id === dbId || d.slug === dbId
             );
-            if (db) {
+            if (db && checkPermission("database:manage")) {
               editingDatabase.value = db;
               createDatabaseRef.current?.showModal();
             }
@@ -717,13 +790,20 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       <Dialog ref={createDatabaseRef} title="Edit Database">
         {(editingDatabase.value || activeDatabase) && (
           <ConnectDatabaseForm
+            // The key is essential to force a re-mount when switching database targets,
+            // preventing stale form state (like dbType) from persisting between edits.
+            key={editingDatabase.value?.id || activeDatabase?.id}
             database={editingDatabase.value || activeDatabase}
-            onCancel={() => createDatabaseRef.current?.close()}
+            onCancel={() => {
+              createDatabaseRef.current?.close();
+              editingDatabase.value = null;
+            }}
             onDelete={() => {
               const id = editingDatabase.value?.id || activeDatabase?.id;
               if (id) {
                 api.deleteDatabase(id)
                   .then(() => {
+                    editingDatabase.value = null;
                     globalThis.location.href = "/";
                   })
                   .catch((e) => {
@@ -739,6 +819,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   .then((updatedDb: unknown) => {
                     const db = updatedDb as Database;
                     const target = db.slug || db.id;
+                    editingDatabase.value = null;
                     globalThis.location.href = `/${target}`;
                   });
               }

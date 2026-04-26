@@ -22,7 +22,9 @@ import { Database } from "@/kv/models.ts";
 export default function HomeView(
   { _successMessage }: { _successMessage?: string },
 ) {
-  const { databases, selectedDatabase, api } = useContext(DatabaseContext);
+  const { databases, selectedDatabase, api, hasPermission } = useContext(
+    DatabaseContext,
+  );
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
   const editingDatabase = useSignal<Database | null>(null);
 
@@ -87,23 +89,41 @@ export default function HomeView(
                       </div>
                     </div>
                   </a>
-                  {/* Unpin Button */}
-                  <button
-                    type="button"
-                    class="absolute top-2 right-2 btn btn-xs btn-circle btn-ghost opacity-0 group-hover:opacity-100 transition-opacity bg-base-100 shadow-sm"
-                    title="Unpin"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      api.updateDatabase({ id: db.id, sort: 0 }).then(() => {
-                        // Refresh
-                        api.getDatabases().then((res) =>
-                          databases.value = res.data
-                        );
-                      });
-                    }}
-                  >
-                    <UnpinIcon className="w-3 h-3 text-base-content/50 hover:text-error" />
-                  </button>
+                  {/* Pinned Actions */}
+                  {hasPermission("database:manage") && (
+                    <div class="absolute top-2 right-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        class="btn btn-xs btn-circle btn-ghost bg-base-100 shadow-sm"
+                        title="Edit Database"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          editingDatabase.value = db;
+                          createDatabaseRef.current?.showModal();
+                        }}
+                      >
+                        <EditIcon className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-xs btn-circle btn-ghost bg-base-100 shadow-sm"
+                        title="Unpin"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          api.updateDatabase({ id: db.id, sort: 0 }).then(
+                            () => {
+                              // Refresh
+                              api.getDatabases().then((res) =>
+                                databases.value = res.data
+                              );
+                            },
+                          );
+                        }}
+                      >
+                        <UnpinIcon className="w-3 h-3 text-base-content/50 hover:text-error" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
           </div>
@@ -164,6 +184,22 @@ export default function HomeView(
                       </span>
                     )}
                   </div>
+                  {db.stats && (
+                    <div class="flex gap-2 mt-1 opacity-50 text-[10px] font-mono">
+                      <span
+                        class={db.stats.breakdown
+                          ? "tooltip tooltip-bottom cursor-help"
+                          : ""}
+                        data-tip={db.stats.breakdown
+                          ? `DBs: ${db.stats.breakdown.databases}, Users: ${db.stats.breakdown.users}, Sessions: ${db.stats.breakdown.sessions}, Logs: ${db.stats.breakdown.audit_logs}`
+                          : ""}
+                      >
+                        {db.stats.recordCount.toLocaleString()} recs
+                      </span>
+                      <span>•</span>
+                      <span>{formatSize(db.stats.sizeBytes)}</span>
+                    </div>
+                  )}
                   {db.lastError && (
                     <div
                       class="text-xs text-error font-semibold truncate mt-1"
@@ -184,11 +220,14 @@ export default function HomeView(
                   title="Edit Database"
                   onClick={(e) => {
                     e.preventDefault();
+                    if (!hasPermission("database:manage")) return;
                     editingDatabase.value = db;
                     createDatabaseRef.current?.showModal();
                   }}
                 >
-                  <EditIcon className="w-4 h-4" />
+                  {hasPermission("database:manage") && (
+                    <EditIcon className="w-4 h-4" />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -196,6 +235,7 @@ export default function HomeView(
                   title="Pin to top"
                   onClick={(e) => {
                     e.preventDefault();
+                    if (!hasPermission("database:manage")) return;
                     // Pin with current timestamp to put at top
                     api.updateDatabase({ id: db.id, sort: Date.now() }).then(
                       () => {
@@ -206,28 +246,61 @@ export default function HomeView(
                     );
                   }}
                 >
-                  <PinIcon className="w-4 h-4 -rotate-45" />
+                  {hasPermission("database:manage") && (
+                    <PinIcon className="w-4 h-4 -rotate-45" />
+                  )}
                 </button>
               </div>
             </div>
           );
         })}
-      <div
-        role="button"
-        class="cursor-pointer card card-side bg-base-100/50 border-2 border-dashed border-base-300 p-2 items-center gap-4 hover:border-primary hover:bg-base-100 transition-all group"
-        onClick={() => {
-          selectedDatabase.value = null;
-          editingDatabase.value = null;
-          createDatabaseRef.current?.showModal();
-        }}
-      >
-        <div class="p-3 flex items-center justify-center">
-          <PlusIcon className="w-6 h-6 opacity-40 group-hover:opacity-100 group-hover:text-primary transition-all" />
+      {databases.value.length === 0 && (
+        <div class="flex flex-col items-center justify-center py-20 px-4 text-center bg-base-200/30 rounded-3xl border-2 border-dashed border-base-300">
+          <div class="bg-base-200 p-6 rounded-full mb-4 opacity-50">
+            <DatabaseIcon className="w-12 h-12" />
+          </div>
+          <h3 class="text-xl font-bold mb-2">No Databases Found</h3>
+          <p class="text-base-content/60 max-w-md mx-auto mb-6">
+            {hasPermission("database:manage")
+              ? "You haven't connected any databases yet. Connect your first one to get started!"
+              : "You don't have access to any databases yet. Please contact an administrator to be assigned permissions."}
+          </p>
+          {hasPermission("database:manage") && (
+            <button
+              type="button"
+              class="btn btn-primary btn-lg px-8 rounded-full shadow-lg hover:shadow-primary/20 transition-all"
+              onClick={() => {
+                selectedDatabase.value = null;
+                editingDatabase.value = null;
+                createDatabaseRef.current?.showModal();
+              }}
+            >
+              <PlusIcon className="w-5 h-5 mr-2" />
+              Connect Your First Database
+            </button>
+          )}
         </div>
-        <span class="font-semibold opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all">
-          Connect New Database
-        </span>
-      </div>
+      )}
+
+      {databases.value.length > 0 &&
+        hasPermission("database:manage") && (
+        <div
+          role="button"
+          class="cursor-pointer card card-side bg-base-100/50 border-2 border-dashed border-base-300 p-2 items-center gap-4 hover:border-primary hover:bg-base-100 transition-all group mt-6"
+          onClick={() => {
+            selectedDatabase.value = null;
+            editingDatabase.value = null;
+            createDatabaseRef.current?.showModal();
+          }}
+        >
+          <div class="p-3 flex items-center justify-center">
+            <PlusIcon className="w-6 h-6 opacity-40 group-hover:opacity-100 group-hover:text-primary transition-all" />
+          </div>
+          <span class="font-semibold opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all">
+            Connect New Database
+          </span>
+        </div>
+      )}
 
       <Dialog
         ref={createDatabaseRef}
@@ -270,4 +343,12 @@ export default function HomeView(
       </Dialog>
     </>
   );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }

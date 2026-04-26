@@ -6,6 +6,8 @@ import { KeySerialization } from "./KeySerialization.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "@/kv/db.ts";
 
+export { DatabaseError };
+
 export class DatabaseRepository extends BaseRepository {
   async addDatabase(data: Database) {
     const existingDatabase = await this.kvdex.databases.findByPrimaryIndex(
@@ -184,6 +186,120 @@ export class DatabaseRepository extends BaseRepository {
     );
   }
 
+  private static activeScans = new Set<string>();
+
+  /**
+   * Scans the database to calculate total record count and aggregate size.
+   * This is an O(N) operation and should be used with caution on large databases.
+   */
+  async getDatabaseStats(
+    id: string,
+    pathInfo?: string,
+    userId?: string,
+    timeoutMs?: number,
+  ) {
+    if (userId) {
+      if (DatabaseRepository.activeScans.has(userId)) {
+        throw new DatabaseError(
+          "A statistics scan is already in progress for your account. Please wait for it to complete.",
+        );
+      }
+      DatabaseRepository.activeScans.add(userId);
+    }
+
+    try {
+      const dbDoc = await this.getDatabaseBySlugOrId(id);
+      const kv = await this.connectDatabase(dbDoc.flat());
+      const explorer = new KvExplorer(kv);
+      const prefix = pathInfo ? explorer.parsePath(pathInfo) : [];
+
+      let recordCount = 0;
+      let sizeBytes = 0;
+      const typeDistribution: Record<string, number> = {};
+      const childStats: Record<
+        string,
+        { count: number; size: number; part: ApiKvKeyPart }
+      > = {};
+
+      const startTime = performance.now();
+      const TIMEOUT_MS = (timeoutMs !== undefined)
+        ? timeoutMs
+        : (dbDoc.value.settings?.scanTimeout || 30) * 1000;
+      let isPartial = false;
+
+      const iter = kv.list({ prefix });
+      for await (const entry of iter) {
+        // Check for timeout
+        if (performance.now() - startTime > TIMEOUT_MS) {
+          isPartial = true;
+          break;
+        }
+
+        recordCount++;
+        const valEncoded = ValueCodec.encode(entry.value);
+        const size = explorer.calculateSize(entry.value);
+        sizeBytes += size;
+
+        // Track type distribution
+        const type = valEncoded.type;
+        typeDistribution[type] = (typeDistribution[type] || 0) + 1;
+
+        // Track direct children stats for "Top Nodes"
+        if (entry.key.length > prefix.length) {
+          const childPart = entry.key[prefix.length];
+          // Use native JSON stringify for the key part to ensure absolute stability in the map
+          const childKeyStr = JSON.stringify(childPart);
+
+          if (!childStats[childKeyStr]) {
+            childStats[childKeyStr] = {
+              count: 0,
+              size: 0,
+              part: this.serializeKeyPart(childPart),
+            };
+          }
+          childStats[childKeyStr].count++;
+          childStats[childKeyStr].size += size;
+        }
+      }
+
+      // Convert childStats to a sorted array and limit to top 20
+      const topChildren = Object.values(childStats)
+        .sort((a, b) => b.size - a.size)
+        .slice(0, 20)
+        .map((stats) => ({
+          key: stats.part,
+          size: stats.size,
+          count: stats.count,
+        }));
+
+      const stats = {
+        recordCount,
+        sizeBytes,
+        updatedAt: new Date(),
+        isPartial,
+        path: pathInfo,
+        breakdown: typeDistribution,
+        topChildren,
+      };
+
+      // Only update the main DB stats if we scanned the root
+      if (!pathInfo) {
+        const fullData = { ...dbDoc.flat(), stats: stats as Database["stats"] };
+        await this.kvdex.databases.update(
+          dbDoc.id,
+          fullData,
+          { strategy: "replace" },
+        );
+      }
+
+      return stats;
+    } finally {
+      if (userId) {
+        DatabaseRepository.activeScans.delete(userId);
+      }
+    }
+  }
+
   serializeKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
     return KeySerialization.serialize(part);
   }
@@ -298,6 +414,23 @@ export class DatabaseRepository extends BaseRepository {
       cursor: options.cursor,
       reverse: true,
     });
+  }
+
+  async purgeAuditLogs(options: { before?: Date; databaseId?: string } = {}) {
+    const result = await this.kvdex.audit_logs.deleteMany({
+      filter: (doc) => {
+        if (options.before && doc.value.timestamp >= options.before) {
+          return false;
+        }
+        if (options.databaseId && doc.value.databaseId !== options.databaseId) {
+          return false;
+        }
+        return true;
+      },
+    });
+
+    const deletedCount = (result as unknown as { count: number }).count ?? 0;
+    return { ok: true, deletedCount };
   }
 
   async deleteEntry(slug: string, key: Deno.KvKey) {

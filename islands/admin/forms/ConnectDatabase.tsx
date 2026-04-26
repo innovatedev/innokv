@@ -38,26 +38,19 @@ export default function ConnectDatabaseForm({
 
       // Handle nested settings
       const settings = database?.settings || {};
-      if (payload["settings.prettyPrintDates"]) {
-        payload.settings = {
-          ...settings,
-          prettyPrintDates: payload["settings.prettyPrintDates"] === "true",
-          batchSize: payload["settings.batchSize"]
-            ? parseInt(payload["settings.batchSize"] as string)
-            : settings.batchSize,
-        };
-        delete payload["settings.prettyPrintDates"];
-        delete payload["settings.batchSize"];
-      } else {
-        payload.settings = {
-          ...settings,
-          prettyPrintDates: false,
-          batchSize: payload["settings.batchSize"]
-            ? parseInt(payload["settings.batchSize"] as string)
-            : settings.batchSize,
-        };
-        delete payload["settings.batchSize"];
-      }
+      payload.settings = {
+        ...settings,
+        prettyPrintDates: payload["settings.prettyPrintDates"] === "true",
+        batchSize: payload["settings.batchSize"]
+          ? parseInt(payload["settings.batchSize"] as string)
+          : settings.batchSize,
+        scanTimeout: payload["settings.scanTimeout"]
+          ? parseInt(payload["settings.scanTimeout"] as string)
+          : settings.scanTimeout,
+      };
+      delete payload["settings.prettyPrintDates"];
+      delete payload["settings.batchSize"];
+      delete payload["settings.scanTimeout"];
 
       onSubmit(payload, form);
     }
@@ -231,40 +224,67 @@ export default function ConnectDatabaseForm({
         )
         : <input type="hidden" name="path" value=":memory:" />}
 
-      <div class="flex flex-col gap-2 mt-2">
-        <label class="label cursor-pointer justify-start gap-3 py-1">
-          <input
-            type="checkbox"
-            name="settings.prettyPrintDates"
-            class="checkbox checkbox-xs checkbox-primary"
-            defaultChecked={database?.settings?.prettyPrintDates ?? true}
-            value="true"
-          />
-          <span class="label-text text-sm">Pretty Print Dates</span>
-        </label>
+      {/* Advanced Settings */}
+      <div class="collapse collapse-arrow bg-base-200/30 border border-base-300 mt-2">
+        <input type="checkbox" />
+        <div class="collapse-title text-sm font-medium">
+          Advanced Settings
+        </div>
+        <div class="collapse-content flex flex-col gap-4">
+          <label class="label cursor-pointer justify-start gap-3 py-1">
+            <input
+              type="checkbox"
+              name="settings.prettyPrintDates"
+              class="checkbox checkbox-xs checkbox-primary"
+              defaultChecked={database?.settings?.prettyPrintDates ?? true}
+              value="true"
+            />
+            <span class="label-text text-sm">Pretty Print Dates</span>
+          </label>
 
-        <label class="form-control w-full max-w-xs">
-          <div class="label py-1">
-            <span class="label-text text-xs opacity-70">
-              Batch Size (1-1000)
-            </span>
-            <span class="label-text-alt text-xs opacity-50">Default: 100</span>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs opacity-70">
+                  Batch Size (1-1000)
+                </span>
+              </div>
+              <input
+                type="number"
+                name="settings.batchSize"
+                class="input input-bordered input-sm w-full"
+                min="1"
+                max="1000"
+                defaultValue={database?.settings?.batchSize ?? 100}
+              />
+              <div class="label pt-1 pb-0">
+                <span class="label-text-alt text-[10px] opacity-40 italic">
+                  Records per bulk chunk.
+                </span>
+              </div>
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs opacity-70">
+                  Scan Timeout (s)
+                </span>
+              </div>
+              <input
+                type="number"
+                name="settings.scanTimeout"
+                class="input input-bordered input-sm w-full"
+                min="1"
+                defaultValue={database?.settings?.scanTimeout ?? 30}
+              />
+              <div class="label pt-1 pb-0">
+                <span class="label-text-alt text-[10px] opacity-40 italic">
+                  Max time for stats scan.
+                </span>
+              </div>
+            </label>
           </div>
-          <input
-            type="number"
-            name="settings.batchSize"
-            class="input input-bordered input-xs w-full"
-            min="1"
-            max="1000"
-            defaultValue={database?.settings?.batchSize ?? 100}
-          />
-          <div class="label pt-1 pb-0">
-            <span class="label-text-alt text-[10px] opacity-40 italic">
-              Chunk size for bulk operations (Move, Copy, Import). Larger is
-              faster but risks atomic failure.
-            </span>
-          </div>
-        </label>
+        </div>
       </div>
 
       <div class="modal-action flex justify-between items-center mt-6">

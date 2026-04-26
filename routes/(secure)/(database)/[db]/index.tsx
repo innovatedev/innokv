@@ -35,6 +35,9 @@ export default defineAuth.page(
         initialDatabases={databases}
         initialSelectedDatabase={resolvedDbId}
         initialUserSettings={state.user?.settings}
+        // IMPORTANT: initialPermissions is required for context menu actions (like Edit Database)
+        // to pass checkPermission() calls in the UI.
+        initialPermissions={state.user?.permissions}
       >
         <DatabaseView initialStructure={structure} />
       </DatabaseProvider>

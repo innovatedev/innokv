@@ -4,6 +4,7 @@ const settings = {
   db: {
     path: getDefaultDbPath(),
   },
+  allowRegistration: Deno.env.get("ALLOW_REGISTRATION") !== "false",
   server: {
     port: parseInt(Deno.env.get("PORT") ?? "4665"),
     cookieName: Deno.env.get("SESSION_COOKIE_NAME") ?? "innokv.sid",

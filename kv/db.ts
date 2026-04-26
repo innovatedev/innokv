@@ -72,12 +72,8 @@ export const db = kvdex({
     }),
     sessions: collection(SessionModel, {
       indices: {
-        createdAt: "secondary",
-        updatedAt: "secondary",
         expiresAt: "secondary",
         userId: "secondary",
-        ip: "secondary",
-        userAgent: "secondary",
       },
     }),
     users: collection(UserModel, {

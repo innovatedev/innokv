@@ -17,16 +17,19 @@ import { ComponentChildren } from "preact";
 const DBHoC = ({
   databases,
   userSettings,
+  permissions,
   children,
 }: {
   databases: Database[];
   userSettings: User["settings"];
+  permissions: string[];
   children: ComponentChildren;
 }) => {
   return (
     <DatabaseProvider
       initialDatabases={databases}
       initialUserSettings={userSettings}
+      initialPermissions={permissions}
     >
       {children}
     </DatabaseProvider>
@@ -135,9 +138,13 @@ export default defineAuth.page(function Home({ state }) {
     );
   };
 
-  if (state.plugins.permissions.has("database:manage")) {
+  if (state.plugins.permissions.has("database:read")) {
     return (
-      <DBHoC databases={databases} userSettings={state.user.settings || {}}>
+      <DBHoC
+        databases={databases}
+        userSettings={state.user.settings || {}}
+        permissions={state.user.permissions}
+      >
         <HomeViewWrapper userSettings={state.user.settings}>
           <HomeView />
         </HomeViewWrapper>

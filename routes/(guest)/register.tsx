@@ -2,8 +2,21 @@ import { createUser } from "@/lib/users.ts";
 import { Button } from "@/components/Button.tsx";
 import { define } from "@/utils.ts";
 
+import settings from "@/config/app.ts";
+
 export const handler = define.handlers({
+  async GET(ctx) {
+    if (!settings.allowRegistration) {
+      ctx.state.flash("error", "Registration is disabled");
+      return ctx.redirect("/login");
+    }
+    return await ctx.next();
+  },
   async POST(ctx) {
+    if (!settings.allowRegistration) {
+      ctx.state.flash("error", "Registration is disabled");
+      return ctx.redirect("/login");
+    }
     const form = await ctx.req.formData();
     const username = form.get("username")?.toString();
     const email = form.get("email")?.toString();

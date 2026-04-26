@@ -91,6 +91,19 @@ export const DatabaseModel = z.object({
   settings: z.object({
     prettyPrintDates: z.boolean().optional(),
     batchSize: z.number().min(1).max(1000).default(100).optional(),
+    scanTimeout: z.number().min(1).default(30).optional(),
+  }).optional(),
+  stats: z.object({
+    recordCount: z.number(),
+    sizeBytes: z.number(),
+    updatedAt: z.date(),
+    isPartial: z.boolean().optional(),
+    breakdown: z.record(z.number()).optional(),
+    topChildren: z.array(z.object({
+      key: z.any(),
+      size: z.number(),
+      count: z.number(),
+    })).optional(),
   }).optional(),
 });
 

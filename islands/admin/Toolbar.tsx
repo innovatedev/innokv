@@ -4,7 +4,6 @@ import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import {
   AaIcon,
-  AlertIcon,
   ChevronRightIcon,
   PlusIcon,
   RefreshIcon,
@@ -278,15 +277,6 @@ export default function Toolbar(
           >
             Search
           </button>
-
-          <div
-            class="tooltip tooltip-left ml-1 flex items-center shrink-0 tooltip-neutral"
-            data-tip="Search is in active development. Matches recursively against values (strips type metadata)."
-          >
-            <div class="p-1 rounded-full bg-base-300 text-base-content/50 hover:bg-base-300/80 transition-colors cursor-help">
-              <AlertIcon className="w-3.5 h-3.5" />
-            </div>
-          </div>
         </div>
 
         {activeDatabase && activeDatabase.mode !== "r" && (

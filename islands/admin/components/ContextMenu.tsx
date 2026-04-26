@@ -4,6 +4,7 @@ import {
   DeleteIcon,
   DuplicateIcon,
   EditIcon,
+  InfoIcon,
   RefreshIcon,
 } from "../../../components/icons/ActionIcons.tsx";
 
@@ -25,6 +26,7 @@ interface ContextMenuProps {
   onMove: (path: ApiKvKeyPart[]) => void;
   onDeletePath: (path: ApiKvKeyPart[]) => void;
   onRefreshPath: (path: ApiKvKeyPart[]) => void;
+  onViewStats: (dbId: string, path?: ApiKvKeyPart[]) => void;
 }
 
 export function ContextMenu({
@@ -37,10 +39,12 @@ export function ContextMenu({
   onMove,
   onDeletePath,
   onRefreshPath,
+  onViewStats,
 }: ContextMenuProps) {
   return (
     <div
-      class="fixed z-100 bg-base-100 border border-base-300 shadow-lg rounded py-1 min-w-[150px]"
+      // High z-index is required to appear above breadcrumb dropdowns (z-50) and other overlays
+      class="fixed z-1000 bg-base-100 border border-base-200 shadow-xl rounded-lg py-1 min-w-[180px] backdrop-blur-sm"
       style={{ top: state.y + 2, left: state.x + 2 }}
     >
       {state.type === "database"
@@ -56,11 +60,19 @@ export function ContextMenu({
               }}
             >
               <RefreshIcon className="w-4 h-4" />
-              {activeDatabase &&
-                  (activeDatabase.id === state.dbId ||
-                    activeDatabase.slug === state.dbId)
-                ? "Refresh"
-                : "Open"}
+              Refresh
+            </button>
+            <button
+              type="button"
+              class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
+              onClick={() => {
+                if (state.dbId) {
+                  onViewStats(state.dbId, []);
+                }
+              }}
+            >
+              <InfoIcon className="w-4 h-4" />
+              View Database Stats
             </button>
             <button
               type="button"
@@ -78,6 +90,19 @@ export function ContextMenu({
         )
         : (
           <>
+            <button
+              type="button"
+              class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
+              onClick={() => {
+                const dbId = activeDatabase?.slug || activeDatabase?.id;
+                if (dbId) {
+                  onViewStats(dbId, state.path);
+                }
+              }}
+            >
+              <InfoIcon className="w-4 h-4" />
+              View Stats
+            </button>
             <button
               type="button"
               class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"

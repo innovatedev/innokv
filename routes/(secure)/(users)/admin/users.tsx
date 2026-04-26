@@ -75,6 +75,8 @@ export const handler = defineAuth.handlers({
   },
 });
 
+import { AdminPage } from "@/components/admin/AdminPage.tsx";
+
 export default defineAuth.page(async function AdminUsers({ state }) {
   const users = await getAllUsers();
   users.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -83,35 +85,12 @@ export default defineAuth.page(async function AdminUsers({ state }) {
   const error = state.flash("error");
 
   return (
-    <div class="min-h-screen bg-base-100 text-base-content p-8">
-      <div class="max-w-6xl mx-auto">
-        <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold flex items-center gap-3">
-            <span class="text-brand">Admin</span> Users
-          </h1>
-          <div class="flex gap-2">
-            <a href="/admin/audit-logs" class="btn btn-ghost gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              Audit Logs
-            </a>
-            <a href="/" class="btn btn-ghost gap-2">
-              &larr; Back
-            </a>
-          </div>
-        </div>
-
+    <AdminPage
+      title="Users"
+      subtitle="Manage system access and permissions"
+      currentTab="users"
+    >
+      <div class="p-6">
         {success && (
           <div role="alert" class="alert alert-success mb-6">
             <svg
@@ -151,6 +130,6 @@ export default defineAuth.page(async function AdminUsers({ state }) {
 
         <UsersTable initialUsers={users} currentUserEmail={state.user.email} />
       </div>
-    </div>
+    </AdminPage>
   );
 });

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
 import { ApiKvEntry, ApiKvKeyPart } from "@/lib/types.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
+import { hasPermission } from "@/lib/permissions.ts";
 
 interface DatabaseContextType<DB extends Database = Database> {
   activeDatabase: Database | null;
@@ -28,6 +29,13 @@ interface DatabaseContextType<DB extends Database = Database> {
   searchTarget: Signal<"key" | "value" | "all">;
   searchRegex: Signal<boolean>;
   searchCaseSensitive: Signal<boolean>;
+  refreshStats: (
+    id: string,
+    path?: ApiKvKeyPart[],
+    data?: Database["stats"],
+  ) => Promise<void>;
+  permissions: Signal<string[]>;
+  hasPermission: (permission: string) => boolean;
 }
 
 const defaultContext: DatabaseContextType = {
@@ -51,6 +59,9 @@ const defaultContext: DatabaseContextType = {
   searchTarget: signal("all"),
   searchRegex: signal(false),
   searchCaseSensitive: signal(false),
+  refreshStats: async () => {},
+  permissions: signal([]),
+  hasPermission: () => false,
 };
 
 const DatabaseContext = createContext<DatabaseContextType>(defaultContext);
@@ -59,6 +70,7 @@ interface DatabaseProviderProps<DB extends Database = Database> {
   initialDatabases?: DB[];
   initialSelectedDatabase?: string;
   initialUserSettings?: User["settings"];
+  initialPermissions?: string[];
 }
 
 const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
@@ -66,9 +78,13 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   initialDatabases,
   initialSelectedDatabase,
   initialUserSettings,
+  initialPermissions,
 }) => {
   const databases = useSignal(
     initialDatabases || defaultContext.databases.peek(),
+  );
+  const permissions = useSignal(
+    initialPermissions || defaultContext.permissions.peek(),
   );
   const selectedDatabase = useSignal(
     initialSelectedDatabase || defaultContext.selectedDatabase.peek(),
@@ -316,6 +332,33 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     cursorStack.value = [];
   }, [pathInfo.value, selectedDatabase.value]);
 
+  const refreshStats = async (
+    id: string,
+    path?: ApiKvKeyPart[],
+    data?: Database["stats"],
+  ) => {
+    try {
+      const stats = data ||
+        (await defaultContext.api.refreshStats(id, path)).stats;
+
+      if (stats && !path) {
+        // Update database in list if it was a root scan
+        databases.value = databases.value.map((db) => {
+          if (db.id === id || db.slug === id) {
+            const updated = { ...db, stats: stats as Database["stats"] };
+            if (activeDatabase?.id === db.id) {
+              setActiveDatabase(updated);
+            }
+            return updated;
+          }
+          return db;
+        });
+      }
+    } catch (e) {
+      console.error("Failed to refresh stats:", e);
+    }
+  };
+
   return (
     <DatabaseContext.Provider
       value={{
@@ -339,6 +382,9 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         searchTarget,
         searchRegex,
         searchCaseSensitive,
+        refreshStats,
+        permissions,
+        hasPermission: (p: string) => hasPermission(permissions.value, p),
       }}
     >
       {children}

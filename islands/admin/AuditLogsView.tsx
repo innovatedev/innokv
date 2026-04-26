@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { AuditLog } from "@/kv/models.ts";
+import { ApiKvKeyPart } from "@/lib/types.ts";
 import Dialog from "./Dialog.tsx";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import { ValueDisplay } from "./ValueDisplay.tsx";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
 
-import { SearchIcon } from "../../components/icons/ActionIcons.tsx";
+import {
+  DeleteIcon,
+  DownloadIcon,
+  RefreshIcon,
+  SearchIcon,
+} from "../../components/icons/ActionIcons.tsx";
 
 interface AuditLogsViewProps {
   initialLogs: AuditLog[];
@@ -23,7 +29,12 @@ export default function AuditLogsView(
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
 
+  const [purgeBefore, setPurgeBefore] = useState("");
+  const [purgeDbId, setPurgeDbId] = useState("");
+  const [purging, setPurging] = useState(false);
+
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const purgeRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (selectedLog && dialogRef.current) {
@@ -78,7 +89,9 @@ export default function AuditLogsView(
   const filteredLogs = logs.filter((log) => {
     if (!appliedSearch) return true;
     const searchLower = appliedSearch.toLowerCase();
-    const keyStr = log.key.map((p: Deno.KvKeyPart) => String(p)).join("/")
+    const keyStr = log.key.map((p: ApiKvKeyPart) => String(p.value || p)).join(
+      "/",
+    )
       .toLowerCase();
     const userStr = (log.userId || "system").toLowerCase();
     const actionStr = log.action.toLowerCase();
@@ -95,6 +108,58 @@ export default function AuditLogsView(
   const onClearSearch = () => {
     setSearchQuery("");
     setAppliedSearch("");
+  };
+
+  const handlePurge = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to purge these logs? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setPurging(true);
+    try {
+      const res = await fetch("/api/admin/audit-logs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          before: purgeBefore || undefined,
+          databaseId: purgeDbId || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Successfully purged ${data.deletedCount} logs.`);
+        purgeRef.current?.close();
+        // Refresh logs
+        const refreshRes = await fetch("/api/admin/audit-logs");
+        const refreshData = await refreshRes.json();
+        setLogs(
+          (refreshData.result || []).map((
+            l: { id: string; value: Omit<AuditLog, "id"> },
+          ) => ({ id: l.id, ...l.value })),
+        );
+      } else {
+        const err = await res.json();
+        alert(`Purge failed: ${err.message}`);
+      }
+    } finally {
+      setPurging(false);
+    }
+  };
+
+  const handleExport = () => {
+    // Export currently loaded logs
+    const dataStr = JSON.stringify(logs, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `audit-logs-${new Date().toISOString().split("T")[0]}.json`;
+    link.click();
   };
 
   return (
@@ -144,7 +209,23 @@ export default function AuditLogsView(
         <div class="flex gap-2">
           <button
             type="button"
-            class="btn btn-ghost btn-sm"
+            class="btn btn-neutral btn-sm gap-2"
+            onClick={handleExport}
+          >
+            <DownloadIcon className="w-4 h-4" />
+            Export
+          </button>
+          <button
+            type="button"
+            class="btn btn-error btn-outline btn-sm gap-2"
+            onClick={() => purgeRef.current?.showModal()}
+          >
+            <DeleteIcon className="w-4 h-4" />
+            Purge
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm gap-2"
             onClick={async () => {
               setLoading(true);
               try {
@@ -166,7 +247,8 @@ export default function AuditLogsView(
           >
             {loading
               ? <span class="loading loading-spinner loading-xs"></span>
-              : "Refresh"}
+              : <RefreshIcon className="w-4 h-4" />}
+            Refresh
           </button>
         </div>
       </div>
@@ -377,6 +459,63 @@ export default function AuditLogsView(
             </div>
           </div>
         )}
+      </Dialog>
+
+      <Dialog ref={purgeRef} title="Purge Audit Logs">
+        <div class="flex flex-col gap-4">
+          <p class="text-sm opacity-70">
+            Permanently delete audit logs matching the criteria below.
+          </p>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-bold">Older Than</span>
+            </label>
+            <input
+              type="date"
+              class="input input-bordered"
+              value={purgeBefore}
+              onInput={(e) => setPurgeBefore(e.currentTarget.value)}
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-bold">Database (Optional)</span>
+            </label>
+            <select
+              class="select select-bordered"
+              value={purgeDbId}
+              onChange={(e) => setPurgeDbId(e.currentTarget.value)}
+            >
+              <option value="">All Databases</option>
+              {databases.map((db) => (
+                <option key={db.id} value={db.id}>{db.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="modal-action">
+            <button
+              type="button"
+              class="btn btn-ghost"
+              onClick={() => purgeRef.current?.close()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-error"
+              onClick={handlePurge}
+              disabled={purging}
+            >
+              {purging && (
+                <span class="loading loading-spinner loading-xs"></span>
+              )}
+              Purge Logs
+            </button>
+          </div>
+        </div>
       </Dialog>
     </div>
   );
