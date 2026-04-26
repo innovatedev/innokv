@@ -42,13 +42,21 @@ export default function ConnectDatabaseForm({
         payload.settings = {
           ...settings,
           prettyPrintDates: payload["settings.prettyPrintDates"] === "true",
+          batchSize: payload["settings.batchSize"]
+            ? parseInt(payload["settings.batchSize"] as string)
+            : settings.batchSize,
         };
         delete payload["settings.prettyPrintDates"];
+        delete payload["settings.batchSize"];
       } else {
         payload.settings = {
           ...settings,
           prettyPrintDates: false,
+          batchSize: payload["settings.batchSize"]
+            ? parseInt(payload["settings.batchSize"] as string)
+            : settings.batchSize,
         };
+        delete payload["settings.batchSize"];
       }
 
       onSubmit(payload, form);
@@ -223,8 +231,8 @@ export default function ConnectDatabaseForm({
         )
         : <input type="hidden" name="path" value=":memory:" />}
 
-      <div class="form-control mt-2">
-        <label class="label cursor-pointer justify-start gap-3">
+      <div class="flex flex-col gap-2 mt-2">
+        <label class="label cursor-pointer justify-start gap-3 py-1">
           <input
             type="checkbox"
             name="settings.prettyPrintDates"
@@ -233,6 +241,26 @@ export default function ConnectDatabaseForm({
             value="true"
           />
           <span class="label-text text-sm">Pretty Print Dates</span>
+        </label>
+
+        <label class="form-control w-full max-w-xs">
+          <div class="label py-1">
+            <span class="label-text text-xs opacity-70">Batch Size (1-1000)</span>
+            <span class="label-text-alt text-xs opacity-50">Default: 100</span>
+          </div>
+          <input
+            type="number"
+            name="settings.batchSize"
+            class="input input-bordered input-xs w-full"
+            min="1"
+            max="1000"
+            defaultValue={database?.settings?.batchSize ?? 100}
+          />
+          <div class="label pt-1 pb-0">
+            <span class="label-text-alt text-[10px] opacity-40 italic">
+              Chunk size for bulk operations (Move, Copy, Import). Larger is faster but risks atomic failure.
+            </span>
+          </div>
         </label>
       </div>
 

@@ -13,7 +13,10 @@ import { serialize } from "node:v8";
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
 
-  private calculateSize(val: unknown): number {
+  /**
+   * Calculates the approximate size of a value in bytes using V8 serialization.
+   */
+  public calculateSize(val: unknown): number {
     try {
       return serialize(val).byteLength;
     } catch {
@@ -241,7 +244,9 @@ export class KvExplorer {
     newPrefix: Deno.KvKey,
     recursive = true,
     targetKv?: Deno.Kv,
+    options: { batchSize?: number } = {},
   ): Promise<{ ok: boolean; movedCount: number }> {
+    const batchSize = options.batchSize ?? 100;
     let movedCount = 0;
     const destKv = targetKv ?? this.kv;
     const isCrossDb = destKv !== this.kv;
@@ -252,6 +257,11 @@ export class KvExplorer {
       if (rootEntry.value !== null) {
         if (isCrossDb) {
           await destKv.set(newPrefix, rootEntry.value);
+          // Verify write before delete
+          const verify = await destKv.get(newPrefix);
+          if (verify.versionstamp === null) {
+            throw new Error(`Failed to verify write for key: ${JSON.stringify(newPrefix)}`);
+          }
           await this.kv.delete(oldPrefix);
           movedCount++;
         } else {
@@ -278,6 +288,11 @@ export class KvExplorer {
 
       if (isCrossDb) {
         await destKv.set(newKey, entry.value);
+        // Verify write before delete
+        const verify = await destKv.get(newKey);
+        if (verify.versionstamp === null) {
+          throw new Error(`Failed to verify write for key: ${JSON.stringify(newKey)}`);
+        }
         await this.kv.delete(entry.key);
         movedCount++;
       } else {
@@ -285,7 +300,7 @@ export class KvExplorer {
         count += 2; // 1 delete + 1 set
         movedCount++;
 
-        if (count >= 100) {
+        if (count >= batchSize) {
           const res = await atomic.commit();
           if (!res.ok) {
             throw new Error(
@@ -371,14 +386,38 @@ export class KvExplorer {
    */
   async importFromJson(
     entries: ApiKvEntry<RichValue>[],
+    options: { batchSize?: number } = {},
   ): Promise<{ importedCount: number }> {
+    const batchSize = options.batchSize ?? 100;
     let importedCount = 0;
+    let atomic = this.kv.atomic();
+    let count = 0;
+
     for (const entry of entries) {
       const key = entry.key.map((p) => this.parseKeyPart(p));
       const value = ValueCodec.decode(entry.value);
-      await this.kv.set(key, value);
+
+      atomic.set(key, value);
+      count++;
       importedCount++;
+
+      if (count >= batchSize) {
+        const res = await atomic.commit();
+        if (!res.ok) {
+          throw new Error(`Failed to commit atomic import batch at record ${importedCount}`);
+        }
+        atomic = this.kv.atomic();
+        count = 0;
+      }
     }
+
+    if (count > 0) {
+      const res = await atomic.commit();
+      if (!res.ok) {
+        throw new Error(`Failed to commit final atomic import batch`);
+      }
+    }
+
     return { importedCount };
   }
 

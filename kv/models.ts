@@ -89,6 +89,7 @@ export const DatabaseModel = z.object({
   sort: z.number().optional(),
   settings: z.object({
     prettyPrintDates: z.boolean().optional(),
+    batchSize: z.number().min(1).max(1000).default(100).optional(),
   }).optional(),
 });
 

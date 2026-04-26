@@ -417,6 +417,7 @@ export class DatabaseRepository extends BaseRepository {
         newPrefix,
         options.recursive ?? true,
         targetKv,
+        { batchSize: databaseDoc.value.settings?.batchSize },
       );
     }
 
@@ -443,6 +444,7 @@ export class DatabaseRepository extends BaseRepository {
           [...newPrefix, ...relativeKey],
           options.recursive ?? true,
           targetKv,
+          { batchSize: databaseDoc.value.settings?.batchSize },
         );
         totalMoved += result.movedCount;
       }
@@ -559,14 +561,13 @@ export class DatabaseRepository extends BaseRepository {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
 
     let importedCount = 0;
-    for (const entry of entries) {
-      const key = entry.key.map((p) => this.parseKeyPart(p));
-      const value = ValueCodec.decode(entry.value);
-      await kv.set(key, value);
-      importedCount++;
-    }
+    const batchSize = databaseDoc.value.settings?.batchSize ?? 100;
+
+    const result = await explorer.importFromJson(entries, { batchSize });
+    importedCount = result.importedCount;
 
     return { ok: true, importedCount };
   }
@@ -606,6 +607,13 @@ export class DatabaseRepository extends BaseRepository {
       limit: options.limit,
       cursor: options.cursor,
     });
+  }
+
+  calculateValueSize(value: RichValue): number {
+    const decoded = ValueCodec.decode(value);
+    // deno-lint-ignore no-explicit-any
+    const explorer = new KvExplorer(null as any);
+    return explorer.calculateSize(decoded);
   }
 
   static memoryInstances = new Map<string, Deno.Kv>();

@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
 import { ObjectEditor } from "./ObjectEditor.tsx";
 import { ArrayEditor } from "./ArrayEditor.tsx";
@@ -23,7 +23,10 @@ export default function RichValueEditor({
   depth = 0,
   isReadOnly = false,
 }: RichValueEditorProps) {
-  // Derived state directly from props to avoid sync issues
+  const [size, setSize] = useState<number | null>(null);
+  const [isCalculatingSize, setIsCalculatingSize] = useState(false);
+
+  // Derivied state directly from props to avoid sync issues
   const type = value.type;
   const val = value.value;
 
@@ -35,6 +38,34 @@ export default function RichValueEditor({
   const [collapsed, setCollapsed] = useState(
     depth > 0 && isContainerType(type),
   );
+
+  useEffect(() => {
+    let active = true;
+    const timeout = setTimeout(async () => {
+      if (!active) return;
+      setIsCalculatingSize(true);
+      try {
+        const res = await fetch("/api/database/utils", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "calculate-size", value }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (active) setSize(data.size);
+        }
+      } catch (err) {
+        console.error("Failed to calculate size", err);
+      } finally {
+        if (active) setIsCalculatingSize(false);
+      }
+    }, 500);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [value]);
 
   const handleTypeChange = (newType: RichValueType) => {
     onChange({ type: newType, value: ValueCodec.getDefaultValue(newType) });
@@ -123,6 +154,19 @@ export default function RichValueEditor({
             <option value="URL">URL</option>
           </optgroup>
         </select>
+        {size !== null && (
+          <div
+            class={`badge badge-ghost badge-xs gap-1 py-2 ${
+              size > 65536 ? "badge-error text-white" : ""
+            }`}
+            title={size > 65536
+              ? "Exceeds Deno KV 64KB limit!"
+              : "V8 serialized size"}
+          >
+            {isCalculatingSize && <span class="loading loading-spinner loading-xs"></span>}
+            {(size / 1024).toFixed(2)} KB
+          </div>
+        )}
       </div>
 
       {!collapsed && (
