@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.1
+
+- **JSR Publication Hardening**:
+  - Resolved all publication blockers: missing version constraints, external `https` imports, and restricted triple-slash directives.
+
 ## v0.3.0
 
 > [!CAUTION]
@@ -9,6 +14,9 @@ All notable changes to this project will be documented in this file.
 > standardized to a numeric array format. JSON exports before v0.3.0 are no
 > longer compatible and must be re-exported.
 
+- **New JSR Submodules**:
+  - `@innovatedev/innokv/migrations`: A generic, standalone KV migration engine.
+  - `@innovatedev/innokv/codec`: Unified serialization layer for keys and values.
 - **Unified URL State**: Navigation paths and search queries are now
   synchronized with the URL, enabling bookmarking and browser back/forward
   button support.
@@ -21,8 +29,7 @@ All notable changes to this project will be documented in this file.
   root.
 - **Bulk Operations**: Perform recursive moves, duplications, and deletions on
   multiple selected records or entire path prefixes.
-- **UX Refinements**: Standardized server port (4665), improved alignment, and
-  persistent search settings when switching databases.
+- **UX & Documentation**: Overhauled `README.md` and standardized server port (4665).
 
 ## v0.2.0
 
