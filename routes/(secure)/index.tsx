@@ -59,9 +59,32 @@ export default defineAuth.page(function Home({ state }) {
             <a
               href="/admin/users"
               class="btn btn-sm btn-ghost hover:bg-brand/20 hover:text-brand gap-2 transition-colors"
+              title="Manage Users"
             >
               <UsersIcon className="w-4 h-4" />
-              Admin
+              Users
+            </a>
+          )}
+          {state.plugins.permissions.has("admin:audit_logs") && (
+            <a
+              href="/admin/audit-logs"
+              class="btn btn-sm btn-ghost hover:bg-brand/20 hover:text-brand gap-2 transition-colors"
+              title="View Audit Logs"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Audit
             </a>
           )}
           <Dropdown

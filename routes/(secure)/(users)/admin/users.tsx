@@ -89,9 +89,27 @@ export default defineAuth.page(async function AdminUsers({ state }) {
           <h1 class="text-3xl font-bold flex items-center gap-3">
             <span class="text-brand">Admin</span> Users
           </h1>
-          <a href="/" class="btn btn-ghost gap-2">
-            &larr; Back to Dashboard
-          </a>
+          <div class="flex gap-2">
+            <a href="/admin/audit-logs" class="btn btn-ghost gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Audit Logs
+            </a>
+            <a href="/" class="btn btn-ghost gap-2">
+              &larr; Back
+            </a>
+          </div>
         </div>
 
         {success && (

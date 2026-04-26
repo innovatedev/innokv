@@ -1,4 +1,4 @@
-import { Database, DatabaseModel } from "@/kv/models.ts";
+import { AuditLogValue, Database, DatabaseModel } from "@/kv/models.ts";
 import { ApiKvKeyPart } from "./types.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 import { RichValue, ValueCodec } from "./ValueCodec.ts";
@@ -242,6 +242,56 @@ export class DatabaseRepository extends BaseRepository {
     return await kv.set(key, value);
   }
 
+  async addAuditLog(
+    log: Omit<AuditLogValue, "timestamp">,
+  ) {
+    try {
+      await this.kvdex.audit_logs.add({
+        ...log,
+        timestamp: new Date(),
+      });
+    } catch (err) {
+      console.error("Failed to add audit log:", err);
+    }
+  }
+
+  async getAuditLogs(options: {
+    userId?: string;
+    databaseId?: string;
+    action?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}) {
+    // kvdex getMany supports secondary index filtering if implemented, 
+    // but here we might need to use getMany and filter in JS if kvdex version is old.
+    // Actually let's use the most efficient way available.
+    
+    // For now, we'll list all and filter as kvdex handles the listing.
+    // Ideally we'd use findBySecondaryIndex if we only filter by ONE field.
+    
+    if (options.userId) {
+      return await this.kvdex.audit_logs.findBySecondaryIndex("userId", options.userId, {
+        limit: options.limit,
+        cursor: options.cursor,
+        reverse: true,
+      });
+    }
+
+    if (options.databaseId) {
+      return await this.kvdex.audit_logs.findBySecondaryIndex("databaseId", options.databaseId, {
+        limit: options.limit,
+        cursor: options.cursor,
+        reverse: true,
+      });
+    }
+
+    return await this.kvdex.audit_logs.getMany({
+      limit: options.limit,
+      cursor: options.cursor,
+      reverse: true,
+    });
+  }
+
   async deleteEntry(slug: string, key: Deno.KvKey) {
     await this.ensureWritable(slug);
     const databaseDoc = await this.getDatabaseBySlugOrId(slug);
@@ -299,10 +349,20 @@ export class DatabaseRepository extends BaseRepository {
     versionstamp: string | null = null,
     oldKey?: Deno.KvKey,
     expiresAt?: number | null,
+    userId?: string,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
+
+    // Capture old value for audit log if possible
+    let oldValue: RichValue | undefined;
+    if (versionstamp || oldKey) {
+      const existing = await kv.get(oldKey || key);
+      if (existing.value !== null) {
+        oldValue = ValueCodec.encode(existing.value);
+      }
+    }
 
     // Decode if it's a RichValue from the UI
     let decodedValue = value;
@@ -336,22 +396,72 @@ export class DatabaseRepository extends BaseRepository {
       }
     }
 
-    return await kv.set(key, decodedValue, { expireIn });
+    const result = await kv.set(key, decodedValue, { expireIn });
+
+    if (result.ok) {
+      this.addAuditLog({
+        userId,
+        databaseId: databaseDoc.id,
+        action: oldKey ? "move" : "set",
+        key: [...key],
+        oldValue,
+        newValue: ValueCodec.encode(decodedValue),
+        details: oldKey
+          ? {
+            oldKey: oldKey.map((p) => this.serializeKeyPart(p)),
+            versionstamp,
+          }
+          : { versionstamp },
+      });
+    }
+
+    return result;
   }
 
-  async incrementRecord(databaseId: string, key: Deno.KvKey, amount: bigint) {
+  async incrementRecord(
+    databaseId: string,
+    key: Deno.KvKey,
+    amount: bigint,
+    userId?: string,
+  ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
-    return await kv.atomic().sum(key, amount).commit();
+    const result = await kv.atomic().sum(key, amount).commit();
+
+    if (result.ok) {
+      this.addAuditLog({
+        userId,
+        databaseId: databaseDoc.id,
+        action: "increment",
+        key: [...key],
+        newValue: ValueCodec.encode(amount),
+        details: { amount: String(amount) },
+      });
+    }
+
+    return result;
   }
 
-  async deleteRecord(databaseId: string, key: Deno.KvKey) {
+  async deleteRecord(databaseId: string, key: Deno.KvKey, userId?: string) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
-    return await kv.delete(key);
+    const existing = await kv.get(key);
+    const result = await kv.delete(key);
+
+    this.addAuditLog({
+      userId,
+      databaseId: databaseDoc.id,
+      action: "delete",
+      key: [...key],
+      oldValue: existing.value !== null
+        ? ValueCodec.encode(existing.value)
+        : undefined,
+    });
+
+    return result;
   }
 
   async deleteRecords(
@@ -362,12 +472,21 @@ export class DatabaseRepository extends BaseRepository {
       pathInfo?: string;
       recursive?: boolean;
     },
+    userId?: string,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
 
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
+
+    this.addAuditLog({
+      userId,
+      databaseId: databaseDoc.id,
+      action: "delete",
+      key: options.pathInfo ? explorer.parsePath(options.pathInfo) : [],
+      details: { ...options },
+    });
 
     if (options.all) {
       const prefix = options.pathInfo
@@ -395,11 +514,20 @@ export class DatabaseRepository extends BaseRepository {
       targetId?: string;
       sourcePath?: string;
     },
+    userId?: string,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
+
+    this.addAuditLog({
+      userId,
+      databaseId: databaseDoc.id,
+      action: "move",
+      key: options.newPath ? explorer.parsePath(options.newPath) : [],
+      details: { ...options },
+    });
 
     let targetKv: Deno.Kv | undefined;
     if (options.targetId && options.targetId !== databaseId) {
@@ -464,6 +592,7 @@ export class DatabaseRepository extends BaseRepository {
       targetId?: string;
       sourcePath?: string;
     },
+    userId?: string,
   ) {
     if (!options.targetId || options.targetId === databaseId) {
       await this.ensureWritable(databaseId);
@@ -471,6 +600,14 @@ export class DatabaseRepository extends BaseRepository {
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
+
+    this.addAuditLog({
+      userId,
+      databaseId: databaseDoc.id,
+      action: "copy",
+      key: options.newPath ? explorer.parsePath(options.newPath) : [],
+      details: { ...options },
+    });
 
     let targetKv: Deno.Kv | undefined;
     if (options.targetId && options.targetId !== databaseId) {
@@ -557,6 +694,7 @@ export class DatabaseRepository extends BaseRepository {
   async importRecords(
     databaseId: string,
     entries: { key: ApiKvKeyPart[]; value: RichValue }[],
+    userId?: string,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
@@ -568,6 +706,14 @@ export class DatabaseRepository extends BaseRepository {
 
     const result = await explorer.importFromJson(entries, { batchSize });
     importedCount = result.importedCount;
+
+    this.addAuditLog({
+      userId,
+      databaseId: databaseDoc.id,
+      action: "import",
+      key: [],
+      details: { importedCount },
+    });
 
     return { ok: true, importedCount };
   }

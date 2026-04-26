@@ -1,5 +1,5 @@
 import { collection, kvdex } from "@olli/kvdex";
-import { ApiTokenModel, AppConfigModel, DatabaseModel } from "@/kv/models.ts";
+import { ApiTokenModel, AppConfigModel, AuditLogModel, DatabaseModel } from "@/kv/models.ts";
 import { dirname } from "jsr:@std/path@1.0.8";
 import { SessionModel } from "@/kv/models.ts";
 import { UserModel } from "@/kv/models.ts";
@@ -95,5 +95,13 @@ export const db = kvdex({
       },
     }),
     config: collection(AppConfigModel),
+    audit_logs: collection(AuditLogModel, {
+      indices: {
+        userId: "secondary",
+        databaseId: "secondary",
+        timestamp: "secondary",
+        action: "secondary",
+      },
+    }),
   },
 });

@@ -38,6 +38,23 @@ export class KeyCodec {
       return p.value as string;
     });
   }
+  /**
+   * Converts a native Deno.KvKey to ApiKvKeyPart[] format.
+   */
+  static fromNative(key: Deno.KvKey): ApiKvKeyPart[] {
+    return key.map((p) => this.fromNativePart(p));
+  }
+
+  static fromNativePart(part: Deno.KvKeyPart): ApiKvKeyPart {
+    if (typeof part === "string") return { type: "string", value: part };
+    if (typeof part === "number") return { type: "number", value: part };
+    if (typeof part === "boolean") return { type: "boolean", value: part };
+    if (typeof part === "bigint") return { type: "bigint", value: String(part) };
+    if (part instanceof Uint8Array) {
+      return { type: "Uint8Array", value: Array.from(part) };
+    }
+    return { type: "string", value: String(part) };
+  }
 
   static decode(str: string): ApiKvKeyPart[] {
     const parts: ApiKvKeyPart[] = [];

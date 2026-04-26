@@ -75,6 +75,7 @@ export const handler = BaseRepository.handlers({
           id as string,
           key,
           BigInt(amount as string | number | bigint),
+          ctx.state.userId,
         );
       }
 
@@ -94,6 +95,7 @@ export const handler = BaseRepository.handlers({
         versionstamp as string | null,
         oldKey,
         expiresAt as number | null,
+        ctx.state.userId,
       );
     }),
   PATCH: (ctx) =>
@@ -147,9 +149,9 @@ export const handler = BaseRepository.handlers({
       };
 
       if (mode === "copy") {
-        return await db.copyRecords(id, options);
+        return await db.copyRecords(id, options, ctx.state.userId);
       }
-      return await db.moveRecords(id, options);
+      return await db.moveRecords(id, options, ctx.state.userId);
     }),
   PUT: (ctx) =>
     db.handleApiCall(ctx, async (rawData) => {
@@ -160,7 +162,7 @@ export const handler = BaseRepository.handlers({
       const { id, entries } = data;
       if (!id || !entries) throw new Error("Missing required fields");
       ctx.state.plugins.permissions.requires(`database:write:${id}`);
-      return await db.importRecords(id, entries);
+      return await db.importRecords(id, entries, ctx.state.userId);
     }),
   DELETE: (ctx) =>
     db.handleApiCall(ctx, async (rawData) => {
@@ -178,7 +180,7 @@ export const handler = BaseRepository.handlers({
       // Single key delete
       if (wireKey) {
         const key = (wireKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
-        return db.deleteRecord(database.id, key);
+        return db.deleteRecord(database.id, key, ctx.state.userId);
       }
 
       // Bulk delete
@@ -194,6 +196,6 @@ export const handler = BaseRepository.handlers({
         all: all as boolean | undefined,
         pathInfo: pathInfo as string | undefined,
         recursive: recursive as boolean | undefined,
-      });
+      }, ctx.state.userId);
     }),
 });

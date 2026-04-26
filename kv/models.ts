@@ -10,6 +10,7 @@ export type User = z.infer<typeof UserModel> & { id: string };
 export type Database = z.infer<typeof DatabaseModel> & { id: string };
 export type Session = z.infer<typeof SessionModel> & { id: string };
 export type ApiToken = z.infer<typeof ApiTokenModel> & { id: string };
+export type AuditLog = z.infer<typeof AuditLogModel> & { id: string };
 
 /**
  * Base types representing strictly the value stored in Deno KV.
@@ -101,3 +102,16 @@ export const AppConfigModel = z.object({
 
 export type AppConfig = z.infer<typeof AppConfigModel> & { id: string };
 export type AppConfigValue = z.infer<typeof AppConfigModel>;
+
+export const AuditLogModel = z.object({
+  userId: z.string().optional(),
+  databaseId: z.string(),
+  action: z.enum(["set", "delete", "move", "copy", "import", "increment"]),
+  key: z.any(), // Store raw Deno.KvKey
+  oldValue: z.any().optional(), // Store serialized RichValue or null
+  newValue: z.any().optional(),
+  timestamp: z.date(),
+  details: z.record(z.any()).optional(),
+});
+
+export type AuditLogValue = z.infer<typeof AuditLogModel>;
