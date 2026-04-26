@@ -1,4 +1,4 @@
-import { dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { dirname } from "@std/path";
 import { getDefaultConfigPath } from "@/lib/paths.ts";
 
 export interface CliConfig {

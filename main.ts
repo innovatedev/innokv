@@ -1,9 +1,7 @@
-/// <reference lib="deno.unstable" />
 import { App, csrf, staticFiles } from "fresh";
 import { type State } from "./utils.ts";
 import { session } from "@/config/session.ts";
 
-// CLI Handler - Use dynamic import to avoid Vite/SSR analysis of CLI dependencies
 // CLI Handler - Use dynamic import to avoid Vite/SSR analysis of CLI dependencies
 if (import.meta.main) {
   if (
