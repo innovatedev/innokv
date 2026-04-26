@@ -502,10 +502,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               }
             });
           }}
-          onEditDatabase={() => {
-            editingDatabase.value = activeDatabase;
-            createDatabaseRef.current?.showModal();
-          }}
         />
 
         <RecordsView
@@ -566,7 +562,9 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onRefresh={handleRefresh}
           onEditDatabase={(dbId) => {
             contextMenu.value = null;
-            const db = databases.value.find((d) => d.id === dbId || d.slug === dbId);
+            const db = databases.value.find((d) =>
+              d.id === dbId || d.slug === dbId
+            );
             if (db) {
               editingDatabase.value = db;
               createDatabaseRef.current?.showModal();

@@ -7,7 +7,8 @@ export type ApiKvKey = ApiKvKeyPart[];
 export type ApiKvEntry<T = unknown> = {
   key: ApiKvKey;
   value: T;
-  versionstamp: string;
+  versionstamp?: string;
+  size?: number;
   expiresAt?: number | null;
 };
 
@@ -33,6 +34,7 @@ export type SearchResult = {
   key: ApiKvKey;
   value: unknown;
   versionstamp: string;
+  size?: number;
   expiresAt?: number | null;
   matchTarget: "key" | "value";
 };

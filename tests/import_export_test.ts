@@ -7,14 +7,22 @@ Deno.test("Recursive Operations - Export/Import", async (t) => {
 
   // Setup data
   await kv.set(["data", "a"], "val_a");
-  await kv.set(["data", "b", "c"], "val_c");
+  await kv.set(["data", "b", "c"], {
+    date: new Date("2024-01-01T00:00:00Z"),
+    big: 123n,
+    u8: new Uint8Array([1, 2, 3]),
+  });
+  await kv.set(["data", 123n], "bigint-key");
   await kv.set(["other"], "ignore");
 
   await t.step("Export data under 'data'", async () => {
     const exported = await explorer.exportToJson(["data"]);
-    assertEquals(exported.length, 2);
-    // Check that one has key part "a"
-    assert(exported.some((e) => e.key.some((p) => p.value === "a")));
+    assertEquals(exported.length, 3);
+    assert(
+      exported.some((e) =>
+        e.key.some((p) => p.type === "bigint" && p.value === "123")
+      ),
+    );
   });
 
   await t.step("Import data to 'restored'", async () => {
@@ -27,13 +35,22 @@ Deno.test("Recursive Operations - Export/Import", async (t) => {
     });
 
     const result = await explorer.importFromJson(importedData);
-    assertEquals(result.importedCount, 2);
+    assertEquals(result.importedCount, 3);
 
     const valA = await kv.get(["restored", "a"]);
     assertEquals(valA.value, "val_a");
 
     const valC = await kv.get(["restored", "b", "c"]);
-    assertEquals(valC.value, "val_c");
+    const val = valC.value as { date: Date; big: bigint; u8: Uint8Array };
+    assertEquals(
+      val.date.getTime(),
+      new Date("2024-01-01T00:00:00Z").getTime(),
+    );
+    assertEquals(val.big, 123n);
+    assertEquals(Array.from(val.u8), [1, 2, 3]);
+
+    const valBigKey = await kv.get(["restored", 123n]);
+    assertEquals(valBigKey.value, "bigint-key");
   });
 
   kv.close();

@@ -1,4 +1,5 @@
 import {
+  ApiKvEntry,
   ApiKvKeyPart,
   type DbNode,
   type SearchOptions,
@@ -7,9 +8,18 @@ import {
 import { KeyCodec } from "./KeyCodec.ts";
 import { RichValue, ValueCodec } from "./ValueCodec.ts";
 import { KeySerialization } from "./KeySerialization.ts";
+import { serialize } from "node:v8";
 
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
+
+  private calculateSize(val: unknown): number {
+    try {
+      return serialize(val).byteLength;
+    } catch {
+      return 0;
+    }
+  }
 
   /**
    * Retrieves tree structure under a prefix.
@@ -130,14 +140,14 @@ export class KvExplorer {
   async getRecords(
     prefix: Deno.KvKey,
     options: { limit?: number; cursor?: string; recursive?: boolean } = {},
-  ) {
+  ): Promise<{ records: ApiKvEntry<RichValue>[]; cursor: string }> {
     const limit = options.limit ?? 100;
     const recursive = options.recursive ?? true;
 
     let start: Deno.KvKey | undefined;
     if (options.cursor) {
       try {
-        start = JSON.parse(options.cursor);
+        start = this.parsePath(options.cursor);
       } catch { /* ignore invalid cursor */ }
     }
 
@@ -157,7 +167,9 @@ export class KvExplorer {
     if (records.length > limit) {
       const next = records.pop();
       if (next) {
-        nextCursor = JSON.stringify(next.key);
+        nextCursor = KeyCodec.encode(
+          next.key.map((p) => this.stringifyKeyPart(p)),
+        );
       }
     }
 
@@ -165,6 +177,7 @@ export class KvExplorer {
       ...entry,
       key: entry.key.map((p) => this.stringifyKeyPart(p)),
       value: ValueCodec.encode(entry.value),
+      size: this.calculateSize(entry.value),
     }));
 
     return { records: apiRecords, cursor: nextCursor };
@@ -182,20 +195,41 @@ export class KvExplorer {
     return KeyCodec.decode(pathInfo).map((p) => this.parseKeyPart(p));
   }
 
-  async deleteRecords(prefix: Deno.KvKey, recursive = true) {
+  async deleteRecords(
+    prefix: Deno.KvKey,
+    recursive = true,
+  ): Promise<{ ok: boolean; deletedCount: number }> {
+    let deletedCount = 0;
     // Delete the prefix itself if it exists
     if (prefix.length > 0) {
       await this.kv.delete(prefix);
+      deletedCount++;
     }
 
     const iter = this.kv.list({ prefix });
+    let atomic = this.kv.atomic();
+    let count = 0;
+
     for await (const entry of iter) {
       if (!recursive && entry.key.length > prefix.length + 1) {
         continue;
       }
-      await this.kv.delete(entry.key);
+      atomic.delete(entry.key);
+      count++;
+      deletedCount++;
+
+      if (count >= 100) {
+        await atomic.commit();
+        atomic = this.kv.atomic();
+        count = 0;
+      }
     }
-    return { ok: true };
+
+    if (count > 0) {
+      await atomic.commit();
+    }
+
+    return { ok: true, deletedCount };
   }
 
   /**
@@ -207,7 +241,7 @@ export class KvExplorer {
     newPrefix: Deno.KvKey,
     recursive = true,
     targetKv?: Deno.Kv,
-  ) {
+  ): Promise<{ ok: boolean; movedCount: number }> {
     let movedCount = 0;
     const destKv = targetKv ?? this.kv;
     const isCrossDb = destKv !== this.kv;
@@ -217,12 +251,10 @@ export class KvExplorer {
       const rootEntry = await this.kv.get(oldPrefix);
       if (rootEntry.value !== null) {
         if (isCrossDb) {
-          // Cross-DB Move: Copy then Delete
           await destKv.set(newPrefix, rootEntry.value);
           await this.kv.delete(oldPrefix);
           movedCount++;
         } else {
-          // Same-DB Move: Atomic
           const res = await this.kv.atomic()
             .delete(oldPrefix)
             .set(newPrefix, rootEntry.value)
@@ -233,6 +265,8 @@ export class KvExplorer {
     }
 
     const iter = this.kv.list({ prefix: oldPrefix });
+    let atomic = this.kv.atomic();
+    let count = 0;
 
     for await (const entry of iter) {
       if (!recursive && entry.key.length > oldPrefix.length + 1) {
@@ -243,26 +277,31 @@ export class KvExplorer {
       const newKey = [...newPrefix, ...suffix];
 
       if (isCrossDb) {
-        // Cross-DB Move: Copy then Delete
         await destKv.set(newKey, entry.value);
         await this.kv.delete(entry.key);
         movedCount++;
       } else {
-        // Same-DB Move: Atomic per entry
-        const res = await this.kv.atomic()
-          .delete(entry.key)
-          .set(newKey, entry.value)
-          .commit();
+        atomic.delete(entry.key).set(newKey, entry.value);
+        count += 2; // 1 delete + 1 set
+        movedCount++;
 
-        if (res.ok) {
-          movedCount++;
-        } else {
-          throw new Error(
-            `Failed to move record at key: ${JSON.stringify(entry.key)}`,
-          );
+        if (count >= 100) {
+          const res = await atomic.commit();
+          if (!res.ok) {
+            throw new Error(
+              `Failed to commit atomic batch at ${JSON.stringify(entry.key)}`,
+            );
+          }
+          atomic = this.kv.atomic();
+          count = 0;
         }
       }
     }
+
+    if (count > 0 && !isCrossDb) {
+      await atomic.commit();
+    }
+
     return { ok: true, movedCount };
   }
 
@@ -306,9 +345,12 @@ export class KvExplorer {
   /**
    * Exports records under a prefix to a JSON-serializable array.
    */
-  async exportToJson(prefix: Deno.KvKey, recursive = true) {
+  async exportToJson(
+    prefix: Deno.KvKey,
+    recursive = true,
+  ): Promise<ApiKvEntry<RichValue>[]> {
     const iter = this.kv.list({ prefix });
-    const entries = [];
+    const entries: ApiKvEntry<RichValue>[] = [];
 
     for await (const entry of iter) {
       if (!recursive && entry.key.length > prefix.length + 1) {
@@ -328,8 +370,8 @@ export class KvExplorer {
    * Imports records from a JSON-serializable array into the database.
    */
   async importFromJson(
-    entries: { key: ApiKvKeyPart[]; value: RichValue }[],
-  ) {
+    entries: ApiKvEntry<RichValue>[],
+  ): Promise<{ importedCount: number }> {
     let importedCount = 0;
     for (const entry of entries) {
       const key = entry.key.map((p) => this.parseKeyPart(p));
@@ -337,7 +379,7 @@ export class KvExplorer {
       await this.kv.set(key, value);
       importedCount++;
     }
-    return { ok: true, importedCount };
+    return { importedCount };
   }
 
   /**
@@ -357,7 +399,7 @@ export class KvExplorer {
     let start: Deno.KvKey | undefined;
     if (options.cursor) {
       try {
-        start = JSON.parse(options.cursor);
+        start = this.parsePath(options.cursor);
       } catch { /* ignore */ }
     }
 
@@ -419,6 +461,7 @@ export class KvExplorer {
           key: entry.key.map((p) => this.stringifyKeyPart(p)),
           value: ValueCodec.encode(entry.value),
           versionstamp: entry.versionstamp,
+          size: this.calculateSize(entry.value),
           matchTarget: match,
         });
         foundCount++;
@@ -428,7 +471,9 @@ export class KvExplorer {
 
     let nextCursor = "";
     if (foundCount >= limit && lastKey) {
-      nextCursor = JSON.stringify(lastKey);
+      nextCursor = KeyCodec.encode(
+        lastKey.map((p) => this.stringifyKeyPart(p)),
+      );
     }
 
     return { results, cursor: nextCursor };

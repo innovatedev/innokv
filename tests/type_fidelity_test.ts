@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { KeyCodec } from "../lib/KeyCodec.ts";
+import { ApiKvKeyPart } from "../lib/types.ts";
 import { ValueCodec } from "../lib/ValueCodec.ts";
 import { resolvePath } from "../cli/utils.ts";
 
@@ -15,6 +16,8 @@ Deno.test("Type Fidelity - KeyCodec", async (t) => {
     [['quoted "string"'], '"quoted \\"string\\""'],
     [[NaN], "NaN"],
     [[Infinity], "Infinity"],
+    [[-Infinity], "-Infinity"],
+    [[-0], "0"], // Deno KV treats -0 and 0 as same in keys
   ];
 
   for (const [native, encoded] of cases) {
@@ -25,7 +28,7 @@ Deno.test("Type Fidelity - KeyCodec", async (t) => {
           ? Array.from(p)
           : (typeof p === "bigint" ? String(p) : p),
       } as Record<string, unknown>));
-      assertEquals(KeyCodec.encode(apiParts as any), encoded);
+      assertEquals(KeyCodec.encode(apiParts as ApiKvKeyPart[]), encoded);
     });
 
     await t.step(`Decode ${encoded}`, () => {
@@ -64,6 +67,7 @@ Deno.test("Type Fidelity - ValueCodec", async (t) => {
     },
     // deno-lint-ignore no-explicit-any
     kvu64: new (globalThis as any).Deno.KvU64(100n),
+    negativeZero: -0,
   };
 
   await t.step("Encode and Decode complex value", () => {

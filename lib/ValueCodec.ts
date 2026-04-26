@@ -113,12 +113,14 @@ export class ValueCodec {
     const tag = Object.prototype.toString.call(val);
 
     // Deno specific types
-    if (tag === "[object Deno.KvU64]" || (
-      // deno-lint-ignore no-explicit-any
-      typeof (globalThis as any).Deno !== "undefined" &&
+    if (
+      tag === "[object Deno.KvU64]" || (
+        // deno-lint-ignore no-explicit-any
+        typeof (globalThis as any).Deno !== "undefined" &&
         // deno-lint-ignore no-explicit-any
         val instanceof (globalThis as any).Deno.KvU64
-    )) {
+      )
+    ) {
       return { type: "KvU64", value: String((val as { value: bigint }).value) };
     }
 

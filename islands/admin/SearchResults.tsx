@@ -46,6 +46,7 @@ export default function SearchResults(
           key: result.key,
           value: result.value as RichValue,
           versionstamp: result.versionstamp,
+          size: result.size,
         };
         const keyStr = KeyCodec.encode(result.key);
 

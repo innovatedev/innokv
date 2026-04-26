@@ -26,7 +26,6 @@ interface BreadcrumbsProps {
     path: ApiKvKeyPart[],
     dbId?: string,
   ) => void;
-  onEditDatabase?: () => void;
   activeDatabase: Database | null;
 }
 
@@ -42,7 +41,6 @@ export const Breadcrumbs = (
     isReadOnly,
     onLoadNodes,
     onContextMenu,
-    onEditDatabase,
     activeDatabase,
   }: BreadcrumbsProps,
 ) => {
@@ -101,11 +99,7 @@ export const Breadcrumbs = (
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              if (path.length === 0 && onEditDatabase) {
-                onEditDatabase();
-              } else {
-                navigateToRoot();
-              }
+              navigateToRoot();
             }}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -333,7 +327,7 @@ const BreadcrumbSeparator = (
     />
   );
 
-  // Simplified visibility: 
+  // Simplified visibility:
   // - If it's not the last item, we MUST show it to separate segments.
   // - If it's the last item, we show it to allow discovery, unless confirmed empty.
   if (isLast && hasLoadedNodes && nodes.length === 0) return null;
