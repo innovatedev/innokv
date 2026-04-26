@@ -25,6 +25,7 @@
     "jsr:@innovatedev/fresh-session@0.5.1": "0.5.1",
     "jsr:@innovatedev/fresh-session@~0.5.1": "0.5.1",
     "jsr:@olli/kvdex@^3.6.5": "3.6.5",
+    "jsr:@std/assert@*": "1.0.19",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/assert@~1.0.6": "1.0.19",
     "jsr:@std/bytes@^1.0.4": "1.0.6",

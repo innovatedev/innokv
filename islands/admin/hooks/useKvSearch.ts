@@ -1,21 +1,24 @@
-import { Signal, useSignal } from "@preact/signals";
-import { ApiKvKeyPart, SearchResult } from "@/lib/types.ts";
+import { useSignal } from "@preact/signals";
+import { useContext } from "preact/hooks";
+import { DatabaseContext } from "../contexts/DatabaseContext.tsx";
+import { SearchResult } from "@/lib/types.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
-import { Database } from "@/kv/models.ts";
 
-export function useKvSearch(
-  activeDatabase: Database | null,
-  pathInfo: Signal<ApiKvKeyPart[] | null>,
-) {
-  const searchQuery = useSignal("");
-  const isSearchActive = useSignal(false);
+export function useKvSearch() {
+  const {
+    activeDatabase,
+    pathInfo,
+    searchQuery,
+    isSearchActive,
+    searchTarget,
+    searchRegex,
+    searchCaseSensitive,
+  } = useContext(DatabaseContext);
+
   const searchResults = useSignal<SearchResult[]>([]);
   const searchLoading = useSignal(false);
   const searchCursor = useSignal<string | undefined>(undefined);
   const searchHasMore = useSignal(false);
-  const searchTarget = useSignal<"key" | "value" | "all">("all");
-  const searchRegex = useSignal(false);
-  const searchCaseSensitive = useSignal(false);
 
   const handleSearch = async (newCursor?: string) => {
     const dbId = activeDatabase?.slug || activeDatabase?.id;

@@ -126,6 +126,12 @@ export function useDbStructure(
             (res: { items: Record<string, DbNode>; cursor?: string }) => {
               const nodes = res.items;
               if (nodes) {
+                // Check if the current segment exists in the fetched nodes
+                const nextKey = KeyCodec.encode([seg]);
+                if (!nodes[nextKey]) {
+                  pathInfo.value = [];
+                  return;
+                }
                 setDbStructure((prev) => {
                   if (!prev) return nodes;
                   return mergeStructure(prev, currentPath, nodes, res.cursor);
@@ -135,6 +141,9 @@ export function useDbStructure(
           ).catch((e: Error) => {
             console.error(e);
             error.value = e.message;
+            if (pathInfo.value && pathInfo.value.length > 0) {
+              pathInfo.value = [];
+            }
           });
           return;
         }
@@ -158,6 +167,9 @@ export function useDbStructure(
             ).catch((e: Error) => {
               console.error(e);
               error.value = e.message;
+              if (pathInfo.value && pathInfo.value.length > 0) {
+                pathInfo.value = [];
+              }
             });
             return;
           }

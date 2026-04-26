@@ -1,6 +1,5 @@
 import { db } from "@/kv/db.ts";
 import { hash, verify } from "@felix/argon2";
-import settings from "@/config/app.ts";
 import { type User, type UserValue } from "@/kv/models.ts";
 export type { User, UserValue };
 
@@ -26,15 +25,8 @@ export async function createUser(
   // Hash the password
   const passwordHash = await hash(password);
 
-  // Check if email is in admin list
-  let finalPermissions = [...permissions];
-  if (settings.admin.emails.includes(email)) {
-    if (!finalPermissions.includes("*")) {
-      finalPermissions.push("*");
-    }
-  }
   // Ensure uniqueness
-  finalPermissions = Array.from(new Set(finalPermissions));
+  const permissionsSet = Array.from(new Set(permissions));
 
   // Generate ID explicitly so we can return it and use it as key
   const id = crypto.randomUUID();
@@ -47,7 +39,7 @@ export async function createUser(
     createdAt: new Date(),
     updatedAt: new Date(),
     lastLoginAt: new Date(),
-    permissions: finalPermissions,
+    permissions: permissionsSet,
   };
 
   const commit = await db.users.set(id, user);
@@ -116,13 +108,6 @@ export async function authenticateUser(
   const updates: Partial<typeof userData> = {
     lastLoginAt: new Date(),
   };
-
-  if (settings.admin.emails.includes(email)) {
-    // If user is in admin emails list, ensure they have wildcard permission
-    if (!permissions.includes("*")) {
-      permissions = [...permissions, "*"];
-    }
-  }
 
   // Ensure uniqueness
   permissions = Array.from(new Set(permissions));

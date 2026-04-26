@@ -2,8 +2,11 @@ import { defineAuth } from "@/utils.ts";
 import HomeView from "@/islands/admin/HomeView.tsx";
 import { DatabaseProvider } from "@/islands/admin/contexts/DatabaseContext.tsx";
 import { UsersIcon } from "@/components/icons/UsersIcon.tsx";
-import { LogoutIcon } from "@/components/icons/LogoutIcon.tsx";
-import { UserIcon } from "@/components/icons/UserIcon.tsx";
+import {
+  CheckIcon,
+  LogoutIcon,
+  UserIcon,
+} from "@/components/icons/ActionIcons.tsx";
 import { Dropdown } from "@/components/Dropdown.tsx";
 import { Database } from "@/kv/models.ts";
 import { User } from "@/kv/models.ts";
@@ -57,12 +60,12 @@ export default defineAuth.page(function Home({ state }) {
               href="/admin/users"
               class="btn btn-sm btn-ghost hover:bg-brand/20 hover:text-brand gap-2 transition-colors"
             >
-              <UsersIcon class="w-4 h-4" />
+              <UsersIcon className="w-4 h-4" />
               Admin
             </a>
           )}
           <Dropdown
-            icon={<UserIcon class="w-4 h-4" />}
+            icon={<UserIcon className="w-4 h-4" />}
             label="Account"
           >
             <li class="menu-title px-4 py-2 text-xs font-semibold text-base-content/50 border-b border-base-200 mb-2">
@@ -87,7 +90,7 @@ export default defineAuth.page(function Home({ state }) {
                 type="submit"
                 class="flex items-center gap-2 text-error hover:text-error"
               >
-                <LogoutIcon class="w-4 h-4" />
+                <LogoutIcon className="w-4 h-4" />
                 Logout
               </button>
             </li>
@@ -99,19 +102,7 @@ export default defineAuth.page(function Home({ state }) {
           </div>
           {successMessage && (
             <div class="alert alert-success shadow-sm mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="stroke-current shrink-0 h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <CheckIcon className="stroke-current shrink-0 h-6 w-6" />
               <span>{successMessage}</span>
             </div>
           )}

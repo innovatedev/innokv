@@ -50,8 +50,11 @@ export default function RichValueEditor({
       case "date":
         newVal = new Date().toISOString();
         break;
-      case "uint8array":
-        newVal = "";
+      case "Uint8Array":
+        newVal = [];
+        break;
+      case "ArrayBuffer":
+        newVal = [];
         break;
       case "object":
         newVal = {};
@@ -114,7 +117,8 @@ export default function RichValueEditor({
           <option value="boolean">Boolean</option>
           <option value="bigint">BigInt</option>
           <option value="date">Date</option>
-          <option value="uint8array">Uint8Array</option>
+          <option value="Uint8Array">Uint8Array</option>
+          <option value="ArrayBuffer">ArrayBuffer</option>
           <option value="object">Object</option>
           <option value="array">Array</option>
           <option value="map">Map</option>
@@ -152,7 +156,9 @@ export default function RichValueEditor({
           {type === "bigint" && (
             <input
               type="text"
-              class="input input-bordered input-xs w-full max-w-xs font-mono"
+              class={`input input-bordered input-xs w-full max-w-xs font-mono ${
+                val && !/^-?[0-9]+$/.test(String(val)) ? "input-error" : ""
+              }`}
               pattern="-?[0-9]+"
               placeholder="e.g. 9007199254740991"
               value={val as string}
@@ -162,29 +168,17 @@ export default function RichValueEditor({
             />
           )}
           {type === "boolean" && (
-            <div class="flex gap-4">
-              <label class="label cursor-pointer gap-2">
-                <span class="label-text">True</span>
-                <input
-                  type="radio"
-                  name={`bool-${Math.random()}`}
-                  class="radio radio-sm"
-                  checked={val === true}
-                  disabled={isReadOnly}
-                  onChange={() => handlePrimitiveChange(true)}
-                />
-              </label>
-              <label class="label cursor-pointer gap-2">
-                <span class="label-text">False</span>
-                <input
-                  type="radio"
-                  name={`bool-${Math.random()}`}
-                  class="radio radio-sm"
-                  checked={val === false}
-                  disabled={isReadOnly}
-                  onChange={() => handlePrimitiveChange(false)}
-                />
-              </label>
+            <div class="flex items-center gap-2 px-2">
+              <span class="text-xs opacity-70">Value:</span>
+              <input
+                type="checkbox"
+                class="toggle toggle-sm toggle-primary"
+                checked={val === true}
+                disabled={isReadOnly}
+                onChange={(e) =>
+                  handlePrimitiveChange((e.target as HTMLInputElement).checked)}
+              />
+              <span class="text-xs font-bold">{val ? "true" : "false"}</span>
             </div>
           )}
           {type === "date" && (
@@ -201,13 +195,13 @@ export default function RichValueEditor({
                 )}
             />
           )}
-          {type === "uint8array" && (
+          {(type === "Uint8Array" || type === "ArrayBuffer") && (
             <div class="flex flex-col gap-1">
               <span class="text-xs text-base-content/50">
                 Comma separated bytes (0-255)
               </span>
               <Uint8ArrayInput
-                value={val as string}
+                value={val as number[]}
                 disabled={isReadOnly}
                 onChange={(v) => handlePrimitiveChange(v)}
               />
@@ -592,55 +586,71 @@ function MapEditor(
 
 function Uint8ArrayInput(
   { value, onChange, disabled }: {
-    value: string;
-    onChange: (v: string) => void;
+    value: number[];
+    onChange: (v: number[]) => void;
     disabled?: boolean;
   },
 ) {
-  // Value is base64 string
-  const format = (v: string) => {
-    try {
-      return Uint8Array.from(atob(v), (c) => c.charCodeAt(0)).join(", ");
-    } catch {
-      return "";
-    }
+  const format = (v: number[]) => {
+    if (!Array.isArray(v)) return "";
+    return v.join(", ");
   };
 
   const [text, setText] = useState(format(value));
+  const [hasError, setHasError] = useState(false);
   const focused = useRef(false);
 
   // Sync from parent only if not focused
   useEffect(() => {
     if (!focused.current) {
       setText(format(value));
+      setHasError(false);
     }
   }, [value]);
 
   const handleChange = (newText: string) => {
     setText(newText);
     try {
-      const bytes = newText.split(/[,\s]+/).map((x) => parseInt(x.trim()))
-        .filter((x) => !isNaN(x));
-      const u8 = new Uint8Array(bytes);
-      const bin = String.fromCharCode(...u8);
-      onChange(btoa(bin));
+      const segments = newText.split(/[,\s]+/)
+        .map((x) => x.trim())
+        .filter((x) => x !== "");
+
+      const bytes = segments.map((x) => {
+        const n = parseInt(x);
+        if (isNaN(n) || n < 0 || n > 255) throw new Error("Invalid byte");
+        return n;
+      });
+
+      setHasError(false);
+      onChange(bytes);
     } catch {
-      // ignore parse error, just keep text
+      setHasError(true);
     }
   };
 
   return (
-    <textarea
-      class="textarea textarea-bordered textarea-xs w-full max-w-lg rounded font-mono"
-      value={text}
-      disabled={disabled}
-      onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}
-      onFocus={() => (focused.current = true)}
-      onBlur={() => {
-        focused.current = false;
-        // On blur, force re-format to canonical
-        setText(format(value));
-      }}
-    />
+    <div class="flex flex-col gap-1 w-full max-w-lg">
+      <textarea
+        class={`textarea textarea-bordered textarea-xs w-full rounded font-mono ${
+          hasError ? "textarea-error" : ""
+        }`}
+        value={text}
+        disabled={disabled}
+        onInput={(e) => handleChange((e.target as HTMLTextAreaElement).value)}
+        onFocus={() => (focused.current = true)}
+        onBlur={() => {
+          focused.current = false;
+          // On blur, force re-format to canonical ONLY if no error
+          if (!hasError) {
+            setText(format(value));
+          }
+        }}
+      />
+      {hasError && (
+        <span class="text-[10px] text-error font-bold px-1">
+          Invalid byte array. Must be numbers between 0-255 separated by commas.
+        </span>
+      )}
+    </div>
   );
 }

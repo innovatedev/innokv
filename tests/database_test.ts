@@ -173,7 +173,7 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
         value: {
           date: { type: "date", value: now.toISOString() },
           big: { type: "bigint", value: "900719925474099100" },
-          bytes: { type: "uint8array", value: btoa("\x01\x02\x03") },
+          bytes: { type: "Uint8Array", value: [1, 2, 3] },
         },
       };
 

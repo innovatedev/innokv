@@ -82,16 +82,54 @@ export const handler = BaseRepository.handlers({
     db.handleApiCall(ctx, async (rawData) => {
       const data = rawData as {
         id: string;
-        oldPath: string;
+        oldPath?: string;
+        keys?: ApiKvKeyPart[][];
         newPath: string;
         recursive?: boolean;
+        targetId?: string;
+        mode?: "move" | "copy";
+        sourcePath?: string;
       };
-      const { id, oldPath, newPath, recursive } = data;
-      if (!id || !oldPath || !newPath) {
-        throw new Error("Missing required fields (id, oldPath, newPath)");
+      const {
+        id,
+        oldPath,
+        newPath,
+        recursive,
+        targetId,
+        mode,
+        keys: wireKeys,
+        sourcePath,
+      } = data;
+      if (!id || newPath === undefined || (oldPath === undefined && !wireKeys)) {
+        throw new Error(
+          "Missing required fields (id, newPath, and either oldPath or keys)",
+        );
       }
       ctx.state.plugins.permissions.requires(`database:write:${id}`);
-      return await db.moveRecords(id, oldPath, newPath, recursive);
+      if (targetId && targetId !== id) {
+        ctx.state.plugins.permissions.requires(`database:write:${targetId}`);
+      }
+
+      let keys: Deno.KvKey[] | undefined;
+      if (wireKeys) {
+        keys = (wireKeys as ApiKvKeyPart[][]).map((k) =>
+          k.map((p) => db.parseKeyPart(p))
+        );
+      }
+
+      const options = {
+        oldPath,
+        keys,
+        newPath,
+        recursive,
+        targetId,
+        sourcePath,
+      };
+
+      if (mode === "copy") {
+        return await db.copyRecords(id, options);
+      }
+      return await db.moveRecords(id, options);
     }),
   PUT: (ctx) =>
     db.handleApiCall(ctx, async (rawData) => {

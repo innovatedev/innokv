@@ -2,21 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.2.1
+## v0.3.0
 
-- **Record Editor Overhaul**:
-  - **Recursive Value Exploration**: Added recursive toggle buttons for deep expansion/collapse of complex types (Objects, Arrays, Maps, Sets).
-  - **Global Value Controls**: New "Expand/Collapse All Values" toolbar action to control all record value previews on the page simultaneously via a global signal.
-  - **Enhanced JSON Views**: Added dedicated **Key JSON** and **Value JSON** tabs to the record editor for precise structural inspection and editing.
-  - **Improved Input Sizing**: Standardized all form inputs, selects, and tabs to `xs` sizing for a more compact and consistent administrative UI.
-  - **Refined Buttons**: Updated "Add" buttons to use the preferred outline style and fixed readability issues with disabled states.
-- **UI & Navigation Improvements**:
-  - **Optimized Record Layout**: Moved value previews to their own row below the key parts, indented for better readability and alignment.
-  - **Streamlined Toolbar**: Repositioned and resized the search box for better visibility and ergonomics on large screens.
-  - **Header Cleanup**: Removed top-level record JSON expansion in favor of interactive value previews and a unified editor experience.
-  - **Integrated Action Area**: Consolidated "Copy Key", "Copy Path", and "Copy JSON" actions into a compact header section.
-  - **Perfect Alignment**: Refined layout of checkboxes and icons to ensure exact vertical centering with record content.
-  - **Dropdown Clarity**: Updated search target dropdowns with full labels instead of abbreviations.
+> [!CAUTION]
+> **Breaking Change**: The representation of binary data (`Uint8Array`) has been
+> standardized to a numeric array format. JSON exports before v0.3.0 are no
+> longer compatible and must be re-exported.
+
+- **Unified URL State**: Navigation paths and search queries are now synchronized with the URL, enabling bookmarking and browser back/forward button support.
+- **Improved Search UI**: New direct toggles for search modes (Regex, Case Sensitive, Target) and support for binary key matching (e.g., `u8[1,2,3]`).
+- **Rapid Navigation**: Breadcrumb items now feature context menus for quick actions (Refresh, Move, Duplicate, Delete) without using the sidebar.
+- **Enhanced Portability**: Improved reliability for cross-database moves/copies, including the ability to move records directly to the database root.
+- **Bulk Operations**: Perform recursive moves, duplications, and deletions on multiple selected records or entire path prefixes.
+- **UX Refinements**: Standardized server port (4665), improved alignment, and persistent search settings when switching databases.
 
 ## v0.2.0
 
@@ -31,8 +29,6 @@ All notable changes to this project will be documented in this file.
   - New `config` CLI command to manage persistent server settings (port, cookie
     name).
   - Added interactive mode to `config` command for easy guided setup.
-  - Added `-p, --port` and `--cookie-name` flags to the main command for easy
-    local development.
 - **CLI Enhancements**:
   - New `tree` command for visual hierarchical inspection of KV data.
   - Refined `rm` command with safety prompts including record counts and
@@ -56,22 +52,14 @@ All notable changes to this project will be documented in this file.
 - remove redundant type aliases (`UserDoc`, `DatabaseDoc`, etc.) and align
   project with base models
 - improve developer documentation for state and utility helpers
-- update `utils.ts` JSDoc with modern usage examples
 
 ## v0.1.2
 
 - migrate to Fresh 2.0 origin-based CSRF protection
 - add comprehensive CSRF testing suite
-- bump dependencies:
-  - fresh to v2.2.2
-  - kvdex to v3.6.5
-  - fresh-session to v0.5.0-alpha.2
-- fix stylesheet 404
-- add user settings
-  - reset password
-  - manage api tokens
-- add granular permissions
-- add api token authorization
+- bump dependencies: fresh to v2.2.2, kvdex to v3.6.5
+- add user settings: reset password, manage api tokens
+- add granular permissions and api token authorization
 - fix windows path issues with routes
 
 ## v0.1.1
@@ -80,8 +68,7 @@ All notable changes to this project will be documented in this file.
 - display app/DB info on startup
 - fix u8 record key display in database view
 - fix entry UI/editor, add JSON editor tab for structure/values
-- fix breadcrumb links
-- fix initial load for root records
+- fix breadcrumb links and initial load for root records
 - fix treeview display for items with no sub keys
 
 ## v0.1.0

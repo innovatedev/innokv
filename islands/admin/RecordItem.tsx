@@ -1,6 +1,6 @@
 import { ApiKvEntry, ApiKvKeyPart } from "@/lib/types.ts";
 import { KeyDisplay } from "./KeyDisplay.tsx";
-import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
+import { RichValue } from "@/lib/ValueCodec.ts";
 import { ValueDisplay } from "./ValueDisplay.tsx";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
 
@@ -34,7 +34,7 @@ export default function RecordItem(
       }`}
     >
       <div
-        class={`flex items-start justify-between p-3 select-none bg-base-100`}
+        class={`flex items-start justify-between px-3 py-1.5 select-none bg-base-100`}
       >
         <div class="flex flex-col min-w-0 flex-1">
           <div class="flex items-center gap-3 min-w-0">
@@ -105,8 +105,7 @@ export default function RecordItem(
               class="btn btn-ghost btn-xs text-[10px] opacity-50 hover:opacity-100"
               title="Copy Value JSON"
               onClick={() => {
-                const val = ValueCodec.decode(rich);
-                navigator.clipboard.writeText(JSON.stringify(val, null, 2));
+                navigator.clipboard.writeText(JSON.stringify(rich, null, 2));
               }}
             >
               JSON

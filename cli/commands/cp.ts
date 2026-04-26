@@ -9,7 +9,9 @@ import { doCp } from "../actions.ts";
  */
 // deno-lint-ignore no-explicit-any
 export const cp: Command<any> = new Command()
-  .description("Copy records to a new key")
+  .description(
+    "Copy records to a new key. Use 'db:path' for cross-database copy.",
+  )
   .arguments("<slug:string> <source:string> <destination:string>")
   .option("-r, --recursive", "Recursive copy", { default: false })
   .action(async (options, slug, source, destination) => {
@@ -24,11 +26,10 @@ export const cp: Command<any> = new Command()
       // deno-lint-ignore no-explicit-any
       const kv = await repo.connectDatabase(db as any);
 
-      // Resolve paths
+      // Resolve source path
       const oldPath = resolvePath([], source);
-      const newPath = resolvePath([], destination);
 
-      await doCp(kv, slug, oldPath, newPath, options.recursive);
+      await doCp(kv, slug, oldPath, destination, options.recursive);
 
       kv.close();
     } catch (e) {

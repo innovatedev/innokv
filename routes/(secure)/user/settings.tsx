@@ -10,7 +10,6 @@ export const handler = defineAuth.handlers({
     const userId = ctx.state.userId;
     const form = await ctx.req.formData();
     const action = form.get("_action")?.toString();
-    console.log(action);
     // Handle Password Change
     if (action === "password") {
       const currentPassword = form.get("currentPassword")?.toString();

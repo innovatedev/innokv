@@ -1,5 +1,6 @@
 import { readConfig } from "./config.ts";
 import { db } from "@/kv/db.ts";
+import { DatabaseRepository } from "../lib/Database.ts";
 import { hasPermission, rulesToPermissions } from "../lib/permissions.ts";
 import {
   changePassword,
@@ -7,7 +8,9 @@ import {
   type CreateUserOptions,
   findUserByEmail,
 } from "../lib/users.ts";
+import { KeyCodec } from "../lib/KeyCodec.ts";
 import { KvExplorer } from "../lib/KvExplorer.ts";
+import { ApiKvKeyPart } from "../lib/types.ts";
 
 export interface UpdateOptions {
   mergeArrays?: boolean;
@@ -226,39 +229,57 @@ export async function doUserResetPassword(email: string, password: string) {
 }
 
 export async function doMv(
-  kv: Deno.Kv,
+  _kv: Deno.Kv,
   slug: string,
   oldPath: unknown[],
-  newPath: unknown[],
+  newPathStr: string,
   recursive = false,
 ) {
-  await checkPermission(slug, "write");
-  const explorer = new KvExplorer(kv);
-  const result = await explorer.moveRecords(
-    oldPath as Deno.KvKey,
-    newPath as Deno.KvKey,
+  let targetId = slug;
+  let targetPathRaw = newPathStr;
+
+  if (newPathStr.includes(":")) {
+    const parts = newPathStr.split(":");
+    targetId = parts[0];
+    targetPathRaw = parts.slice(1).join(":");
+  }
+
+  const repo = new DatabaseRepository(db);
+  const oldPathStr = KeyCodec.encode(oldPath as ApiKvKeyPart[]);
+
+  return await repo.moveRecords(slug, {
+    oldPath: oldPathStr,
+    newPath: targetPathRaw,
     recursive,
-  );
-  console.log(`Successfully moved ${result.movedCount} records.`);
-  return result;
+    targetId,
+  });
 }
 
 export async function doCp(
-  kv: Deno.Kv,
+  _kv: Deno.Kv,
   slug: string,
   oldPath: unknown[],
-  newPath: unknown[],
+  newPathStr: string,
   recursive = false,
 ) {
-  await checkPermission(slug, "write");
-  const explorer = new KvExplorer(kv);
-  const result = await explorer.copyRecords(
-    oldPath as Deno.KvKey,
-    newPath as Deno.KvKey,
+  let targetId = slug;
+  let targetPathRaw = newPathStr;
+
+  if (newPathStr.includes(":")) {
+    const parts = newPathStr.split(":");
+    targetId = parts[0];
+    targetPathRaw = parts.slice(1).join(":");
+  }
+
+  const repo = new DatabaseRepository(db);
+  const oldPathStr = KeyCodec.encode(oldPath as ApiKvKeyPart[]);
+
+  return await repo.copyRecords(slug, {
+    oldPath: oldPathStr,
+    newPath: targetPathRaw,
     recursive,
-  );
-  console.log(`Successfully copied ${result.copiedCount} records.`);
-  return result;
+    targetId,
+  });
 }
 
 export async function doExport(

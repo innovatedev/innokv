@@ -6,7 +6,7 @@ import { KeyCodec } from "@/lib/KeyCodec.ts";
 import { RichValue } from "@/lib/ValueCodec.ts";
 import RecordItem from "./RecordItem.tsx";
 import SearchResults from "./SearchResults.tsx";
-import { ExpandIcon } from "../../components/icons/ExpandIcon.tsx";
+import { ExpandIcon } from "../../components/icons/ActionIcons.tsx";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 
 interface RecordsViewProps {
@@ -26,12 +26,16 @@ interface RecordsViewProps {
   pathInfo: Signal<ApiKvKeyPart[] | null>;
   gonePaths: Signal<Set<string>>;
   dbStructure: Record<string, DbNode> | null;
+  databases: Database[];
   onEditRecord: (record: ApiKvEntry<RichValue>) => void;
   onLoadMoreSearch: () => void;
   onToggleSelection: (key: ApiKvKeyPart[]) => void;
   onToggleExpandAll: () => void;
   onToggleSelectVisible: () => void;
-  onCreateRecord: () => void;
+  onBulkDelete: () => void;
+  onBulkMove: () => void;
+  onBulkCopy: () => void;
+  onExport: (recursive: boolean) => void;
 }
 
 export default function RecordsView(
@@ -52,12 +56,16 @@ export default function RecordsView(
     pathInfo,
     gonePaths,
     dbStructure,
+    databases,
     onEditRecord,
     onLoadMoreSearch,
     onToggleSelection,
     onToggleExpandAll,
     onToggleSelectVisible,
-    onCreateRecord,
+    onBulkDelete,
+    onBulkMove,
+    onBulkCopy,
+    onExport,
   }: RecordsViewProps,
 ) {
   const { forceExpandValues } = useContext(DatabaseContext);
@@ -66,35 +74,107 @@ export default function RecordsView(
     : records.value.map((r) => KeyCodec.encode(r.key));
 
   return (
-    <div class="flex-1 overflow-y-auto p-4 content-start">
+    <div class="flex-1 overflow-y-auto px-3 py-2 content-start">
       {activeDatabase && currentKeyStrings.length > 0 && (
-        <div class="bg-base-100 p-2 flex items-center lg:gap-4 gap-2 justify-between mb-2">
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              checked={allVisibleSelected}
-              ref={(input) => {
-                if (input) {
-                  input.indeterminate = selectedKeys.value.size > 0 &&
-                    !allVisibleSelected;
-                }
-              }}
-              onClick={onToggleSelectVisible}
-            />
-            <span class="text-xs font-bold opacity-50">
-              Select All
-            </span>
-          </label>
+        <div class="bg-base-100 px-3 py-1 flex flex-nowrap items-center gap-4 justify-between mb-2 border border-base-300 shadow-sm rounded-lg min-h-[40px] overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+          <div class="flex items-center gap-4 shrink-0">
+            <label class="flex items-center gap-2 cursor-pointer select-none shrink-0">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={allVisibleSelected}
+                ref={(input) => {
+                  if (input) {
+                    input.indeterminate = selectedKeys.value.size > 0 &&
+                      !allVisibleSelected;
+                  }
+                }}
+                onClick={onToggleSelectVisible}
+              />
+              <span class="text-xs font-bold opacity-50 whitespace-nowrap">
+                {allVisibleSelected ? "Deselect All" : "Select All"}
+              </span>
+            </label>
+
+            {(selectedKeys.value.size > 0 || selectAllMatching.value) && (
+              <div class="flex items-center gap-2 bg-base-200 px-2 py-0.5 rounded-full animate-in fade-in slide-in-from-left-2 duration-300 shrink-0">
+                <span class="text-xs font-bold text-primary">
+                  {selectAllMatching.value
+                    ? "All matching"
+                    : selectedKeys.value.size} selected
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-ghost text-[10px] uppercase opacity-50 hover:opacity-100 h-5 min-h-0"
+                  onClick={() => {
+                    selectedKeys.value = new Set();
+                    selectAllMatching.value = false;
+                  }}
+                >
+                  Clear
+                </button>
+                {!selectAllMatching.value && allVisibleSelected && (
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost text-[10px] uppercase h-5 min-h-0"
+                    onClick={() => selectAllMatching.value = true}
+                  >
+                    Select all matching
+                  </button>
+                )}
+
+                <div class="w-px h-3 bg-base-content/20 mx-1"></div>
+
+                {databases.some((d) => d.mode !== "r") && (
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost text-primary text-[10px] uppercase h-5 min-h-0"
+                    onClick={onBulkCopy}
+                  >
+                    Duplicate
+                  </button>
+                )}
+                {activeDatabase.mode !== "r" && (
+                  <>
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-ghost text-primary text-[10px] uppercase h-5 min-h-0"
+                      onClick={onBulkMove}
+                    >
+                      Move
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-ghost text-error text-[10px] uppercase h-5 min-h-0"
+                      onClick={onBulkDelete}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  class="btn btn-xs btn-ghost text-primary text-[10px] uppercase h-5 min-h-0"
+                  onClick={() => onExport(false)}
+                >
+                  Export
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
-            class="btn btn-xs btn-ghost gap-1"
+            class="btn btn-xs btn-ghost gap-1 opacity-50 hover:opacity-100"
             onClick={onToggleExpandAll}
           >
-            <ExpandIcon class={`w-4 h-4 transition-transform duration-200 ${forceExpandValues.value === true ? "rotate-90" : ""}`} />
-            <span class="text-xs opacity-70 font-normal">
-              {forceExpandValues.value === true ? "Collapse All Values" : "Expand All Values"}
+            <ExpandIcon
+              className={`w-4 h-4 transition-transform duration-200 ${
+                forceExpandValues.value === true ? "rotate-90" : ""
+              }`}
+            />
+            <span class="text-xs font-normal">
+              {forceExpandValues.value === true ? "Collapse All" : "Expand All"}
             </span>
           </button>
         </div>
@@ -140,7 +220,7 @@ export default function RecordsView(
                   ))}
 
                   <div class="bg-base-100 p-2 flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 shrink-0">
                       <span class="text-xs opacity-50">
                         Show
                       </span>
@@ -254,15 +334,6 @@ export default function RecordsView(
                       return (
                         <div class="flex flex-col items-center gap-4 py-10">
                           <p class="text-sm">No records found</p>
-                          {activeDatabase.mode !== "r" && (
-                            <button
-                              type="button"
-                              class="btn btn-brand btn-sm"
-                              onClick={onCreateRecord}
-                            >
-                              Create your first record
-                            </button>
-                          )}
                         </div>
                       );
                     }

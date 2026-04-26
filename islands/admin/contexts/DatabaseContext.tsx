@@ -3,34 +3,36 @@ import { Signal, signal, useSignal } from "@preact/signals";
 import { Database, User } from "@/kv/models.ts";
 import { useEffect, useRef, useState } from "preact/hooks";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
-import { ApiKvEntry } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts"; // Codec Updated
+import { ApiKvEntry, ApiKvKeyPart } from "@/lib/types.ts";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
 
-// Define the shape of the context
 interface DatabaseContextType<DB extends Database = Database> {
   activeDatabase: Database | null;
   setActiveDatabase: (db: Database | null) => void;
   databases: Signal<DB[]>;
   selectedDatabase: Signal<string | null>;
   api: KvAdminClient;
-  pathInfo: Signal<{ value: string; type: string }[] | null>;
+  pathInfo: Signal<ApiKvKeyPart[] | null>;
   records: Signal<ApiKvEntry[]>;
   gonePaths: Signal<Set<string>>;
   userSettings: Signal<User["settings"]>;
   updateSettings: (settings: User["settings"]) => void;
-  // Pagination
   cursor: Signal<string | undefined>;
   nextCursor: Signal<string | undefined>;
   cursorStack: Signal<Array<string | undefined>>;
   limit: Signal<number>;
   forceExpandValues: Signal<boolean | undefined>;
+  // Search state
+  searchQuery: Signal<string>;
+  isSearchActive: Signal<boolean>;
+  searchTarget: Signal<"key" | "value" | "all">;
+  searchRegex: Signal<boolean>;
+  searchCaseSensitive: Signal<boolean>;
 }
 
-// Create default values for the context
 const defaultContext: DatabaseContextType = {
   activeDatabase: null,
-  setActiveDatabase: () => {
-  },
+  setActiveDatabase: () => {},
   databases: signal([]),
   selectedDatabase: signal(null),
   api: new KvAdminClient(),
@@ -44,9 +46,13 @@ const defaultContext: DatabaseContextType = {
   cursorStack: signal([]),
   limit: signal(25),
   forceExpandValues: signal(undefined),
+  searchQuery: signal(""),
+  isSearchActive: signal(false),
+  searchTarget: signal("all"),
+  searchRegex: signal(false),
+  searchCaseSensitive: signal(false),
 };
 
-// Create the context
 const DatabaseContext = createContext<DatabaseContextType>(defaultContext);
 
 interface DatabaseProviderProps<DB extends Database = Database> {
@@ -67,15 +73,37 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   const selectedDatabase = useSignal(
     initialSelectedDatabase || defaultContext.selectedDatabase.peek(),
   );
-  const userSettings = useSignal(
-    initialUserSettings || defaultContext.userSettings.peek(),
+  const userSettings = useSignal<User["settings"]>(
+    initialUserSettings || defaultContext.userSettings.peek() || {},
   );
 
   const debounceTimer = useRef<number | null>(null);
 
   const updateSettings = (newSettings: User["settings"]) => {
-    // Optimistic update
-    userSettings.value = { ...userSettings.value, ...newSettings }; // Simple merge for signal
+    if (!newSettings) return;
+
+    // Optimistic update - careful with nested objects
+    const current = userSettings.value || {};
+    const merged: User["settings"] = { ...current };
+
+    if (newSettings.databases) {
+      merged.databases = {
+        ...(current.databases || {}),
+      };
+
+      for (const [id, settings] of Object.entries(newSettings.databases)) {
+        merged.databases[id] = {
+          ...(current.databases?.[id] || {}),
+          ...settings,
+        };
+      }
+    }
+
+    // Merge other top-level keys
+    const { databases: _, ...rest } = newSettings;
+    Object.assign(merged, rest);
+
+    userSettings.value = merged;
 
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -89,10 +117,9 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         },
         body: JSON.stringify(newSettings),
       }).catch((err) => console.error("Failed to save settings", err));
-    }, 3000);
+    }, 1000); // Reduced to 1s
   };
 
-  // Compute initial active database for SSR
   const initialActive =
     (initialDatabases || defaultContext.databases.peek()).find(
       (d) =>
@@ -102,7 +129,6 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
           (initialSelectedDatabase || defaultContext.selectedDatabase.peek()),
     ) || null;
 
-  // Sync prop changes to signal to handle potentially reused components/islands
   useEffect(() => {
     if (
       initialSelectedDatabase &&
@@ -116,7 +142,7 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     initialActive,
   );
 
-  const pathInfo = useSignal<{ value: string; type: string }[] | null>([]);
+  const pathInfo = useSignal<ApiKvKeyPart[] | null>([]);
   const records = useSignal<ApiKvEntry[]>([]);
   const gonePaths = useSignal<Set<string>>(new Set());
   const cursor = useSignal<string | undefined>(undefined);
@@ -124,29 +150,40 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
   const cursorStack = useSignal<Array<string | undefined>>([]);
   const limit = useSignal<number>(25);
   const forceExpandValues = useSignal<boolean | undefined>(undefined);
+  const searchQuery = useSignal("");
+  const isSearchActive = useSignal(false);
+  const searchTarget = useSignal<"key" | "value" | "all">("all");
+  const searchRegex = useSignal(false);
+  const searchCaseSensitive = useSignal(false);
 
   useEffect(() => {
-    // Initialize from URL
     const params = new URLSearchParams(globalThis.location.search);
     const path = params.get("path");
+    const q = params.get("q");
 
     if (path) {
       try {
-        // slightly delay path setting to allow db change effect to clear it first (hacky but simple)
-        setTimeout(() => {
-          pathInfo.value = KeyCodec.decode(path);
-        }, 0);
+        pathInfo.value = KeyCodec.decode(path);
       } catch (e) {
         console.error("Failed to parse path from URL", e);
-        if (!pathInfo.value || pathInfo.value.length > 0) pathInfo.value = [];
       }
-    } else {
-      if (!pathInfo.value || pathInfo.value.length > 0) pathInfo.value = [];
+    }
+
+    if (q) {
+      searchQuery.value = q;
+      isSearchActive.value = true;
+      const target = params.get("target");
+      if (target === "key" || target === "value" || target === "all") {
+        searchTarget.value = target;
+      }
+      searchRegex.value = params.get("regex") === "true";
+      searchCaseSensitive.value = params.get("case") === "true";
     }
 
     const handlePopState = () => {
       const params = new URLSearchParams(globalThis.location.search);
       const path = params.get("path");
+      const q = params.get("q");
 
       if (path) {
         try {
@@ -157,18 +194,25 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       } else {
         pathInfo.value = [];
       }
+
+      if (q) {
+        searchQuery.value = q;
+        isSearchActive.value = true;
+      } else {
+        searchQuery.value = "";
+        isSearchActive.value = false;
+      }
     };
     globalThis.addEventListener("popstate", handlePopState);
     return () => globalThis.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [activeDatabase?.id]);
 
   useEffect(() => {
     const url = new URL(globalThis.location.href);
     let changed = false;
 
-    // Removed db sync logic as we use routes now
-
-    if (pathInfo.value && pathInfo.value.length > 0) { // Check length to avoid empty path param if KeyCodec returns empty string for empty array? KeyCodec.encode([]) -> "". Check implementation. Array.map.join -> "".
+    // Path
+    if (pathInfo.value && pathInfo.value.length > 0) {
       const serialized = KeyCodec.encode(pathInfo.value);
       if (url.searchParams.get("path") !== serialized) {
         url.searchParams.set("path", serialized);
@@ -181,10 +225,38 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       }
     }
 
+    // Search
+    if (isSearchActive.value && searchQuery.value) {
+      if (url.searchParams.get("q") !== searchQuery.value) {
+        url.searchParams.set("q", searchQuery.value);
+        changed = true;
+      }
+      url.searchParams.set("target", searchTarget.value);
+      if (searchRegex.value) url.searchParams.set("regex", "true");
+      else url.searchParams.delete("regex");
+      if (searchCaseSensitive.value) url.searchParams.set("case", "true");
+      else url.searchParams.delete("case");
+    } else {
+      if (url.searchParams.has("q")) {
+        url.searchParams.delete("q");
+        url.searchParams.delete("target");
+        url.searchParams.delete("regex");
+        url.searchParams.delete("case");
+        changed = true;
+      }
+    }
+
     if (changed) {
       globalThis.history.pushState({}, "", url.toString());
     }
-  }, [selectedDatabase.value, pathInfo.value]);
+  }, [
+    pathInfo.value,
+    isSearchActive.value,
+    searchQuery.value,
+    searchTarget.value,
+    searchRegex.value,
+    searchCaseSensitive.value,
+  ]);
 
   useEffect(() => {
     const db = databases.value.find((db) =>
@@ -232,10 +304,12 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
     }).catch((e) => {
       console.error("Failed to fetch records:", e);
       records.value = [];
+      if (pathInfo.value && pathInfo.value.length > 0) {
+        pathInfo.value = [];
+      }
     });
-  }, [pathInfo.value, cursor.value, limit.value, activeDatabase?.id]); // Depend on activeDatabase change
+  }, [pathInfo.value, cursor.value, limit.value, activeDatabase?.id]);
 
-  // Reset pagination on path change or DB change
   useEffect(() => {
     cursor.value = undefined;
     nextCursor.value = undefined;
@@ -260,6 +334,11 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
         cursorStack,
         limit,
         forceExpandValues,
+        searchQuery,
+        isSearchActive,
+        searchTarget,
+        searchRegex,
+        searchCaseSensitive,
       }}
     >
       {children}

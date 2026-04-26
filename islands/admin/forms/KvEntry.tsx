@@ -1,8 +1,25 @@
-import { useEffect, useState } from "preact/hooks";
-import { ApiKvEntry, ApiKvKey } from "@/lib/types.ts";
+import { useEffect, useMemo, useState } from "preact/hooks";
+import { ApiKvEntry, ApiKvKey, ApiKvKeyPart } from "@/lib/types.ts";
 import RichValueEditor from "./RichValueEditor.tsx";
 import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
 import { KeyDisplay } from "../KeyDisplay.tsx";
+import JsonEditor from "./JsonEditor.tsx";
+
+interface KvEntryFormProps {
+  onSubmit?: (
+    data: { key: Deno.KvKeyPart[]; value: RichValue },
+    form: HTMLFormElement,
+  ) => void;
+  onCancel?: () => void;
+  onDelete?: () => void;
+  entry?: ApiKvEntry | null;
+  path?: ApiKvKey | null;
+  isLoading?: boolean;
+  error?: string;
+  success?: string;
+  isReadOnly?: boolean;
+}
+
 export default function KvEntryForm({
   onSubmit,
   onCancel,
@@ -13,47 +30,45 @@ export default function KvEntryForm({
   error,
   success,
   isReadOnly = false,
-}: {
-  onSubmit?: (data: unknown, form: HTMLFormElement) => void;
-  onCancel?: () => void;
-  onDelete?: () => void;
-  entry?: ApiKvEntry | null;
-  path?: ApiKvKey | null;
-  isLoading?: boolean;
-  error?: string;
-  success?: string;
-  isReadOnly?: boolean;
-}) {
+}: KvEntryFormProps) {
   const [keyParts, setKeyParts] = useState<{ type: string; value: string }[]>(
     [],
   );
-  // Helper to ensure value is RichValue
+
   const toRichValue = (val: unknown): RichValue => {
     if (val && typeof val === "object" && "type" in val && "value" in val) {
-      // Naive check if it's already encoded
       return val as RichValue;
     }
     return ValueCodec.encode(val);
   };
 
-  // Initialize rich value from entry or default
   const [richValue, setRichValue] = useState<RichValue>(
     toRichValue(entry?.value),
   );
+  const [keyTab, setKeyTab] = useState<"editor" | "json">("editor");
+  const [valueTab, setValueTab] = useState<"editor" | "json">("editor");
+  const [isEditingKey, setIsEditingKey] = useState(!entry);
+  const [keyJsonError, setKeyJsonError] = useState<string | null>(null);
+  const [valueJsonError, setValueJsonError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"editor" | "value-json" | "key-json">(
-    "editor",
-  );
-  const [isEditingKey, setIsEditingKey] = useState(!entry); // Default to editing if new entry
-  const [jsonString, setJsonString] = useState("");
-  const [jsonError, setJsonError] = useState<string | null>(null);
+  const getNormalizedKey = () =>
+    keyParts.map((p) => {
+      if (p.type === "number") return { ...p, value: parseFloat(p.value) };
+      if (p.type === "boolean") return { ...p, value: p.value === "true" };
+      if (p.type === "Uint8Array") {
+        const bytes = p.value.split(/[,\s]+/).map((n) => parseInt(n.trim()))
+          .filter((n) => !isNaN(n));
+        return { ...p, type: "Uint8Array", value: bytes };
+      }
+      return p;
+    }) as ApiKvKeyPart[];
 
   useEffect(() => {
     setIsEditingKey(!entry);
   }, [entry]);
 
   useEffect(() => {
-    let initialParts: { type: string; value: string }[] = [];
+    let initialParts: ApiKvKeyPart[] = [];
     if (entry && entry.key) {
       initialParts = entry.key;
     } else if (path) {
@@ -62,328 +77,365 @@ export default function KvEntryForm({
 
     if (initialParts.length > 0) {
       setKeyParts(initialParts.map((p) => {
-        const type = p.type.toLowerCase();
+        const type = p.type;
         let value = p.value;
-        if (type === "uint8array") {
-          try {
-            const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-            value = Array.from(bytes).join(", ");
-          } catch { /* ignore */ }
+        if (type.toLowerCase() === "uint8array") {
+          if (Array.isArray(value)) value = value.join(", ");
+          else value = "";
         }
-        return { type, value };
+        return { type, value: String(value) };
       }));
     } else {
       setKeyParts([]);
     }
 
-    // Update value when entry changes
-    if (entry) {
-      setRichValue(toRichValue(entry.value));
-    } else {
-      setRichValue({ type: "object", value: {} });
-    }
+    if (entry) setRichValue(toRichValue(entry.value));
+    else setRichValue({ type: "object", value: {} });
   }, [entry, path]);
 
   const doSubmit = (e: Event) => {
     if (onSubmit) {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
-
-      // Construct Key
       const key = keyParts.map((part) => {
         if (part.type === "number") return parseFloat(part.value);
         if (part.type === "boolean") return part.value === "true";
         if (part.type === "bigint") return BigInt(part.value);
-        if (part.type === "uint8array") {
+        if (part.type.toLowerCase() === "uint8array") {
           let val = part.value.trim();
-          if (val.startsWith("[") && val.endsWith("]")) {
-            val = val.slice(1, -1);
-          }
-          const bytes = val.split(/[,\s]+/).map((n) => parseInt(n.trim()))
-            .filter((n) => !isNaN(n));
+          if (val.startsWith("[") && val.endsWith("]")) val = val.slice(1, -1);
+          const bytes = val.split(/[,\s]+/).map((n: string) =>
+            parseInt(n.trim())
+          ).filter((n: number) => !isNaN(n));
           return new Uint8Array(bytes);
         }
         return part.value;
       });
 
-      const data = {
-        key,
-        value: richValue, // Send the RichValue object directly
-      };
-
-      onSubmit(data, form);
+      onSubmit({ key, value: richValue }, form);
     }
   };
 
-  // ... (doCancel, doDelete, addPart, removePart, updatePart same as before)
   const doCancel = (e: Event) => {
     e.preventDefault();
-    if (onCancel) {
-      onCancel();
-    }
+    if (onCancel) onCancel();
   };
 
   const doDelete = (e: Event) => {
     e.preventDefault();
-    if (entry && entry.key) {
-      if (confirm(`Are you sure you want to delete this entry?`)) {
-        if (onDelete) {
-          onDelete();
-        }
-      }
-    }
+    if (entry && entry.key && confirm(`Are you sure?`) && onDelete) onDelete();
   };
 
-  const addPart = () => {
+  const addPart = () =>
     setKeyParts([...keyParts, { type: "string", value: "" }]);
-  };
-
-  const removePart = (index: number) => {
+  const removePart = (index: number) =>
     setKeyParts(keyParts.filter((_, i) => i !== index));
-  };
-
   const updatePart = (index: number, field: "type" | "value", val: string) => {
     const newParts = [...keyParts];
     newParts[index] = { ...newParts[index], [field]: val };
-    if (field === "type") {
-      if (val === "boolean") newParts[index].value = "true";
-    }
+    if (field === "type" && val === "boolean") newParts[index].value = "true";
     setKeyParts(newParts);
+  };
+
+  const resetKey = () => {
+    let initialParts: ApiKvKeyPart[] = [];
+    if (entry && entry.key) {
+      initialParts = entry.key;
+    } else if (path) {
+      initialParts = [...path, { type: "string", value: "" }];
+    }
+
+    setKeyParts(initialParts.map((p) => {
+      const type = p.type;
+      let value = p.value;
+      if (type.toLowerCase() === "uint8array") {
+        if (Array.isArray(value)) value = value.join(", ");
+        else value = "";
+      }
+      return { type, value: String(value) };
+    }));
+    setKeyJsonError(null);
+  };
+
+  const resetValue = () => {
+    if (entry) setRichValue(toRichValue(entry.value));
+    else setRichValue({ type: "object", value: {} });
+    setValueJsonError(null);
+  };
+
+  const initialKey = useMemo(() => {
+    let parts: ApiKvKeyPart[] = [];
+    if (entry && entry.key) parts = entry.key;
+    else if (path) parts = [...path, { type: "string", value: "" }];
+    return JSON.stringify(parts.map((p) => ({
+      type: p.type,
+      value: p.type === "Uint8Array" && Array.isArray(p.value)
+        ? p.value.join(", ")
+        : String(p.value),
+    })));
+  }, [entry, path]);
+
+  const initialValue = useMemo(() => {
+    return JSON.stringify(
+      entry ? toRichValue(entry.value) : { type: "object", value: {} },
+    );
+  }, [entry]);
+
+  const isKeyDirty = () => {
+    return !!keyJsonError || JSON.stringify(keyParts) !== initialKey;
+  };
+
+  const isValueDirty = () => {
+    return !!valueJsonError || JSON.stringify(richValue) !== initialValue;
   };
 
   return (
     <form class="form-control w-full flex flex-col" onSubmit={doSubmit}>
       {error && (
-        <div class="alert alert-error">
+        <div class="alert alert-error mb-4">
           <span>{error}</span>
         </div>
       )}
       {success && (
-        <div class="alert alert-success">
+        <div class="alert alert-success mb-4">
           <span>{success}</span>
         </div>
       )}
 
       <div class="flex flex-col gap-2">
-        <label class="label font-bold flex justify-between">
-          <span>Key</span>
-          {entry && (
-            <span class="text-xs font-mono opacity-50">
-              {entry.versionstamp ? `v:${entry.versionstamp}` : "New Entry"}
-            </span>
-          )}
-        </label>
-
-        {/* Key Display / Editor */}
-        {!isEditingKey && entry
-          ? (
-            <div class="flex items-center gap-2 p-2 border border-base-200 rounded-md bg-base-100">
-              <div class="flex-1 flex flex-wrap gap-1">
-                {entry.key.map((p, i) => (
-                  <>
-                    {i > 0 && (
-                      <span class="text-base-content/30 select-none font-mono">
-                        /
-                      </span>
-                    )}
-                    <KeyDisplay key={i} type={p.type} value={p.value} />
-                  </>
-                ))}
-              </div>
+        <div class="flex justify-between items-center">
+          <label class="label font-bold">
+            <span>Key</span>
+          </label>
+          <div class="flex items-center gap-2">
+            {!isReadOnly && isKeyDirty() && (
               <button
                 type="button"
-                class="btn btn-xs btn-ghost"
-                disabled={isReadOnly}
-                onClick={() => setIsEditingKey(true)}
+                class="btn btn-xs btn-ghost text-xs opacity-50 hover:opacity-100 text-info"
+                onClick={resetKey}
               >
-                Edit Key
+                Reset
+              </button>
+            )}
+            <div class="tabs tabs-boxed tabs-xs bg-base-200/50 p-1">
+              <button
+                type="button"
+                class={`tab ${keyTab === "editor" ? "tab-active" : ""}`}
+                onClick={() => setKeyTab("editor")}
+              >
+                Editor
+              </button>
+              <button
+                type="button"
+                class={`tab ${keyTab === "json" ? "tab-active" : ""}`}
+                onClick={() => setKeyTab("json")}
+              >
+                JSON
               </button>
             </div>
-          )
-          : (
-            <div class="flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100">
-              {keyParts.map((part, i) => (
-                <div class="flex gap-2 items-center" key={i}>
-                  <select
-                    class="select select-bordered select-xs w-24"
-                    value={part.type}
-                    disabled={isReadOnly}
-                    onChange={(e) =>
-                      updatePart(
-                        i,
-                        "type",
-                        (e.target as HTMLSelectElement).value,
-                      )}
-                  >
-                    <option value="string">String</option>
-                    <option value="number">Number</option>
-                    <option value="bigint">BigInt</option>
-                    <option value="boolean">Boolean</option>
-                    <option value="uint8array">Uint8Array</option>
-                  </select>
+          </div>
+        </div>
 
-                  {part.type === "boolean"
-                    ? (
+        {keyTab === "editor"
+          ? (
+            !isEditingKey && entry
+              ? (
+                <div class="flex items-center gap-2 p-2 border border-base-200 rounded-md bg-base-100">
+                  <div class="flex-1 flex flex-wrap gap-1">
+                    {entry.key.map((p, i) => (
+                      <span key={i}>
+                        <KeyDisplay type={p.type} value={p.value} />
+                        {i < entry.key.length - 1 && " / "}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost"
+                    disabled={isReadOnly}
+                    onClick={() => setIsEditingKey(true)}
+                  >
+                    Edit Key
+                  </button>
+                </div>
+              )
+              : (
+                <div class="flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100">
+                  {keyParts.map((part, i) => (
+                    <div class="flex gap-2 items-center" key={i}>
                       <select
-                        class="select select-bordered select-xs flex-1 max-w-xs"
-                        value={part.value}
+                        class="select select-bordered select-xs w-24"
+                        value={part.type}
                         disabled={isReadOnly}
                         onChange={(e) =>
                           updatePart(
                             i,
-                            "value",
+                            "type",
                             (e.target as HTMLSelectElement).value,
                           )}
                       >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
+                        {["string", "number", "bigint", "boolean", "Uint8Array"]
+                          .map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
-                    )
-                    : (
-                      <input
-                        type={part.type === "number" ? "number" : "text"}
-                        class={`input input-bordered input-xs flex-1 ${
-                          part.type === "uint8array" || part.type === "string"
-                            ? "max-w-lg"
-                            : "max-w-xs"
-                        }`}
-                        value={part.value}
-                        disabled={isReadOnly}
-                        onChange={(e) =>
-                          updatePart(
-                            i,
-                            "value",
-                            (e.target as HTMLInputElement).value,
-                          )}
-                        placeholder={part.type === "uint8array"
-                          ? "e.g. 1, 2, 255"
-                          : "Key part value"}
-                      />
-                    )}
-
+                      {part.type === "boolean"
+                        ? (
+                          <div class="flex-1 max-w-xs flex items-center px-2">
+                            <input
+                              type="checkbox"
+                              class="toggle toggle-xs toggle-primary"
+                              checked={part.value === "true"}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                updatePart(
+                                  i,
+                                  "value",
+                                  (e.target as HTMLInputElement).checked
+                                    ? "true"
+                                    : "false",
+                                )}
+                            />
+                            <span class="ml-2 text-xs opacity-50">
+                              {part.value}
+                            </span>
+                          </div>
+                        )
+                        : (
+                          <input
+                            type={part.type === "number" ? "number" : "text"}
+                            class="input input-bordered input-xs flex-1"
+                            value={part.value}
+                            readOnly={isReadOnly}
+                            onInput={(e) =>
+                              updatePart(
+                                i,
+                                "value",
+                                (e.target as HTMLInputElement).value,
+                              )}
+                          />
+                        )}
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          class="btn btn-square btn-sm btn-ghost"
+                          onClick={() => removePart(i)}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
                   {!isReadOnly && (
-                    <button
-                      type="button"
-                      class="btn btn-square btn-sm btn-ghost"
-                      onClick={() => removePart(i)}
-                    >
-                      ✕
-                    </button>
+                    <div class="flex gap-2 mt-2 justify-between items-center">
+                      <button
+                        type="button"
+                        class="btn btn-xs btn-outline"
+                        onClick={addPart}
+                      >
+                        + Add Key Part
+                      </button>
+                      {entry && (
+                        <button
+                          type="button"
+                          class="btn btn-xs btn-ghost text-error"
+                          onClick={() => setIsEditingKey(false)}
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              ))}
-              {!isReadOnly && (
-                <div class="flex gap-2 mt-2 justify-between items-center">
-                  <button
-                    type="button"
-                    class="btn btn-xs btn-outline gap-2"
-                    onClick={addPart}
-                  >
-                    + Add Key Part
-                  </button>
-                  {entry && (
-                    <button
-                      type="button"
-                      class="btn btn-xs btn-ghost text-error"
-                      onClick={() => setIsEditingKey(false)}
-                    >
-                      Cancel Edit
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+              )
+          )
+          : (
+            <JsonEditor
+              value={getNormalizedKey()}
+              height="h-32"
+              isReadOnly={isReadOnly}
+              onValidationError={setKeyJsonError}
+              validate={(parsed) => {
+                if (!Array.isArray(parsed)) return "Key must be an array";
+                const allowed = [
+                  "string",
+                  "number",
+                  "boolean",
+                  "bigint",
+                  "Uint8Array",
+                ];
+                const invalid = parsed.find((p) => !allowed.includes(p.type));
+                return invalid ? `Invalid type: ${invalid.type}` : null;
+              }}
+              onChange={(parsed) => {
+                setKeyParts(parsed.map((p) => ({
+                  type: p.type,
+                  value: p.type === "Uint8Array" && Array.isArray(p.value)
+                    ? p.value.join(", ")
+                    : String(p.value),
+                })));
+              }}
+            />
           )}
       </div>
 
-      <div class="mt-4 tabs tabs-boxed tabs-xs bg-base-200/50 p-1">
-        <a
-          class={`tab ${activeTab === "editor" ? "tab-active" : ""}`}
-          onClick={() => setActiveTab("editor")}
-        >
-          Editor
-        </a>
-        <a
-          class={`tab ${activeTab === "value-json" ? "tab-active" : ""}`}
-          onClick={() => setActiveTab("value-json")}
-        >
-          Value JSON
-        </a>
-        <a
-          class={`tab ${activeTab === "key-json" ? "tab-active" : ""}`}
-          onClick={() => setActiveTab("key-json")}
-        >
-          Key JSON
-        </a>
-      </div>
-
-      <div class="form-control">
-        {activeTab === "editor" && (
-          <RichValueEditor
-            value={richValue}
-            onChange={setRichValue}
-            label=""
-            isReadOnly={isReadOnly}
-          />
-        )}
-        {activeTab === "value-json" && (
-          <div class="flex flex-col gap-2">
-            <textarea
-              class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
-              value={jsonError
-                ? jsonString
-                : JSON.stringify(richValue, null, 2)}
-              onInput={(e) => {
-                const val = (e.target as HTMLTextAreaElement).value;
-                setJsonString(val);
-                try {
-                  const parsed = JSON.parse(val);
-                  if (
-                    parsed && typeof parsed === "object" &&
-                    "type" in parsed && "value" in parsed
-                  ) {
-                    setRichValue(parsed as RichValue);
-                    setJsonError(null);
-                  } else {
-                    setJsonError(
-                      "Invalid RichValue structure (missing type or value)",
-                    );
-                  }
-                } catch (err) {
-                  setJsonError((err as Error).message);
-                }
-              }}
-            />
-            {jsonError && (
-              <div class="text-error text-xs font-bold">
-                Error: {jsonError}
-              </div>
+      <div class="mt-6 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+          <label class="label font-bold">
+            <span>Value</span>
+          </label>
+          <div class="flex items-center gap-2">
+            {!isReadOnly && isValueDirty() && (
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost text-xs opacity-50 hover:opacity-100 text-info"
+                onClick={resetValue}
+              >
+                Reset
+              </button>
             )}
-          </div>
-        )}
-        {activeTab === "key-json" && (
-          <div class="flex flex-col gap-2">
-            <textarea
-              class="textarea textarea-bordered border-t-0 rounded-t-none rounded-b-lg font-mono text-xs leading-relaxed h-64 w-full"
-              value={JSON.stringify(
-                keyParts.map((p) => {
-                  if (p.type === "number") return { ...p, value: parseFloat(p.value) };
-                  if (p.type === "boolean") return { ...p, value: p.value === "true" };
-                  return p;
-                }),
-                null,
-                2,
-              )}
-              readOnly
-            />
-            <div class="text-[10px] opacity-50 px-2">
-              Key JSON is read-only. Use the Editor tab to modify the key.
+            <div class="tabs tabs-boxed tabs-xs bg-base-200/50 p-1">
+              <button
+                type="button"
+                class={`tab ${valueTab === "editor" ? "tab-active" : ""}`}
+                onClick={() => setValueTab("editor")}
+              >
+                Editor
+              </button>
+              <button
+                type="button"
+                class={`tab ${valueTab === "json" ? "tab-active" : ""}`}
+                onClick={() => setValueTab("json")}
+              >
+                JSON
+              </button>
             </div>
           </div>
-        )}
+        </div>
+
+        {valueTab === "editor"
+          ? (
+            <RichValueEditor
+              value={richValue}
+              onChange={setRichValue}
+              label=""
+              isReadOnly={isReadOnly}
+            />
+          )
+          : (
+            <JsonEditor
+              value={richValue}
+              height="h-64"
+              onValidationError={setValueJsonError}
+              validate={(parsed) =>
+                (!parsed || typeof parsed !== "object" || !("type" in parsed))
+                  ? "Invalid RichValue"
+                  : null}
+              onChange={setRichValue}
+              isReadOnly={isReadOnly}
+            />
+          )}
       </div>
 
-      <div class="flex justify-between gap-4 mt-4">
+      <div class="flex justify-between gap-4 mt-8">
         <div>
           {!isReadOnly && entry && onDelete && (
             <button
@@ -409,7 +461,7 @@ export default function KvEntryForm({
             <button
               class="btn btn-sm bg-brand hover:bg-brand/80 text-black border-none"
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !!keyJsonError || !!valueJsonError}
             >
               {isLoading ? "Loading..." : (entry ? "Save Changes" : "Create")}
             </button>

@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import { Database } from "@/kv/models.ts";
+import {
+  ChevronRightIcon,
+  LockIcon,
+} from "../../components/icons/ActionIcons.tsx";
+import { DatabaseIcon } from "../../components/icons/DatabaseIcons.tsx";
 
 interface BreadcrumbsProps {
   pathInfo: Signal<ApiKvKeyPart[] | null>;
@@ -13,6 +18,14 @@ interface BreadcrumbsProps {
   onSwitchDatabase: (id: string) => void;
   prettyPrintDates: boolean;
   isReadOnly: boolean;
+  onLoadNodes: (path: ApiKvKeyPart[]) => void;
+  onContextMenu: (
+    e: MouseEvent,
+    type: "folder" | "item" | "database",
+    path: ApiKvKeyPart[],
+    dbId?: string,
+  ) => void;
+  activeDatabase: Database | null;
 }
 
 export const Breadcrumbs = (
@@ -25,6 +38,9 @@ export const Breadcrumbs = (
     onSwitchDatabase,
     prettyPrintDates,
     isReadOnly,
+    onLoadNodes,
+    onContextMenu,
+    activeDatabase,
   }: BreadcrumbsProps,
 ) => {
   // Helper to get children of a path from dbStructure
@@ -47,13 +63,30 @@ export const Breadcrumbs = (
     return current;
   };
 
+  // Helper to get a specific node from dbStructure
+  const getNode = (
+    parents: ApiKvKeyPart[],
+  ): DbNode | null => {
+    if (!dbStructure || parents.length === 0) return null;
+    const parentPath = parents.slice(0, -1);
+    const lastPart = parents[parents.length - 1];
+    const siblings = parentPath.length === 0
+      ? dbStructure
+      : getChildren(parentPath);
+    if (!siblings) return null;
+    const key = Object.keys(siblings).find((k) => {
+      const n = siblings[k];
+      return n.value === lastPart.value && n.type === lastPart.type;
+    });
+    return key ? siblings[key] : null;
+  };
+
   const rootChildren = dbStructure;
   const path = pathInfo.value || [];
 
   return (
     <div class="breadcrumbs text-sm custom-breadcrumbs flex items-center">
       <ul class="flex-wrap flex items-center p-0 m-0">
-        {/* Root */}
         <li class="flex items-center gap-0.5">
           <DatabaseSwitcher
             databases={databases}
@@ -63,6 +96,17 @@ export const Breadcrumbs = (
             class="hover:underline font-bold flex items-center gap-1"
             type="button"
             onClick={navigateToRoot}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (activeDatabase) {
+                onContextMenu(
+                  e,
+                  "database",
+                  [],
+                  activeDatabase.slug || activeDatabase.id,
+                );
+              }
+            }}
           >
             {currentDbName}
             {isReadOnly && (
@@ -70,20 +114,7 @@ export const Breadcrumbs = (
                 class="flex items-center gap-1 ml-1 tooltip tooltip-bottom"
                 data-tip="Read Only"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                  stroke="currentColor"
-                  class="w-3.5 h-3.5 text-warning"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-                  />
-                </svg>
+                <LockIcon className="w-3.5 h-3.5 text-warning" />
               </div>
             )}
           </button>
@@ -93,12 +124,15 @@ export const Breadcrumbs = (
             pathInfo={pathInfo}
             isLast={path.length === 0}
             prettyPrintDates={prettyPrintDates}
+            onLoadNodes={() => onLoadNodes([])}
+            hasChildren
           />
         </li>
 
         {path.map((node, i) => {
           const myPath = path.slice(0, i + 1);
           const children = getChildren(myPath);
+          const fullNode = getNode(myPath);
 
           return (
             <li key={`pathInfo-${i}`} class="flex items-center gap-0.5">
@@ -108,6 +142,15 @@ export const Breadcrumbs = (
                 onClick={(e) => {
                   e.preventDefault();
                   pathInfo.value = myPath;
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  onContextMenu(
+                    e,
+                    "folder",
+                    myPath,
+                    activeDatabase?.slug || activeDatabase?.id,
+                  );
                 }}
               >
                 <KeyDisplay
@@ -122,6 +165,8 @@ export const Breadcrumbs = (
                 pathInfo={pathInfo}
                 isLast={i === path.length - 1}
                 prettyPrintDates={prettyPrintDates}
+                onLoadNodes={() => onLoadNodes(myPath)}
+                hasChildren={fullNode?.hasChildren}
               />
             </li>
           );
@@ -140,7 +185,6 @@ const DatabaseSwitcher = (
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -167,38 +211,12 @@ const DatabaseSwitcher = (
         }}
         class="relative z-10 btn btn-ghost btn-xs px-0.5 min-h-0 h-5 w-auto flex items-center justify-center rounded-sm hover:bg-base-300 cursor-pointer gap-0.5"
       >
-        {/* Database Icon */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="1.5"
-          stroke="currentColor"
-          class="w-4 h-4 text-base-content/70"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M5 12h14M5 12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2M5 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2"
-          />
-        </svg>
-        {/* Chevron */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-          class={`w-3 h-3 text-base-content/50 transition-transform duration-200 ${
+        <DatabaseIcon className="w-4 h-4 text-base-content/70" />
+        <ChevronRightIcon
+          className={`w-3 h-3 text-base-content/50 transition-transform duration-200 ${
             isOpen ? "rotate-90" : ""
           }`}
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="m8.25 4.5 7.5 7.5-7.5 7.5"
-          />
-        </svg>
+        />
       </button>
       {isOpen && (
         <ul
@@ -230,23 +248,29 @@ const DatabaseSwitcher = (
 };
 
 const BreadcrumbSeparator = (
-  { candidates, basePath, pathInfo, isLast, prettyPrintDates }: {
+  {
+    candidates,
+    basePath,
+    pathInfo,
+    isLast,
+    prettyPrintDates,
+    onLoadNodes,
+    hasChildren,
+  }: {
     candidates: Record<string, DbNode> | null;
     basePath: ApiKvKeyPart[];
     pathInfo: Signal<ApiKvKeyPart[] | null>;
     isLast: boolean;
     prettyPrintDates: boolean;
+    onLoadNodes: () => void;
+    hasChildren?: boolean;
   },
 ) => {
-  // Filter to only show keys that have children (folders)
   const folders = candidates
-    ? Object.values(candidates).filter((n: DbNode) =>
-      n.children && Object.keys(n.children).length > 0
-    )
+    ? Object.values(candidates).filter((n: DbNode) => n.hasChildren)
     : [];
-  const hasFolders = folders.length > 0;
+  const hasLoadedFolders = folders.length > 0;
 
-  // Check if the single available folder is already the selected next step
   const nextSegment = pathInfo.value && pathInfo.value.length > basePath.length
     ? pathInfo.value[basePath.length]
     : null;
@@ -255,9 +279,9 @@ const BreadcrumbSeparator = (
     folders[0].type === nextSegment.type;
 
   const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -272,33 +296,19 @@ const BreadcrumbSeparator = (
   }, [isOpen]);
 
   const Chevron = (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke-width="2"
-      stroke="currentColor"
-      class={`w-3 h-3 text-base-content/50 transition-transform duration-200 ${
+    <ChevronRightIcon
+      className={`w-3 h-3 text-base-content/50 transition-transform duration-200 ${
         isOpen ? "rotate-90" : ""
       }`}
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        d="m8.25 4.5 7.5 7.5-7.5 7.5"
-      />
-    </svg>
+    />
   );
 
-  // If last item and no folders, don't show separator
-  if (isLast && !hasFolders) return null;
+  if (isLast && !hasChildren && !hasLoadedFolders) return null;
 
-  // Static Separator (between items, but no folders to switch to, or the only option is already selected)
-  if (!hasFolders || isRedundant) {
+  if (isRedundant && !isLast) {
     return <div class="px-0.5 opacity-40">{Chevron}</div>;
   }
 
-  // Interactive Dropdown
   return (
     <div
       class={`dropdown dropdown-bottom ${isOpen ? "dropdown-open" : ""}`}
@@ -308,11 +318,22 @@ const BreadcrumbSeparator = (
         type="button"
         onClick={(e) => {
           e.preventDefault();
-          setIsOpen(!isOpen);
+          if (!isOpen && !hasLoadedFolders && hasChildren) {
+            setLoading(true);
+            onLoadNodes();
+            setTimeout(() => {
+              setLoading(false);
+              setIsOpen(true);
+            }, 300);
+          } else {
+            setIsOpen(!isOpen);
+          }
         }}
-        class="relative z-10 btn btn-ghost btn-xs px-0.5 min-h-0 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-base-300 cursor-pointer"
+        class={`relative z-10 btn btn-ghost btn-xs px-0.5 min-h-0 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-base-300 cursor-pointer ${
+          loading ? "loading loading-spinner loading-xs" : ""
+        }`}
       >
-        {Chevron}
+        {!loading && Chevron}
       </button>
       {isOpen && (
         <ul
@@ -322,25 +343,31 @@ const BreadcrumbSeparator = (
             opacity: 1,
             visibility: "visible",
           }}
-          class="dropdown-content z-50 menu p-2 shadow bg-base-100 rounded-box w-52 max-h-60 overflow-y-auto flex-nowrap block border border-base-200"
+          class="dropdown-content z-50 menu p-2 shadow bg-base-100 rounded-box w-64 max-h-80 overflow-y-auto flex-nowrap block border border-base-200"
           onClick={(e) => e.stopPropagation()}
         >
-          {folders.map((folder: DbNode) => (
-            <li key={folder.value}>
-              <a
-                onClick={() => {
-                  pathInfo.value = [...basePath, folder];
-                  setIsOpen(false);
-                }}
-              >
-                <KeyDisplay
-                  type={folder.type}
-                  value={folder.value}
-                  prettyPrint={prettyPrintDates}
-                />
-              </a>
-            </li>
-          ))}
+          {hasLoadedFolders
+            ? folders.map((folder: DbNode) => (
+              <li key={folder.value}>
+                <a
+                  onClick={() => {
+                    pathInfo.value = [...basePath, folder];
+                    setIsOpen(false);
+                  }}
+                >
+                  <KeyDisplay
+                    type={folder.type}
+                    value={folder.value}
+                    prettyPrint={prettyPrintDates}
+                  />
+                </a>
+              </li>
+            ))
+            : (
+              <li class="disabled px-4 py-2 opacity-50 text-xs">
+                No child folders found
+              </li>
+            )}
         </ul>
       )}
     </div>

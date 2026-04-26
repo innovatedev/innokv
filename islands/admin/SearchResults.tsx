@@ -32,7 +32,6 @@ export default function SearchResults(
   if (results.length === 0 && !isLoading) {
     return (
       <div class="flex flex-col items-center justify-center py-12 text-base-content/40">
-        <div class="text-4xl mb-4">🔍</div>
         <p>No results found matching your query.</p>
       </div>
     );
@@ -50,11 +49,6 @@ export default function SearchResults(
 
         return (
           <div key={keyStr} class="relative">
-            <div
-              class={`absolute top-0 right-0 z-10 px-2 py-0.5 text-[10px] uppercase font-bold rounded-bl-lg bg-primary/20 text-primary-content/60`}
-            >
-              Match in {result.matchTarget}
-            </div>
             <RecordItem
               record={record}
               selected={selectedKeys.has(keyStr)}

@@ -1,6 +1,12 @@
-import { type DbNode, type SearchOptions, type SearchResult } from "./types.ts";
+import {
+  ApiKvKeyPart,
+  type DbNode,
+  type SearchOptions,
+  type SearchResult,
+} from "./types.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 import { RichValue, ValueCodec } from "./ValueCodec.ts";
+import { KeySerialization } from "./KeySerialization.ts";
 
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
@@ -164,66 +170,12 @@ export class KvExplorer {
     return { records: apiRecords, cursor: nextCursor };
   }
 
-  private stringifyKeyPart(
-    part: Deno.KvKeyPart,
-  ): { value: string; type: string } {
-    if (typeof part === "string") {
-      return { value: part, type: "string" };
-    } else if (typeof part === "number") {
-      return { value: part.toString(), type: "number" };
-    } else if (typeof part === "boolean") {
-      return { value: part ? "true" : "false", type: "boolean" };
-    } else if (typeof part === "bigint") {
-      return { value: part.toString(), type: "bigint" };
-    } else if (ArrayBuffer.isView(part)) {
-      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
-      return { value: btoa(String.fromCharCode(...u8)), type: "Uint8Array" };
-    } else {
-      // deno-lint-ignore no-explicit-any
-      const p = part as any;
-      if (p instanceof Date) {
-        return { value: p.toISOString(), type: "Date" };
-      }
-      if (p instanceof ArrayBuffer) {
-        return {
-          value: btoa(String.fromCharCode(...new Uint8Array(p))),
-          type: "ArrayBuffer",
-        };
-      }
-      if (Array.isArray(p)) {
-        return { value: JSON.stringify(p), type: "Array" };
-      }
-      return { value: String(part), type: "string" };
-    }
+  private stringifyKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
+    return KeySerialization.serialize(part);
   }
 
-  private parseKeyPart(part: { type: string; value: string }): Deno.KvKeyPart {
-    try {
-      if (part.type === "string") {
-        return part.value;
-      } else if (part.type === "number") {
-        return parseFloat(part.value);
-      } else if (part.type === "bigint") {
-        return BigInt(part.value);
-      } else if (part.type === "boolean") {
-        return part.value === "true";
-      } else if (part.type === "Date") {
-        // deno-lint-ignore no-explicit-any
-        return new Date(part.value) as any;
-      } else if (part.type === "Uint8Array" || part.type === "uint8array") {
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0));
-      } else if (part.type === "ArrayBuffer") {
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0))
-          // deno-lint-ignore no-explicit-any
-          .buffer as any;
-      } else if (part.type === "Array") {
-        // deno-lint-ignore no-explicit-any
-        return JSON.parse(part.value) as any;
-      }
-    } catch (e) {
-      console.error("Failed to parse key part:", e);
-    }
-    return part.value;
+  private parseKeyPart(part: ApiKvKeyPart): Deno.KvKeyPart {
+    return KeySerialization.parse(part);
   }
 
   parsePath(pathInfo: string): Deno.KvKey {
@@ -254,18 +206,29 @@ export class KvExplorer {
     oldPrefix: Deno.KvKey,
     newPrefix: Deno.KvKey,
     recursive = true,
+    targetKv?: Deno.Kv,
   ) {
     let movedCount = 0;
+    const destKv = targetKv ?? this.kv;
+    const isCrossDb = destKv !== this.kv;
 
     // Handle the prefix key itself
     if (oldPrefix.length > 0) {
       const rootEntry = await this.kv.get(oldPrefix);
       if (rootEntry.value !== null) {
-        const res = await this.kv.atomic()
-          .delete(oldPrefix)
-          .set(newPrefix, rootEntry.value)
-          .commit();
-        if (res.ok) movedCount++;
+        if (isCrossDb) {
+          // Cross-DB Move: Copy then Delete
+          await destKv.set(newPrefix, rootEntry.value);
+          await this.kv.delete(oldPrefix);
+          movedCount++;
+        } else {
+          // Same-DB Move: Atomic
+          const res = await this.kv.atomic()
+            .delete(oldPrefix)
+            .set(newPrefix, rootEntry.value)
+            .commit();
+          if (res.ok) movedCount++;
+        }
       }
     }
 
@@ -279,18 +242,25 @@ export class KvExplorer {
       const suffix = entry.key.slice(oldPrefix.length);
       const newKey = [...newPrefix, ...suffix];
 
-      // Atomic move per entry to prevent data loss
-      const res = await this.kv.atomic()
-        .delete(entry.key)
-        .set(newKey, entry.value)
-        .commit();
-
-      if (res.ok) {
+      if (isCrossDb) {
+        // Cross-DB Move: Copy then Delete
+        await destKv.set(newKey, entry.value);
+        await this.kv.delete(entry.key);
         movedCount++;
       } else {
-        throw new Error(
-          `Failed to move record at key: ${JSON.stringify(entry.key)}`,
-        );
+        // Same-DB Move: Atomic per entry
+        const res = await this.kv.atomic()
+          .delete(entry.key)
+          .set(newKey, entry.value)
+          .commit();
+
+        if (res.ok) {
+          movedCount++;
+        } else {
+          throw new Error(
+            `Failed to move record at key: ${JSON.stringify(entry.key)}`,
+          );
+        }
       }
     }
     return { ok: true, movedCount };
@@ -303,14 +273,16 @@ export class KvExplorer {
     oldPrefix: Deno.KvKey,
     newPrefix: Deno.KvKey,
     recursive = false,
+    targetKv?: Deno.Kv,
   ) {
     let copiedCount = 0;
+    const destKv = targetKv ?? this.kv;
 
     // Handle the prefix key itself
     if (oldPrefix.length > 0) {
       const rootEntry = await this.kv.get(oldPrefix);
       if (rootEntry.value !== null) {
-        await this.kv.set(newPrefix, rootEntry.value);
+        await destKv.set(newPrefix, rootEntry.value);
         copiedCount++;
       }
     }
@@ -325,7 +297,7 @@ export class KvExplorer {
       const suffix = entry.key.slice(oldPrefix.length);
       const newKey = [...newPrefix, ...suffix];
 
-      await this.kv.set(newKey, entry.value);
+      await destKv.set(newKey, entry.value);
       copiedCount++;
     }
     return { ok: true, copiedCount };
@@ -356,7 +328,7 @@ export class KvExplorer {
    * Imports records from a JSON-serializable array into the database.
    */
   async importFromJson(
-    entries: { key: { type: string; value: string }[]; value: RichValue }[],
+    entries: { key: ApiKvKeyPart[]; value: RichValue }[],
   ) {
     let importedCount = 0;
     for (const entry of entries) {
@@ -410,25 +382,35 @@ export class KvExplorer {
 
       // Search Key
       if (options.target === "key" || options.target === "all") {
-        const keyStr = JSON.stringify(entry.key);
+        const keyStr = KeyCodec.encode(
+          entry.key.map((p) => this.stringifyKeyPart(p)),
+        );
         if (regex) {
           if (regex.test(keyStr)) match = "key";
         } else if (options.caseSensitive) {
           if (keyStr.includes(options.query)) match = "key";
+          else if (this.matchesTyped(options.query, entry.key)) match = "key";
         } else {
           if (keyStr.toLowerCase().includes(queryLower)) match = "key";
+          else if (this.matchesTyped(options.query, entry.key)) match = "key";
         }
       }
 
       // Search Value
       if (!match && (options.target === "value" || options.target === "all")) {
-        const valStr = JSON.stringify(entry.value);
+        const valStr = this.stringifyForSearch(entry.value);
         if (regex) {
           if (regex.test(valStr)) match = "value";
         } else if (options.caseSensitive) {
           if (valStr.includes(options.query)) match = "value";
+          else if (this.matchesTyped(options.query, entry.value)) {
+            match = "value";
+          }
         } else {
           if (valStr.toLowerCase().includes(queryLower)) match = "value";
+          else if (this.matchesTyped(options.query, entry.value)) {
+            match = "value";
+          }
         }
       }
 
@@ -450,5 +432,70 @@ export class KvExplorer {
     }
 
     return { results, cursor: nextCursor };
+  }
+
+  private stringifyForSearch(val: unknown): string {
+    if (val === null) return "null";
+    if (val === undefined) return "undefined";
+    if (val instanceof Uint8Array) return `u8[${val.join(",")}]`;
+    if (val instanceof Date) return val.toISOString();
+    if (typeof val === "bigint") return String(val);
+
+    // Recursively extract values only, stripping metadata
+    const extractValues = (v: unknown): unknown => {
+      if (v === null || typeof v !== "object") return v;
+      if (v instanceof Uint8Array) return Array.from(v);
+      if (v instanceof Date) return v.toISOString();
+      if (v instanceof Map) {
+        return Array.from(v.entries()).map(([mk, mv]) => [
+          extractValues(mk),
+          extractValues(mv),
+        ]);
+      }
+      if (v instanceof Set) {
+        return Array.from(v).map((sv) => extractValues(sv));
+      }
+      if (Array.isArray(v)) {
+        return v.map((av) => extractValues(av));
+      }
+      
+      // Standard object
+      const obj: Record<string, unknown> = {};
+      for (const [ok, ov] of Object.entries(v as object)) {
+        obj[ok] = extractValues(ov);
+      }
+      return obj;
+    };
+
+    if (typeof val === "object" || Array.isArray(val)) {
+      return JSON.stringify(extractValues(val));
+    }
+
+    return String(val);
+  }
+
+  private matchesTyped(query: string, value: unknown): boolean {
+    // Try to match numbers exactly
+    const num = Number(query);
+    if (query.trim() !== "" && !isNaN(num) && typeof value === "number") {
+      return num === value;
+    }
+
+    // Try to match booleans exactly
+    if (query === "true" && value === true) return true;
+    if (query === "false" && value === false) return true;
+
+    // Try to match u8[...] exactly
+    if (query.startsWith("u8[") && value instanceof Uint8Array) {
+      const content = query.slice(3, -1);
+      const bytes = content.split(",").map((n) => parseInt(n.trim())).filter((
+        n,
+      ) => !isNaN(n));
+      if (bytes.length === value.length) {
+        return bytes.every((b, i) => b === value[i]);
+      }
+    }
+
+    return false;
   }
 }

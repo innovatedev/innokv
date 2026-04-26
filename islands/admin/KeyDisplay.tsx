@@ -1,7 +1,7 @@
 export const KeyDisplay = (
   { type, value, prettyPrint = true }: {
     type: string;
-    value: string;
+    value: string | number | boolean | number[] | null;
     prettyPrint?: boolean;
   },
 ) => {
@@ -18,7 +18,7 @@ export const KeyDisplay = (
   }
   if (t === "number") return <span class="font-mono text-info">{value}</span>;
   if (t === "boolean") {
-    return <span class="font-mono text-accent">{value}</span>;
+    return <span class="font-mono text-accent">{String(value)}</span>;
   }
   if (t === "bigint") {
     return (
@@ -33,8 +33,14 @@ export const KeyDisplay = (
 
   if (t === "uint8array") {
     try {
-      const charCodes = atob(value).split("").map((c) => c.charCodeAt(0));
-      const bytes = new Uint8Array(charCodes);
+      if (!Array.isArray(value)) {
+        return (
+          <span class="font-mono text-error opacity-50">
+            [Invalid Uint8Array]
+          </span>
+        );
+      }
+      const bytes = new Uint8Array(value);
       const displayStr = Array.from(bytes).join(", ");
 
       if (prettyPrint) {
@@ -70,7 +76,7 @@ export const KeyDisplay = (
   }
   if (t === "array") {
     try {
-      const arr = JSON.parse(value);
+      const arr = typeof value === "string" ? JSON.parse(value) : value;
       const str = JSON.stringify(arr, null, 1).replace(/\n/g, "").replace(
         /\s+/g,
         " ",
@@ -81,8 +87,8 @@ export const KeyDisplay = (
         </span>
       );
     } catch {
-      return <span class="font-mono">{value}</span>;
+      return <span class="font-mono">{String(value)}</span>;
     }
   }
-  return <span class="font-mono">{value}</span>;
+  return <span class="font-mono">{String(value)}</span>;
 };

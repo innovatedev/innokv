@@ -49,7 +49,9 @@ export function ValueDisplay(
   const RecursiveToggle = () => (
     <button
       type="button"
-      title={localRecursive === true ? "Recursive Collapse" : "Recursive Expand"}
+      title={localRecursive === true
+        ? "Recursive Collapse"
+        : "Recursive Expand"}
       class="ml-1 px-1.5 rounded border border-base-300 hover:bg-base-300 text-xs font-bold opacity-50 hover:opacity-100 transition-colors"
       onClick={(e) => handleRecursive(e, localRecursive !== true)}
     >
@@ -90,10 +92,10 @@ export function ValueDisplay(
 
   if (
     value instanceof Uint8Array ||
-    (typeof value === "object" && value !== null &&
-      Object.keys(value).length === 20 && "0" in value)
+    (Array.isArray(value) && value.length > 0 && typeof value[0] === "number" &&
+      level === 0) // Heuristic for top-level decoded Uint8Array
   ) {
-    const arr = value instanceof Uint8Array ? value : Object.values(value);
+    const arr = value instanceof Uint8Array ? value : value;
 
     return (
       <div class="ml-2 inline-block align-top">
@@ -101,7 +103,10 @@ export function ValueDisplay(
           class="cursor-pointer hover:bg-base-200 inline-flex items-center px-1 rounded text-base-content/70 select-none gap-1"
           onClick={toggleExpanded}
         >
-          <span>{expanded ? "▼" : "▶"} Uint8Array({arr.length})</span>
+          <span>
+            {expanded ? "▼" : "▶"}{" "}
+            {value instanceof Uint8Array ? "Uint8Array" : "u8[]"}({arr.length})
+          </span>
         </div>
         {expanded && (
           <div class="border-l-2 border-base-300 pl-2 mt-1 font-mono text-xs break-all bg-base-200/30 p-2 rounded max-w-2xl">
@@ -225,6 +230,28 @@ export function ValueDisplay(
     value && typeof value === "object" && "type" in value && "value" in value
   ) {
     const rich = value as { type: string; value: unknown };
+
+    // Special handling for binary data in RichValue to avoid it being treated as a plain array
+    if (rich.type === "uint8array" || rich.type === "arraybuffer") {
+      const arr = Array.isArray(rich.value) ? rich.value : [];
+      return (
+        <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50 align-top">
+          <div
+            class="cursor-pointer hover:bg-base-200 inline-flex items-center px-1 rounded text-base-content/70 select-none gap-1"
+            onClick={toggleExpanded}
+          >
+            <span class="text-xs font-bold opacity-50 mr-1">{rich.type}</span>
+            <span>{expanded ? "▼" : "▶"} ({arr.length})</span>
+          </div>
+          {expanded && (
+            <div class="border-l-2 border-base-300 pl-2 mt-1 font-mono text-xs break-all bg-base-200/30 p-2 rounded max-w-2xl">
+              [{arr.join(", ")}]
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50">
         <span class="text-xs font-bold opacity-50 mr-1">{rich.type}</span>
@@ -274,4 +301,3 @@ export function ValueDisplay(
 
   return <span>{String(value)}</span>;
 }
-

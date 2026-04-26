@@ -11,8 +11,8 @@ export type RichValueType =
   | "set"
   | "date"
   | "regexp"
-  | "uint8array"
-  | "arraybuffer"; // TODO: handle other implementation specifics if needed
+  | "Uint8Array"
+  | "ArrayBuffer"; // TODO: handle other implementation specifics if needed
 
 export interface RichValue {
   type: RichValueType;
@@ -39,14 +39,10 @@ export class ValueCodec {
 
     if (val instanceof Date) return { type: "date", value: val.toISOString() };
     if (val instanceof Uint8Array) {
-      // Serialize as base64
-      const binary = String.fromCharCode(...val);
-      return { type: "uint8array", value: btoa(binary) };
+      return { type: "Uint8Array", value: Array.from(val) };
     }
     if (val instanceof ArrayBuffer) {
-      const u8 = new Uint8Array(val);
-      const binary = String.fromCharCode(...u8);
-      return { type: "arraybuffer", value: btoa(binary) };
+      return { type: "ArrayBuffer", value: Array.from(new Uint8Array(val)) };
     }
     if (val instanceof RegExp) {
       return {
@@ -111,17 +107,16 @@ export class ValueCodec {
         return BigInt(encoded.value);
       case "date":
         return new Date(encoded.value as string);
-      case "uint8array":
-        return Uint8Array.from(
-          atob(encoded.value as string),
-          (c) => c.charCodeAt(0),
-        );
-      case "arraybuffer":
-        return Uint8Array.from(
-          atob(encoded.value as string),
-          (c) => c.charCodeAt(0),
-        )
-          .buffer;
+      case "Uint8Array":
+        if (Array.isArray(encoded.value)) {
+          return new Uint8Array(encoded.value);
+        }
+        throw new Error("Uint8Array value must be an array of numbers");
+      case "ArrayBuffer":
+        if (Array.isArray(encoded.value)) {
+          return new Uint8Array(encoded.value).buffer;
+        }
+        throw new Error("ArrayBuffer value must be an array of numbers");
       case "regexp": {
         const v = encoded.value as { source: string; flags: string };
         return new RegExp(v.source, v.flags);

@@ -1,5 +1,6 @@
 import { Database } from "@/kv/models.ts";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "./types.ts";
+import { KeySerialization } from "./KeySerialization.ts";
 import { KeyCodec } from "./KeyCodec.ts";
 
 import { RichValue } from "./ValueCodec.ts";
@@ -106,7 +107,7 @@ export default class KvAdminClient {
 
   public getRecords<T = unknown>(
     id: string,
-    pathInfo: { type: string; value: string }[],
+    pathInfo: ApiKvKeyPart[],
     cursor?: string,
     limit?: number,
     options: { recursive?: boolean } = {},
@@ -178,15 +179,25 @@ export default class KvAdminClient {
 
   public moveRecords(
     id: string,
-    oldPath: string,
+    oldPath: string | null,
     newPath: string,
-    recursive = true,
+    options: {
+      recursive?: boolean;
+      targetId?: string;
+      mode?: "move" | "copy";
+      keys?: ApiKvKeyPart[][];
+      sourcePath?: string;
+    } = {},
   ): Promise<{ ok: boolean; movedCount: number }> {
     return this.request("/database/records", "PATCH", {
       id,
-      oldPath,
+      oldPath: oldPath || undefined,
       newPath,
-      recursive,
+      recursive: options.recursive ?? true,
+      targetId: options.targetId,
+      mode: options.mode,
+      keys: options.keys,
+      sourcePath: options.sourcePath,
     });
   }
 
@@ -231,32 +242,7 @@ export default class KvAdminClient {
     });
   }
 
-  private stringifyKeyPart(part: unknown): { type: string; value: string } {
-    if (
-      typeof part === "object" &&
-      part !== null &&
-      "type" in part &&
-      "value" in part
-    ) {
-      return part as { type: string; value: string };
-    }
-
-    if (typeof part === "string") {
-      return { value: part, type: "string" };
-    } else if (typeof part === "number") {
-      return { value: part.toString(), type: "number" };
-    } else if (typeof part === "boolean") {
-      return { value: part ? "true" : "false", type: "boolean" };
-    } else if (typeof part === "bigint") {
-      return { value: part.toString(), type: "bigint" };
-    } else if (part instanceof Date) {
-      return { value: part.toISOString(), type: "Date" };
-    } else if (part instanceof Uint8Array) {
-      return { value: btoa(String.fromCharCode(...part)), type: "Uint8Array" };
-    } else if (Array.isArray(part)) {
-      return { value: JSON.stringify(part), type: "Array" };
-    }
-
-    return { value: String(part), type: "string" };
+  private stringifyKeyPart(part: unknown): ApiKvKeyPart {
+    return KeySerialization.serialize(part);
   }
 }

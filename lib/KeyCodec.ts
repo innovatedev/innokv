@@ -74,20 +74,17 @@ export class KeyCodec {
         return String(part.value);
       case "bigint":
         return `${part.value}n`;
-      case "date":
-        return `d[${part.value}]`;
       case "uint8array":
+      case "Uint8Array":
         try {
-          const bytes = Uint8Array.from(
-            atob(part.value),
-            (c) => c.charCodeAt(0),
-          );
+          if (!Array.isArray(part.value)) {
+            return "u8[]";
+          }
+          const bytes = new Uint8Array(part.value);
           return `u8[${Array.from(bytes).join(",")}]`;
         } catch {
           return "u8[]";
         }
-      case "array":
-        return part.value; // Already JSON stringified from server
       default:
         return String(part.value);
     }
@@ -105,44 +102,23 @@ export class KeyCodec {
       return { type: "bigint", value: token.slice(0, -1) };
     }
     if (token === "true" || token === "false") {
-      return { type: "boolean", value: token }; // value matches "true"/"false" string
-    }
-    if (token.startsWith("d[")) {
-      return { type: "date", value: token.slice(2, -1) };
+      return { type: "boolean", value: token === "true" };
     }
     if (token.startsWith("u8[")) {
       try {
         const content = token.slice(3, -1);
-        if (!content.trim()) return { type: "Uint8Array", value: btoa("") };
+        if (!content.trim()) return { type: "Uint8Array", value: [] };
         const bytes = content.split(",").map((n) => parseInt(n.trim())).filter(
           (n) => !isNaN(n),
         );
-        const u8 = new Uint8Array(bytes);
-        const val = btoa(String.fromCharCode(...u8));
-        return { type: "Uint8Array", value: val };
+        return { type: "Uint8Array", value: bytes };
       } catch {
-        return { type: "Uint8Array", value: btoa("") };
-      }
-    }
-    if (token.startsWith("[")) {
-      // Assume JSON array
-      try {
-        // JSON array doesn't map to a specific KV type in our simplified 'ApiKvKeyPart'
-        // unless we add 'array' type.
-        // But 'Database.ts' parseKeyPart handles 'Array' type using JSON.parse.
-        // So we should return it as 'Array' type?
-        // Database.ts: parseKeyPart handles 'Array'.
-        // stringifyKeyPart -> { type: "Array", value: "[...]" }
-        // KeyCodec.encode -> default -> "[...]"
-        // Here we parse "[...]" -> we should return { type: "Array", value: token }
-        return { type: "Array", value: token };
-      } catch {
-        return { type: "string", value: token };
+        return { type: "Uint8Array", value: [] };
       }
     }
     const num = Number(token);
-    if (!isNaN(num)) {
-      return { type: "number", value: token };
+    if (token.trim() !== "" && (!isNaN(num) || token === "NaN")) {
+      return { type: "number", value: num };
     }
 
     return { type: "string", value: token };

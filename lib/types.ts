@@ -1,6 +1,6 @@
 export type ApiKvKeyPart = {
   type: string;
-  value: string;
+  value: string | number | boolean | number[] | null;
 };
 
 export type ApiKvKey = ApiKvKeyPart[];

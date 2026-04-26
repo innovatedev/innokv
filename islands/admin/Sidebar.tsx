@@ -13,6 +13,8 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  LockIcon,
+  RefreshIcon,
 } from "../../components/icons/ActionIcons.tsx";
 
 interface NodeProps {
@@ -191,6 +193,7 @@ interface SidebarProps {
     dbId?: string,
   ) => void;
   onLoadMoreNodes: (path: ApiKvKeyPart[], cursor: string) => void;
+  onRefresh: () => void;
 }
 
 export default function Sidebar(
@@ -208,6 +211,7 @@ export default function Sidebar(
     onNavigateToRoot,
     onContextMenu,
     onLoadMoreNodes,
+    onRefresh,
   }: SidebarProps,
 ) {
   const getDbIcon = (type: string, className = "w-4 h-4") => {
@@ -228,7 +232,7 @@ export default function Sidebar(
     >
       <div class="flex-1 overflow-y-auto overflow-x-hidden">
         <ul class="menu w-full p-0 block">
-          <li class="border-b border-neutral-600 flex flex-row items-center p-1! gap-1 sticky top-0 bg-base-200 z-10">
+          <li class="border-b border-base-300 flex flex-row items-center p-1! gap-1 sticky top-0 bg-base-200 z-10">
             <a
               href="/"
               class="flex-1 group flex items-center gap-2 rounded hover:bg-base-300 cursor-pointer list-none font-bold"
@@ -244,14 +248,25 @@ export default function Sidebar(
                 InnoKV
               </span>
             </a>
-            <button
-              type="button"
-              class="btn btn-ghost btn-xs btn-square"
-              onClick={() => sidebarOpen.value = false}
-              title="Close Sidebar"
-            >
-              <ChevronLeftIcon className="w-4 h-4" />
-            </button>
+
+            <div class="flex items-center gap-0.5">
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs btn-square opacity-50 hover:opacity-100"
+                onClick={onRefresh}
+                title="Refresh"
+              >
+                <RefreshIcon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs btn-square opacity-50 hover:opacity-100"
+                onClick={() => sidebarOpen.value = false}
+                title="Close Sidebar"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+              </button>
+            </div>
           </li>
           {databases.map((db) => {
             const isActive = activeDatabase?.id === db.id;
@@ -261,7 +276,11 @@ export default function Sidebar(
               return (
                 <li key={db.id}>
                   <a
-                    href={`/${db.slug || db.id}`}
+                    href={`/${db.slug || db.id}${
+                      typeof globalThis.location !== "undefined"
+                        ? globalThis.location.search
+                        : ""
+                    }`}
                     class="w-full group flex items-center gap-2 p-1 rounded cursor-pointer list-none hover:bg-base-300"
                     onContextMenu={(e) => {
                       e.preventDefault();
@@ -275,6 +294,9 @@ export default function Sidebar(
                     <span class="flex-1 truncate opacity-70">
                       {db.name || db.id}
                     </span>
+                    {db.mode === "r" && (
+                      <LockIcon className="w-3 h-3 opacity-30 shrink-0" />
+                    )}
                   </a>
                 </li>
               );
@@ -299,6 +321,9 @@ export default function Sidebar(
                       {DbIcon}
                     </span>
                     <span class="flex-1 truncate">{db.name || db.id}</span>
+                    {db.mode === "r" && (
+                      <LockIcon className="w-3 h-3 opacity-50 shrink-0" />
+                    )}
                   </summary>
                   {dbStructure && (
                     <ul>

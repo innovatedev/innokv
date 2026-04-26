@@ -18,38 +18,32 @@ deno run -A --unstable-kv jsr:@innovatedev/innokv install
 ### Server
 
 ```bash
-ADMIN_EMAILS=test@example.com innokv
+innokv
 ```
 
-Open http://localhost:8000 in your browser. Register and login with an email
-address matching the `ADMIN_EMAILS` environment variable.
+Open http://localhost:4665 in your browser. On the first run, the CLI will
+prompt you to create an administrative account.
 
 ## CLI Usage
 
 InnoKV includes a powerful CLI for managing your databases directly from the
 terminal.
 
-### Commands
+### Basic Commands
 
-| Command              | Usage                       | Description                                             |
-| :------------------- | :-------------------------- | :------------------------------------------------------ |
-| **Databases**        | `db [slug]`                 | List databases or connect (REPL).                       |
-| **Interactive REPL** | `repl [slug]`               | Start an interactive shell.                             |
-| **List Keys**        | `ls <slug> [path]`          | List keys in a database.                                |
-| **Tree View**        | `tree <slug> [path]`        | Display keys as a visual tree.                          |
-| **Get Value**        | `get <slug> <key>`          | Get the value of a key.                                 |
-| **Set Value**        | `set <slug> <key> <val>`    | Set the value of a key.                                 |
-| **Update Value**     | `update <slug> <key> <val>` | Merge/Update an existing value.                         |
-| **Move/Rename**      | `mv <slug> <src> <dst>`     | Move or rename records.                                 |
-| **Copy**             | `cp <slug> <src> <dst>`     | Copy records to new path.                               |
-| **Remove/Delete**    | `rm <slug> <path>`          | Delete records (`-r` recurse, `-i` prompt, `-f` force). |
-| **Export JSON**      | `export <slug> [path]`      | Export to STDOUT or file (`-o`).                        |
-| **Import JSON**      | `import <slug> [file]`      | Import from STDIN or file.                              |
-| **Users**            | `user <ls/add/reset>`       | Manage administrative users.                            |
-| **Auth Login**       | `login`                     | Authenticate CLI session.                               |
-| **Auth Logout**      | `logout`                    | Clear local session.                                    |
-| **Auth Status**      | `whoami`                    | Show current user and token.                            |
-| **Config**           | `config <ls/set/get>`       | Manage global server settings.                          |
+| Command                 | Description                                         |
+| :---------------------- | :-------------------------------------------------- |
+| **serve**               | Start the web server (default).                     |
+| **db**                  | Manage and connect to databases.                    |
+| **ls** / **tree**       | List or visualize keys.                             |
+| **get** / **set**       | Read or write individual records.                   |
+| **mv** / **cp**         | Move or copy records (supports `-r` for recursion). |
+| **rm**                  | Delete records (supports `-r`, `-f`).               |
+| **import** / **export** | Bulk data migration via JSON.                       |
+| **user**                | Manage administrative users.                        |
+| **config**              | Manage global server settings.                      |
+
+Run `innokv --help` for the full list of commands and options.
 
 ### CLI Authentication & Security
 
@@ -76,7 +70,7 @@ The `innokv` binary works as both the server and the CLI.
 innokv
 
 # Start on a specific port
-innokv --port 9000
+innokv --port 4665
 
 # Start with a custom session cookie
 innokv --cookie-name my_session

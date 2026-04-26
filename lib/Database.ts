@@ -2,6 +2,7 @@ import { Database, DatabaseModel } from "@/kv/models.ts";
 import { ApiKvKeyPart } from "./types.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 import { RichValue, ValueCodec } from "./ValueCodec.ts";
+import { KeySerialization } from "./KeySerialization.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "@/kv/db.ts";
 
@@ -184,63 +185,12 @@ export class DatabaseRepository extends BaseRepository {
     );
   }
 
-  stringifyKeyPart(part: Deno.KvKeyPart) {
-    if (typeof part === "string") {
-      return { value: part, type: "string" };
-    } else if (typeof part === "number") {
-      return { value: part.toString(), type: "number" };
-    } else if (typeof part === "boolean") {
-      return { value: part ? "true" : "false", type: "boolean" };
-    } else if (typeof part === "bigint") {
-      return { value: part.toString(), type: "bigint" }; // Added bigint support
-    } else if (ArrayBuffer.isView(part)) {
-      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
-      return { value: btoa(String.fromCharCode(...u8)), type: "Uint8Array" };
-    } else {
-      // For types that are not strictly KvKeyPart but we might encounter due to looser typing
-      // deno-lint-ignore no-explicit-any
-      const p = part as any;
-      if (p instanceof Date) {
-        return { value: p.toISOString(), type: "Date" };
-      }
-      if (p instanceof ArrayBuffer) {
-        return {
-          value: btoa(String.fromCharCode(...new Uint8Array(p))),
-          type: "ArrayBuffer",
-        };
-      }
-      if (Array.isArray(p)) {
-        return { value: JSON.stringify(p), type: "Array" };
-      }
-      return { value: String(part), type: "string" };
-    }
+  serializeKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
+    return KeySerialization.serialize(part);
   }
 
   parseKeyPart(part: ApiKvKeyPart): Deno.KvKeyPart {
-    switch (part.type) {
-      case "string":
-        return part.value;
-      case "number":
-        return Number(part.value);
-      case "boolean":
-        return part.value === "true";
-      case "bigint":
-        return BigInt(part.value);
-      case "Date":
-        // deno-lint-ignore no-explicit-any
-        return new Date(part.value) as any;
-      case "Uint8Array":
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0));
-      case "ArrayBuffer":
-        return Uint8Array.from(atob(part.value), (c) => c.charCodeAt(0))
-          // deno-lint-ignore no-explicit-any
-          .buffer as any;
-      case "Array":
-        // deno-lint-ignore no-explicit-any
-        return JSON.parse(part.value) as any;
-      default:
-        throw new Error(`Unsupported key part type: ${part.type}`);
-    }
+    return KeySerialization.parse(part);
   }
 
   async getTree(
@@ -423,36 +373,138 @@ export class DatabaseRepository extends BaseRepository {
 
   async moveRecords(
     databaseId: string,
-    oldPath: string,
-    newPath: string,
-    recursive = true,
+    options: {
+      oldPath?: string;
+      keys?: Deno.KvKey[];
+      newPath: string;
+      recursive?: boolean;
+      targetId?: string;
+      sourcePath?: string;
+    },
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
 
-    const oldPrefix = explorer.parsePath(oldPath);
-    const newPrefix = explorer.parsePath(newPath);
+    let targetKv: Deno.Kv | undefined;
+    if (options.targetId && options.targetId !== databaseId) {
+      await this.ensureWritable(options.targetId);
+      const targetDbDoc = await this.getDatabaseBySlugOrId(options.targetId);
+      targetKv = await this.connectDatabase(targetDbDoc.flat());
+    }
 
-    return await explorer.moveRecords(oldPrefix, newPrefix, recursive);
+    const newPrefix = explorer.parsePath(options.newPath);
+
+    if (options.oldPath) {
+      const oldPrefix = explorer.parsePath(options.oldPath);
+      return await explorer.moveRecords(
+        oldPrefix,
+        newPrefix,
+        options.recursive ?? true,
+        targetKv,
+      );
+    }
+
+    if (options.keys) {
+      let totalMoved = 0;
+      const sourcePrefix = options.sourcePath
+        ? explorer.parsePath(options.sourcePath)
+        : [];
+
+      for (const key of options.keys) {
+        // If key starts with sourcePrefix, preserve the relative part
+        let relativeKey = [key[key.length - 1]];
+        if (
+          key.length > sourcePrefix.length &&
+          key.slice(0, sourcePrefix.length).every((p, i) =>
+            JSON.stringify(p) === JSON.stringify(sourcePrefix[i])
+          )
+        ) {
+          relativeKey = key.slice(sourcePrefix.length);
+        }
+
+        const result = await explorer.moveRecords(
+          key,
+          [...newPrefix, ...relativeKey],
+          options.recursive ?? true,
+          targetKv,
+        );
+        totalMoved += result.movedCount;
+      }
+      return { ok: true, movedCount: totalMoved };
+    }
+
+    throw new DatabaseError("Either oldPath or keys must be provided");
   }
 
   async copyRecords(
     databaseId: string,
-    oldPath: string,
-    newPath: string,
-    recursive = false,
+    options: {
+      oldPath?: string;
+      keys?: Deno.KvKey[];
+      newPath: string;
+      recursive?: boolean;
+      targetId?: string;
+      sourcePath?: string;
+    },
   ) {
-    await this.ensureWritable(databaseId);
+    if (!options.targetId || options.targetId === databaseId) {
+      await this.ensureWritable(databaseId);
+    }
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
 
-    const oldPrefix = explorer.parsePath(oldPath);
-    const newPrefix = explorer.parsePath(newPath);
+    let targetKv: Deno.Kv | undefined;
+    if (options.targetId && options.targetId !== databaseId) {
+      await this.ensureWritable(options.targetId);
+      const targetDbDoc = await this.getDatabaseBySlugOrId(options.targetId);
+      targetKv = await this.connectDatabase(targetDbDoc.flat());
+    }
 
-    return await explorer.copyRecords(oldPrefix, newPrefix, recursive);
+    const newPrefix = explorer.parsePath(options.newPath);
+
+    if (options.oldPath) {
+      const oldPrefix = explorer.parsePath(options.oldPath);
+      return await explorer.copyRecords(
+        oldPrefix,
+        newPrefix,
+        options.recursive ?? false,
+        targetKv,
+      );
+    }
+
+    if (options.keys) {
+      let totalCopied = 0;
+      const sourcePrefix = options.sourcePath
+        ? explorer.parsePath(options.sourcePath)
+        : [];
+
+      for (const key of options.keys) {
+        // If key starts with sourcePrefix, preserve the relative part
+        let relativeKey = [key[key.length - 1]];
+        if (
+          key.length > sourcePrefix.length &&
+          key.slice(0, sourcePrefix.length).every((p, i) =>
+            JSON.stringify(p) === JSON.stringify(sourcePrefix[i])
+          )
+        ) {
+          relativeKey = key.slice(sourcePrefix.length);
+        }
+
+        const result = await explorer.copyRecords(
+          key,
+          [...newPrefix, ...relativeKey],
+          options.recursive ?? false,
+          targetKv,
+        );
+        totalCopied += result.copiedCount;
+      }
+      return { ok: true, copiedCount: totalCopied };
+    }
+
+    throw new DatabaseError("Either oldPath or keys must be provided");
   }
 
   async exportRecords(
@@ -484,24 +536,6 @@ export class DatabaseRepository extends BaseRepository {
 
     const prefix = explorer.parsePath(options.pathInfo || "");
     return await explorer.exportToJson(prefix, options.recursive ?? true);
-  }
-
-  private serializeKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
-    if (typeof part === "string") return { type: "string", value: part };
-    if (typeof part === "number") {
-      return { type: "number", value: String(part) };
-    }
-    if (typeof part === "boolean") {
-      return { type: "boolean", value: part ? "true" : "false" };
-    }
-    if (typeof part === "bigint") {
-      return { type: "bigint", value: part.toString() };
-    }
-    if (ArrayBuffer.isView(part)) {
-      const u8 = new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
-      return { type: "Uint8Array", value: btoa(String.fromCharCode(...u8)) };
-    }
-    return { type: "string", value: String(part) };
   }
 
   async importRecords(

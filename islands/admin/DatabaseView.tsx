@@ -13,6 +13,7 @@ import Toolbar from "./Toolbar.tsx";
 import RecordsView from "./RecordsView.tsx";
 import {
   DeleteIcon,
+  DuplicateIcon,
   EditIcon,
   RefreshIcon,
 } from "../../components/icons/ActionIcons.tsx";
@@ -82,7 +83,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     searchCaseSensitive,
     handleSearch,
     clearSearch,
-  } = useKvSearch(activeDatabase, pathInfo);
+  } = useKvSearch();
 
   const {
     selectedKeys,
@@ -107,10 +108,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
 
   const createEntryRef = useRef<HTMLDialogElement>(null);
   const createDatabaseRef = useRef<HTMLDialogElement>(null);
-  const selectedEntry = useSignal<ApiKvEntry | null>(null);
-  const editingDatabase = useSignal<Database | null>(null);
   const moveRef = useRef<HTMLDialogElement>(null);
   const movePath = useSignal<ApiKvKeyPart[]>([]);
+  const moveKeys = useSignal<ApiKvKeyPart[][] | null>(null);
+  const moveMode = useSignal<"move" | "copy">("move");
+  const selectedEntry = useSignal<ApiKvEntry | null>(null);
+  const editingDatabase = useSignal<Database | null>(null);
 
   useEffect(() => {
     error.value = null;
@@ -139,10 +142,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     ? (activeDatabase.name || activeDatabase.id)
     : "Database";
 
+  // Sync signals from user settings when database changes
   useEffect(() => {
     if (!activeDatabase) return;
     const dbId = activeDatabase.slug || activeDatabase.id;
     const current = userSettings.value?.databases?.[dbId] || {};
+
+    // Only update if the signal is different from settings and it's the initial load for this DB
+    // Actually, it's better to just force sync once when dbId changes
+    sidebarOpen.value = current.treeViewOpen ?? true;
+    sidebarWidth.value = current.treeWidth ?? 256;
+  }, [activeDatabase?.id, activeDatabase?.slug]);
+
+  // Save signals to user settings when they change
+  useEffect(() => {
+    if (!activeDatabase) return;
+    const dbId = activeDatabase.slug || activeDatabase.id;
+    const current = userSettings.value?.databases?.[dbId] || {};
+
     if (
       current.treeViewOpen !== sidebarOpen.value ||
       current.treeWidth !== sidebarWidth.value
@@ -157,7 +174,12 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
         },
       });
     }
-  }, [sidebarOpen.value, sidebarWidth.value]);
+  }, [
+    sidebarOpen.value,
+    sidebarWidth.value,
+    activeDatabase?.id,
+    activeDatabase?.slug,
+  ]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -190,10 +212,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
   const allVisibleSelected = currentKeyStrings.length > 0 &&
     currentKeyStrings.every((k) => selectedKeys.value.has(k));
 
-  const selectionCount = selectAllMatching.value
-    ? "All"
-    : selectedKeys.value.size;
-
   const toggleSelection = (key: ApiKvKeyPart[]) => {
     const str = KeyCodec.encode(key);
     const newSet = new Set(selectedKeys.value);
@@ -219,9 +237,44 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     selectAllMatching.value = false;
   }, [activeDatabase?.id, pathInfo.value, cursor.value, isSearchActive.value]);
 
+  useEffect(() => {
+    if (isSearchActive.value && activeDatabase) {
+      handleSearch();
+    }
+  }, [activeDatabase?.id, pathInfo.value, isSearchActive.value]);
+
   const toggleExpandAll = () => {
     const next = forceExpandValues.value === true ? false : true;
     forceExpandValues.value = next;
+  };
+
+  const handleRefresh = async () => {
+    const dbId = activeDatabase?.slug || activeDatabase?.id;
+    if (!dbId) return;
+
+    try {
+      // 1. Refresh records
+      const res = await api.getRecords(
+        dbId,
+        pathInfo.value || [],
+        cursor.value,
+        limit.value,
+        { recursive: false },
+      );
+      records.value = res.records;
+      nextCursor.value = res.cursor;
+
+      // 2. Refresh structure
+      const structure = await api.getDatabase(dbId);
+      setDbStructure(structure);
+
+      // 3. Refresh database list (for metadata)
+      const dbsRes = await api.getDatabases();
+      if (dbsRes.data) databases.value = dbsRes.data;
+    } catch (err) {
+      console.error("Refresh failed:", err);
+      error.value = "Refresh failed";
+    }
   };
 
   const handleFolderDelete = async () => {
@@ -271,22 +324,33 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     }
   };
 
-  const handleMove = async (newPathStr: string, recursive: boolean) => {
-    if (!activeDatabase || !movePath.value) return;
+  const handleMove = async (
+    newPathStr: string,
+    recursive: boolean,
+    targetId?: string,
+    keys?: ApiKvKeyPart[][],
+  ) => {
+    if (!activeDatabase || (!movePath.value && !keys)) return;
     const dbId = (activeDatabase.slug || activeDatabase.id) as string;
-    const oldPathStr = KeyCodec.encode(movePath.value);
+    const oldPathStr = movePath.value ? KeyCodec.encode(movePath.value) : null;
 
     try {
       const res = await api.moveRecords(
         dbId,
         oldPathStr,
         newPathStr,
-        recursive,
+        {
+          recursive,
+          targetId,
+          mode: moveMode.value,
+          keys,
+          sourcePath: KeyCodec.encode(pathInfo.value || []),
+        },
       );
       if (res.ok) {
         if (pathInfo.value) {
           const currentStr = KeyCodec.encode(pathInfo.value);
-          if (currentStr.startsWith(oldPathStr)) {
+          if (oldPathStr && currentStr.startsWith(oldPathStr)) {
             pathInfo.value = [];
           } else {
             const target =
@@ -371,19 +435,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             }
           });
         }}
+        onRefresh={handleRefresh}
       />
 
       <div class="flex-1 flex flex-col h-full min-w-0 bg-base-100">
         <Toolbar
           activeDatabase={activeDatabase}
           databases={databases.value}
+          sidebarOpen={sidebarOpen}
           pathInfo={pathInfo}
           dbStructure={dbStructure}
           currentDbName={currentDbName}
-          selectedKeys={selectedKeys}
-          selectAllMatching={selectAllMatching}
-          selectionCount={selectionCount}
-          allVisibleSelected={allVisibleSelected}
           searchQuery={searchQuery}
           isSearchActive={isSearchActive}
           searchTarget={searchTarget}
@@ -393,11 +455,20 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onSwitchDatabase={(id) => {
             const db = databases.value.find((d) => d.id === id);
             const dest = db?.slug || id;
-            globalThis.location.href = `/${dest}`;
+            globalThis.location.href = `/${dest}${globalThis.location.search}`;
           }}
           onNewRecord={() => {
             selectedEntry.value = null;
             createEntryRef.current?.showModal();
+          }}
+          onContextMenu={(e, type, path, dbId) => {
+            contextMenu.value = {
+              x: e.clientX,
+              y: e.clientY,
+              type,
+              path,
+              dbId,
+            };
           }}
           onSearch={() => {
             isSearchActive.value = true;
@@ -407,6 +478,20 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onBulkDelete={handleBulkDelete}
           onExport={handleExport}
           onImport={handleImport}
+          onRefresh={handleRefresh}
+          onLoadNodes={(path) => {
+            const dbId = activeDatabase?.slug || activeDatabase?.id;
+            if (!dbId) return;
+            api.getNodes(dbId, path).then((res) => {
+              const nodes = res.items;
+              if (nodes) {
+                setDbStructure((prev) => {
+                  if (!prev) return nodes;
+                  return mergeStructure(prev, path, nodes, res.cursor);
+                });
+              }
+            });
+          }}
         />
 
         <RecordsView
@@ -426,6 +511,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           pathInfo={pathInfo}
           gonePaths={gonePaths}
           dbStructure={dbStructure}
+          databases={databases.value}
           onEditRecord={(record) => {
             selectedEntry.value = record;
             createEntryRef.current?.showModal();
@@ -434,10 +520,26 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onToggleSelection={toggleSelection}
           onToggleExpandAll={toggleExpandAll}
           onToggleSelectVisible={toggleSelectVisible}
-          onCreateRecord={() => {
-            selectedEntry.value = null;
-            createEntryRef.current?.showModal();
+          onBulkDelete={handleBulkDelete}
+          onBulkMove={() => {
+            const keys = Array.from(selectedKeys.value).map((k) =>
+              KeyCodec.decode(k)
+            );
+            moveKeys.value = keys;
+            movePath.value = pathInfo.value || [];
+            moveMode.value = "move";
+            moveRef.current?.showModal();
           }}
+          onBulkCopy={() => {
+            const keys = Array.from(selectedKeys.value).map((k) =>
+              KeyCodec.decode(k)
+            );
+            moveKeys.value = keys;
+            movePath.value = pathInfo.value || [];
+            moveMode.value = "copy";
+            moveRef.current?.showModal();
+          }}
+          onExport={handleExport}
         />
       </div>
 
@@ -456,51 +558,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     const dbId = contextMenu.value?.dbId;
                     contextMenu.value = null;
                     if (dbId) {
-                      if (
-                        !activeDatabase ||
-                        (activeDatabase.id !== dbId &&
-                          activeDatabase.slug !== dbId)
-                      ) {
-                        const db = databases.value.find((d) => d.id === dbId);
-                        globalThis.location.href = `/${db?.slug || dbId}`;
-                        return;
-                      }
-
-                      api.getNodes(dbId, []).then((res) => {
-                        const nodes = res.items;
-                        if (
-                          nodes && activeDatabase &&
-                          (activeDatabase.id === dbId ||
-                            activeDatabase.slug === dbId)
-                        ) {
-                          setDbStructure((prev) => {
-                            if (!prev) return nodes;
-                            return mergeStructure(prev, [], nodes, res.cursor);
-                          });
-                        }
-                      });
-                      api.getDatabases().then((res) => {
-                        if (res.data) databases.value = res.data;
-                      });
-
-                      if (
-                        activeDatabase &&
-                        (activeDatabase.id === dbId ||
-                          activeDatabase.slug === dbId)
-                      ) {
-                        api.getRecords(
-                          dbId,
-                          pathInfo.value || [],
-                          cursor.value,
-                          limit.value,
-                          { recursive: false },
-                        ).then((res) => {
-                          records.value = res.records;
-                          nextCursor.value = res.cursor;
-                        }).catch((err) => {
-                          console.error("Failed to refresh records:", err);
-                        });
-                      }
+                      handleRefresh();
                     }
                   }}
                 >
@@ -510,6 +568,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                         activeDatabase.slug === contextMenu.value?.dbId)
                     ? "Refresh"
                     : "Open"}
+                </button>
+                <button
+                  type="button"
+                  class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
+                  onClick={() => {
+                    const dbId = contextMenu.value?.dbId;
+                    contextMenu.value = null;
+                    if (dbId) {
+                      const db = databases.value.find((d) => d.id === dbId);
+                      if (db) {
+                        editingDatabase.value = db;
+                        createDatabaseRef.current?.showModal();
+                      }
+                    }
+                  }}
+                >
+                  <EditIcon className="w-4 h-4" />
+                  Edit Database Config
                 </button>
               </>
             )
@@ -565,6 +641,23 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                   <RefreshIcon className="w-4 h-4" />
                   Refresh
                 </button>
+                {databases.value.some((d) => d.mode !== "r") && (
+                  <button
+                    type="button"
+                    class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.value) {
+                        movePath.value = contextMenu.value.path;
+                        moveMode.value = "copy";
+                        moveRef.current?.showModal();
+                        contextMenu.value = null;
+                      }
+                    }}
+                  >
+                    <DuplicateIcon className="w-4 h-4" />
+                    Duplicate
+                  </button>
+                )}
                 {activeDatabase?.mode !== "r" && (
                   <>
                     <button
@@ -573,6 +666,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                       onClick={() => {
                         if (contextMenu.value) {
                           movePath.value = contextMenu.value.path;
+                          moveMode.value = "move";
                           moveRef.current?.showModal();
                           contextMenu.value = null;
                         }
@@ -584,10 +678,18 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
                     <button
                       type="button"
                       class="w-full text-left px-4 py-2 hover:bg-base-200 text-sm text-error flex items-center gap-2"
-                      onClick={handleFolderDelete}
+                      onClick={() => {
+                        if (
+                          contextMenu.value &&
+                          confirm("Delete this entire path recursively?")
+                        ) {
+                          handleFolderDelete();
+                          contextMenu.value = null;
+                        }
+                      }}
                     >
                       <DeleteIcon className="w-4 h-4" />
-                      Delete
+                      Delete Path
                     </button>
                   </>
                 )}
@@ -625,14 +727,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             if (!activeDatabase || !selectedEntry.value) return;
             const convertValue = (p: ApiKvKeyPart) => {
               const t = p.type.toLowerCase();
-              if (t === "number") return parseFloat(p.value);
-              if (t === "boolean") return p.value === "true";
-              if (t === "bigint") return BigInt(p.value);
+              if (t === "number") {
+                return typeof p.value === "number"
+                  ? p.value
+                  : parseFloat(String(p.value));
+              }
+              if (t === "boolean") {
+                return typeof p.value === "boolean"
+                  ? p.value
+                  : String(p.value) === "true";
+              }
+              if (t === "bigint") {
+                return typeof p.value === "bigint"
+                  ? p.value
+                  : BigInt(String(p.value));
+              }
               if (t === "uint8array") {
-                return Uint8Array.from(
-                  atob(p.value),
-                  (c) => c.charCodeAt(0),
-                );
+                if (Array.isArray(p.value)) return new Uint8Array(p.value);
+                return new Uint8Array();
               }
               return p.value;
             };
@@ -660,14 +772,24 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             if (!activeDatabase) return;
             const convertValue = (p: ApiKvKeyPart) => {
               const t = p.type.toLowerCase();
-              if (t === "number") return parseFloat(p.value);
-              if (t === "boolean") return p.value === "true";
-              if (t === "bigint") return BigInt(p.value);
+              if (t === "number") {
+                return typeof p.value === "number"
+                  ? p.value
+                  : parseFloat(String(p.value));
+              }
+              if (t === "boolean") {
+                return typeof p.value === "boolean"
+                  ? p.value
+                  : String(p.value) === "true";
+              }
+              if (t === "bigint") {
+                return typeof p.value === "bigint"
+                  ? p.value
+                  : BigInt(String(p.value));
+              }
               if (t === "uint8array") {
-                return Uint8Array.from(
-                  atob(p.value),
-                  (c) => c.charCodeAt(0),
-                );
+                if (Array.isArray(p.value)) return new Uint8Array(p.value);
+                return new Uint8Array();
               }
               return p.value;
             };
@@ -743,7 +865,11 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
       <MoveRecords
         dialogRef={moveRef}
         currentPath={movePath.value}
+        keys={moveKeys.value ?? undefined}
         onMove={handleMove}
+        databases={databases.value}
+        activeDatabase={activeDatabase}
+        mode={moveMode.value}
       />
     </div>
   );

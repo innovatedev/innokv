@@ -36,7 +36,7 @@ export const cmd: Command<any> = new Command()
   .version(APP_VERSION)
   .description("InnoKV Command Line Interface")
   .option("-p, --port <number:number>", "Port to run the server on", {
-    default: 8000,
+    default: 4665,
   })
   .option("--cookie-name <name:string>", "Name of the session cookie", {
     default: "innokv_session",

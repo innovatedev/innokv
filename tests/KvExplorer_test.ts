@@ -23,8 +23,8 @@ Deno.test("KvExplorer - Key Sorting", async () => {
   assertEquals(keys[0].type, "Uint8Array");
   assertEquals(keys[1].value, "a");
   assertEquals(keys[2].type, "bigint");
-  assertEquals(keys[3].value, "10");
-  assertEquals(keys[4].value, "true");
+  assertEquals(keys[3].value, 10);
+  assertEquals(keys[4].value, true);
 });
 
 Deno.test("KvExplorer - Skip Scan (Large Dataset)", async () => {
