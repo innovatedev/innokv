@@ -1,9 +1,7 @@
 import { KeyCodec } from "@/codec/mod.ts";
 import { APP_VERSION } from "@/lib/metadata.ts";
-import { dirname, fromFileUrl } from "@std/path";
-
 import {
-  loadMigrationsFromDir,
+  discoverMigrations,
   type Migration,
   runMigrations as runGenericMigrations,
 } from "@/migrations/mod.ts";
@@ -15,8 +13,9 @@ export type { Migration };
  * @param currentVersion Optional current version (fetched from __innokv__ if omitted)
  */
 export async function runMigrations(kv: Deno.Kv, currentVersion?: string) {
-  const dir = dirname(fromFileUrl(import.meta.url));
-  const migrations = await loadMigrationsFromDir(dir);
+  const migrations = await discoverMigrations([
+    import("./0.3.0.ts"),
+  ]);
   await runGenericMigrations({
     kv,
     currentVersion,

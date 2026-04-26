@@ -2,10 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.3
+
+- **Fix JSR Migration Loading**: Switched to static imports for internal
+  migrations to fix 'URL must be a file URL' errors when running from JSR or
+  other remote module environments.
+
 ## v0.3.1
 
 - **JSR Publication Hardening**:
-  - Resolved all publication blockers: missing version constraints, external `https` imports, and restricted triple-slash directives.
+  - Resolved all publication blockers: missing version constraints, external
+    `https` imports, and restricted triple-slash directives.
 
 ## v0.3.0
 
@@ -16,7 +23,8 @@ All notable changes to this project will be documented in this file.
 
 - **New JSR Submodules**:
   - `@innovatedev/innokv/migrations`: A generic, standalone KV migration engine.
-  - `@innovatedev/innokv/codec`: Unified serialization layer for keys and values.
+  - `@innovatedev/innokv/codec`: Unified serialization layer for keys and
+    values.
 - **Unified URL State**: Navigation paths and search queries are now
   synchronized with the URL, enabling bookmarking and browser back/forward
   button support.
@@ -29,7 +37,8 @@ All notable changes to this project will be documented in this file.
   root.
 - **Bulk Operations**: Perform recursive moves, duplications, and deletions on
   multiple selected records or entire path prefixes.
-- **UX & Documentation**: Overhauled `README.md` and standardized server port (4665).
+- **UX & Documentation**: Overhauled `README.md` and standardized server port
+  (4665).
 
 ## v0.2.0
 

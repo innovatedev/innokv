@@ -145,7 +145,13 @@ export async function runMigrations(options: RunMigrationsOptions) {
 
 /**
  * Generic helper to load migrations from a directory.
- * Note: This uses Deno-specific APIs.
+ *
+ * IMPORTANT: This uses Deno-specific file system APIs (`Deno.readDir`) and
+ * only works on local file systems. It will fail if called from a remote
+ * module (e.g., via JSR or https import).
+ *
+ * For JSR-compatible migration loading, use `discoverMigrations` with
+ * static dynamic imports.
  */
 export async function loadMigrationsFromDir(dir: string): Promise<Migration[]> {
   const migrations: Migration[] = [];
@@ -167,4 +173,27 @@ export async function loadMigrationsFromDir(dir: string): Promise<Migration[]> {
   }
 
   return migrations;
+}
+
+/**
+ * Resolves a list of migrations from dynamic imports.
+ * This allows defining migrations in separate files while maintaining
+ * compatibility with environments that don't support runtime directory scanning (like JSR).
+ *
+ * @example
+ * ```ts
+ * const migrations = await discoverMigrations([
+ *   import("./migrations/0.1.0.ts"),
+ *   import("./migrations/0.2.0.ts"),
+ * ]);
+ * ```
+ *
+ * @param modules An array of dynamic import promises
+ * @returns A promise that resolves to an array of Migration objects
+ */
+export async function discoverMigrations(
+  modules: (Promise<{ default: Migration }> | { default: Migration })[],
+): Promise<Migration[]> {
+  const resolved = await Promise.all(modules);
+  return resolved.map((m) => m.default);
 }
