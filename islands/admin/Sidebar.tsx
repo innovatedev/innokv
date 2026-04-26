@@ -1,7 +1,8 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { Signal } from "@preact/signals";
 import { Database } from "@/kv/models.ts";
 import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import {
   DatabaseIcon,

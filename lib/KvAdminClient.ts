@@ -1,17 +1,12 @@
+import { KeyCodec, KeySerialization, RichValue } from "@/codec/mod.ts";
 import { Database } from "@/kv/models.ts";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "./types.ts";
-import { KeySerialization } from "./KeySerialization.ts";
-import { KeyCodec } from "./KeyCodec.ts";
-
-import { RichValue } from "./ValueCodec.ts";
 
 export default class KvAdminClient {
   private baseUri: string;
-
   constructor(baseUri: string = "/api") {
     this.baseUri = baseUri;
   }
-
   private async request<T>(
     endpoint: string,
     method: string = "GET",
@@ -24,7 +19,6 @@ export default class KvAdminClient {
         "Accept": "application/json",
       },
     };
-
     if (body) {
       if (method === "GET") {
         // remove undefined values from body
@@ -39,7 +33,6 @@ export default class KvAdminClient {
         options.body = JSON.stringify(body);
       }
     }
-
     const response = await fetch(`${this.baseUri}${endpoint}`, options);
     if (!response.ok) {
       const errorText = await response.text();
@@ -57,29 +50,24 @@ export default class KvAdminClient {
     }
     return response.json();
   }
-
   public createDatabase(data: Record<string, unknown>): Promise<Database> {
     if (data.sort !== undefined && typeof data.sort === "string") {
       data.sort = parseInt(data.sort as string);
     }
     return this.request("/databases", "POST", data);
   }
-
   public updateDatabase(data: Record<string, unknown>): Promise<Database> {
     if (data.sort !== undefined && typeof data.sort === "string") {
       data.sort = parseInt(data.sort as string);
     }
     return this.request(`/databases`, "PUT", data);
   }
-
   public getDatabases(): Promise<{ cursor?: string; data: Database[] }> {
     return this.request("/databases");
   }
-
   public deleteDatabase(id: string): Promise<unknown> {
     return this.request(`/databases`, "DELETE", { id });
   }
-
   public getNodes(
     id: string,
     parentPath: ApiKvKeyPart[],
@@ -93,18 +81,15 @@ export default class KvAdminClient {
       limit: options.limit?.toString(),
     });
   }
-
   public getDatabase(
     id: string,
     path?: string,
   ): Promise<Record<string, DbNode>> {
     const parentPath = path ? KeyCodec.decode(path) : [];
-
     return this.getNodes(id, parentPath, { limit: 1000 }).then((res) =>
       res.items
     );
   }
-
   public getRecords<T = unknown>(
     id: string,
     pathInfo: ApiKvKeyPart[],
@@ -122,7 +107,6 @@ export default class KvAdminClient {
         : undefined,
     });
   }
-
   public saveRecord(
     id: string,
     key: unknown[],
@@ -145,12 +129,10 @@ export default class KvAdminClient {
     }
     return this.request("/database/records", "POST", payload);
   }
-
   public deleteRecord(id: string, key: unknown[]): Promise<unknown> {
     const wireKey = key.map((k) => this.stringifyKeyPart(k));
     return this.request("/database/records", "DELETE", { id, key: wireKey });
   }
-
   public deleteRecords(
     id: string,
     options: {
@@ -161,25 +143,20 @@ export default class KvAdminClient {
     },
   ): Promise<unknown> {
     const payload: Record<string, unknown> = { id, all: options.all };
-
     if (options.keys) {
       payload.keys = options.keys.map((key) =>
         key.map((k) => this.stringifyKeyPart(k))
       );
     }
-
     // Allow empty string for root path
     if (options.pathInfo !== undefined) {
       payload.pathInfo = options.pathInfo;
     }
-
     if (options.recursive !== undefined) {
       payload.recursive = options.recursive;
     }
-
     return this.request("/database/records", "DELETE", payload);
   }
-
   public moveRecords(
     id: string,
     oldPath: string | null,
@@ -203,7 +180,6 @@ export default class KvAdminClient {
       sourcePath: options.sourcePath,
     });
   }
-
   public exportRecords(
     id: string,
     options: {
@@ -221,20 +197,16 @@ export default class KvAdminClient {
         : undefined,
       all: options.all !== undefined ? String(options.all) : undefined,
     };
-
     if (options.pathInfo !== undefined) {
       payload.pathInfo = options.pathInfo;
     }
-
     if (options.keys) {
       payload.keys = JSON.stringify(
         options.keys.map((key) => key.map((k) => this.stringifyKeyPart(k))),
       );
     }
-
     return this.request("/database/records", "GET", payload);
   }
-
   public importRecords(
     id: string,
     entries: { key: ApiKvKeyPart[]; value: RichValue }[],
@@ -244,7 +216,6 @@ export default class KvAdminClient {
       entries,
     });
   }
-
   public refreshStats(
     id: string,
     pathInfo?: ApiKvKeyPart[],
@@ -253,7 +224,6 @@ export default class KvAdminClient {
       pathInfo: pathInfo ? KeyCodec.encode(pathInfo) : undefined,
     });
   }
-
   private stringifyKeyPart(part: unknown): ApiKvKeyPart {
     return KeySerialization.serialize(part);
   }

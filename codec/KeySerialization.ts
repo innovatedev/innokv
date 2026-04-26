@@ -1,6 +1,13 @@
 import { ApiKvKeyPart } from "./types.ts";
 
+/**
+ * KeySerialization provides low-level utilities for serializing and parsing
+ * individual Deno KV key parts between native and transport formats.
+ */
 export class KeySerialization {
+  /**
+   * Serializes a native Deno.KvKeyPart (or unknown value) into an ApiKvKeyPart.
+   */
   static serialize(part: unknown): ApiKvKeyPart {
     // If already serialized, return as is (useful for client-side)
     if (

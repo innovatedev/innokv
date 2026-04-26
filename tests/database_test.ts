@@ -1,12 +1,11 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { DatabaseRepository } from "../lib/Database.ts";
 import { collection, kvdex } from "@olli/kvdex";
 import { AuditLogModel, DatabaseModel } from "@/kv/models.ts";
-import { KeyCodec } from "../lib/KeyCodec.ts";
 
 // Mock KV for testing
 const testKv = await Deno.openKv(":memory:");
-
 // Mock DB schema
 const mockDb = kvdex({
   kv: testKv,
@@ -15,20 +14,17 @@ const mockDb = kvdex({
     audit_logs: collection(AuditLogModel),
   },
 });
-
 // Mock Repository that uses the SAME KV instance for "connected" databases
 class TestDatabaseRepository extends DatabaseRepository {
   constructor() {
     // deno-lint-ignore no-explicit-any
     super(mockDb as any);
   }
-
   // Override to return our testKv instead of opening new ones
   // deno-lint-ignore no-explicit-any
   override async connectDatabase(_info: any) {
     return await Promise.resolve(testKv);
   }
-
   // Helper to bypass database lookup
   override async getDatabaseBySlugOrId(_id: string) {
     return await Promise.resolve({
@@ -38,98 +34,77 @@ class TestDatabaseRepository extends DatabaseRepository {
       // deno-lint-ignore no-explicit-any
     } as any);
   }
-
   override getDatabase(id: string) {
     return this.getDatabaseBySlugOrId(id);
   }
 }
-
 Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) => {
   const repo = new TestDatabaseRepository();
-
   // Helper to setup data
   async function setup() {
     // Clear all
     const iter = testKv.list({ prefix: [] });
     for await (const entry of iter) await testKv.delete(entry.key);
-
     // Create structure:
     // root (depth 0 effectively) -> but keys are depth 1
     // a
     // a/b
     // a/b/c
     // d
-
     // In KV terms:
     // ["a"]
     // ["a", "b"]
     // ["a", "b", "c"]
     // ["d"]
-
     await testKv.set(["a"], "val_a");
     await testKv.set(["a", "b"], "val_a_b");
     await testKv.set(["a", "b", "c"], "val_a_b_c");
     await testKv.set(["d"], "val_d");
   }
-
   await t.step("Shallow Delete Root (pathInfo='')", async () => {
     await setup();
-
     // Action: Delete all matching at root, recursive=false
     await repo.deleteRecords("test-db", {
       all: true,
       pathInfo: KeyCodec.encode([]), // ""
       recursive: false,
     });
-
     // Expectation:
     // ["a"] -> Deleted (depth 1)
     // ["d"] -> Deleted (depth 1)
     // ["a", "b"] -> Kept (depth 2)
     // ["a", "b", "c"] -> Kept (depth 3)
-
     const resA = await testKv.get(["a"]);
     assertEquals(resA.value, null, "Root key 'a' should be deleted");
-
     const resD = await testKv.get(["d"]);
     assertEquals(resD.value, null, "Root key 'd' should be deleted");
-
     const resAB = await testKv.get(["a", "b"]);
     assert(resAB.value !== null, "Nested key 'a/b' should REMAIN");
-
     const resABC = await testKv.get(["a", "b", "c"]);
     assert(resABC.value !== null, "Nested key 'a/b/c' should REMAIN");
   });
-
   await t.step("Shallow Delete Folder (pathInfo='a')", async () => {
     await setup();
-
     // Action: Delete all matching under "a", recursive=false
     await repo.deleteRecords("test-db", {
       all: true,
       pathInfo: KeyCodec.encode([{ type: "string", value: "a" }]),
       recursive: false,
     });
-
     const resAB = await testKv.get(["a", "b"]);
     assertEquals(resAB.value, null, "Direct child 'a/b' should be deleted");
-
     const resABC = await testKv.get(["a", "b", "c"]);
     assert(resABC.value !== null, "Grandchild 'a/b/c' should REMAIN");
-
     const _resA = await testKv.get(["a"]);
   });
-
   await t.step("Deep Delete Root (recursive implicit)", async () => {
     await setup();
-
     // Action: recursive=undefined (default true)
     await repo.deleteRecords("test-db", {
       all: true,
       pathInfo: KeyCodec.encode([]),
       // recursive: true // default
     });
-
     const resA = await testKv.get(["a"]);
     assertEquals(resA.value, null);
     const resAB = await testKv.get(["a", "b"]);
@@ -139,7 +114,6 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     const resD = await testKv.get(["d"]);
     assertEquals(resD.value, null);
   });
-
   await t.step("Save Record - Decoding RichValue", async () => {
     // Action: Save a record using RichValue format (simulating UI)
     const richValue = {
@@ -149,13 +123,11 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
         name: { type: "string", value: "Bob" },
       },
     };
-
     await repo.saveRecord(
       "test-db",
       ["rich_test"],
       richValue,
     );
-
     // Expectation: The value in KV should be the DECODED object
     const res = await testKv.get(["rich_test"]);
     const val = res.value as Record<string, unknown>;
@@ -164,7 +136,6 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
     assertEquals(val.name, "Bob");
     assert(!("type" in val), "Should not have 'type' property");
   });
-
   await t.step(
     "Save Record - Complex Types (Date, BigInt, Uint8Array)",
     async () => {
@@ -177,17 +148,14 @@ Deno.test("DatabaseRepository - Shallow Delete vs Recursive Delete", async (t) =
           bytes: { type: "Uint8Array", value: [1, 2, 3] },
         },
       };
-
       await repo.saveRecord(
         "test-db",
         ["types_test"],
         richValue,
       );
-
       const res = await testKv.get(["types_test"]);
       // deno-lint-ignore no-explicit-any
       const val = res.value as Record<string, any>;
-
       assertEquals(val.date instanceof Date, true);
       assertEquals(val.date.getTime(), now.getTime());
       assertEquals(typeof val.big, "bigint");

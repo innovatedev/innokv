@@ -1,10 +1,10 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { AuditLog } from "@/kv/models.ts";
 import { ApiKvKeyPart } from "@/lib/types.ts";
 import Dialog from "./Dialog.tsx";
 import { KeyDisplay } from "./KeyDisplay.tsx";
 import { ValueDisplay } from "./ValueDisplay.tsx";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
 
 import {
   DeleteIcon,

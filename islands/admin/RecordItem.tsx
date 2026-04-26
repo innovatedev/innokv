@@ -1,8 +1,8 @@
+import { KeyCodec, RichValue } from "@/codec/mod.ts";
 import { ApiKvEntry, ApiKvKeyPart } from "@/lib/types.ts";
 import { KeyDisplay } from "./KeyDisplay.tsx";
-import { RichValue } from "@/lib/ValueCodec.ts";
+
 import { ValueDisplay } from "./ValueDisplay.tsx";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
 
 interface RecordItemProps {
   record: ApiKvEntry<RichValue>;

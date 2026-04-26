@@ -1,9 +1,9 @@
+import { KeyCodec, RichValue } from "@/codec/mod.ts";
 import { useContext } from "preact/hooks";
 import { Signal } from "@preact/signals";
 import { Database } from "@/kv/models.ts";
 import { ApiKvEntry, ApiKvKeyPart, DbNode, SearchResult } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
-import { RichValue } from "@/lib/ValueCodec.ts";
+
 import RecordItem from "./RecordItem.tsx";
 import SearchResults from "./SearchResults.tsx";
 import { ExpandIcon } from "../../components/icons/ActionIcons.tsx";

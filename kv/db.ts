@@ -18,6 +18,8 @@ export const kv = await Deno.openKv(path);
 import { APP_VERSION, InnoKvMetadata } from "@/lib/metadata.ts";
 import { greaterThan, lessThan, parse } from "@std/semver";
 
+import { runMigrations } from "@/kv/migrations/mod.ts";
+
 const metadataRes = await kv.get<InnoKvMetadata>(["__innokv__"]);
 let metadata = metadataRes.value;
 
@@ -43,13 +45,13 @@ if (!metadata) {
       console.log(
         `Migrating database from ${metadata.version} to ${APP_VERSION}...`,
       );
-      metadata.version = APP_VERSION;
-      await kv.set(["__innokv__"], metadata);
+
+      await runMigrations(kv, metadata.version);
+
       console.log("Migration complete.");
     }
   } catch (e) {
-    console.error("Failed to compare versions:", e);
-    // Proceed with caution or exit? For now log error.
+    console.error("Failed to compare versions or run migrations:", e);
   }
 }
 

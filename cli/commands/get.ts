@@ -1,9 +1,9 @@
+import { ValueCodec } from "@/codec/mod.ts";
 import { Command } from "@cliffy/command";
 import { db as coreDb } from "@/kv/db.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
 import { resolvePath } from "../utils.ts";
 import { doGet } from "../actions.ts";
-import { ValueCodec } from "../../lib/ValueCodec.ts";
 
 /**
  * Command to get a value from a database.
@@ -25,14 +25,11 @@ export const get: Command<any> = new Command()
       const db = { ...dbDoc.value, id: dbDoc.id };
       // deno-lint-ignore no-explicit-any
       const kv = await repo.connectDatabase(db as any);
-
       const targetPath = resolvePath([], path);
       const res = await doGet(kv, slug, targetPath);
-
       if (res.versionstamp === null) {
         Deno.exit(1);
       }
-
       if (options.json) {
         console.log(JSON.stringify(
           {
@@ -57,7 +54,6 @@ export const get: Command<any> = new Command()
           console.log(res.value);
         }
       }
-
       kv.close();
     } catch (e) {
       console.error(e instanceof Error ? e.message : String(e));

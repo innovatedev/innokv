@@ -1,0 +1,37 @@
+import { KeyCodec } from "@/codec/mod.ts";
+import { APP_VERSION } from "@/lib/metadata.ts";
+import { dirname, fromFileUrl } from "@std/path";
+
+import {
+  loadMigrationsFromDir,
+  type Migration,
+  runMigrations as runGenericMigrations,
+} from "@/migrations/mod.ts";
+export type { Migration };
+/**
+ * Runs migrations for the InnoKV application.
+ *
+ * @param kv The Deno.Kv instance
+ * @param currentVersion Optional current version (fetched from __innokv__ if omitted)
+ */
+export async function runMigrations(kv: Deno.Kv, currentVersion?: string) {
+  const dir = dirname(fromFileUrl(import.meta.url));
+  const migrations = await loadMigrationsFromDir(dir);
+  await runGenericMigrations({
+    kv,
+    currentVersion,
+    targetVersion: APP_VERSION,
+    migrations,
+    stateKey: "__innokv__",
+    parsePath: (path) => KeyCodec.toNative(KeyCodec.decode(path)),
+    onMigrationStart: (m) => {
+      console.log(`Applying migration: ${m.version} - ${m.name}`);
+    },
+    onMigrationSuccess: (_m) => {
+      console.log("Migration successful.");
+    },
+    onMigrationError: (m, err) => {
+      console.error(`Migration ${m.version} failed:`, err);
+    },
+  });
+}

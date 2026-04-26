@@ -1,3 +1,4 @@
+import { KeyCodec, ValueCodec } from "@/codec/mod.ts";
 import { readConfig } from "./config.ts";
 import { db } from "@/kv/db.ts";
 import { DatabaseRepository } from "../lib/Database.ts";
@@ -8,16 +9,13 @@ import {
   type CreateUserOptions,
   findUserByEmail,
 } from "../lib/users.ts";
-import { KeyCodec } from "../lib/KeyCodec.ts";
+
 import { KvExplorer } from "../lib/KvExplorer.ts";
 import { ApiKvKeyPart } from "../lib/types.ts";
-
-import { ValueCodec } from "../lib/ValueCodec.ts";
 
 export interface UpdateOptions {
   mergeArrays?: boolean;
 }
-
 /**
  * Ensures the CLI user is authenticated and returns the user and token.
  */
@@ -28,7 +26,6 @@ export async function ensureAuthenticated() {
       "Authentication required. Please run 'innokv login' to authenticate.",
     );
   }
-
   // Hash the token for lookup
   const encoder = new TextEncoder();
   const data = encoder.encode(config.token);
@@ -36,36 +33,30 @@ export async function ensureAuthenticated() {
   const tokenHash = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-
   const tokenDoc = await db.apiTokens.findByPrimaryIndex(
     "tokenHash",
     tokenHash,
   );
-
   if (!tokenDoc) {
     throw new Error(
       "Invalid or expired session. Please run 'innokv login' again.",
     );
   }
-
   // Check expiration
   if (tokenDoc.value.expiresAt && tokenDoc.value.expiresAt < new Date()) {
     throw new Error(
       "Session expired. Please run 'innokv login' again.",
     );
   }
-
   const userDoc = await db.users.find(tokenDoc.value.userId);
   if (!userDoc) {
     throw new Error("User associated with this token not found.");
   }
-
   return {
     user: { ...userDoc.value, id: userDoc.id },
     token: { ...tokenDoc.value, id: tokenDoc.id },
   };
 }
-
 /**
  * Checks if the current session has permission for an action on a database.
  */
@@ -74,15 +65,12 @@ async function checkPermission(
   action: "read" | "write" | "manage",
 ) {
   const { user, token } = await ensureAuthenticated();
-
   let permissions: string[] = [];
-
   if (token.type === "personal") {
     permissions = user.permissions;
   } else {
     permissions = rulesToPermissions(token.rules);
   }
-
   const requiredPerm = `database:${action}:${slug}`;
   if (!hasPermission(permissions, requiredPerm)) {
     throw new Error(
@@ -90,7 +78,6 @@ async function checkPermission(
     );
   }
 }
-
 /**
  * Checks if the user can manage other users.
  * Allows access if no users exist (Bootstrap Mode).
@@ -98,37 +85,30 @@ async function checkPermission(
 export async function checkUserManagePermission() {
   const userCount = await db.users.count();
   if (userCount === 0) return; // Bootstrap mode
-
   const { user, token } = await ensureAuthenticated();
   let permissions: string[] = [];
-
   if (token.type === "personal") {
     permissions = user.permissions;
   } else {
     permissions = rulesToPermissions(token.rules);
   }
-
   if (!hasPermission(permissions, "users:manage")) {
     throw new Error(
       "Permission denied: You do not have 'users:manage' access.",
     );
   }
 }
-
 // --- Database Actions ---
-
 export async function doLs(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
   await checkPermission(slug, "read");
   const seenKeys = new Set<string>();
   const keys: string[] = [];
   const iter = kv.list({ prefix: targetPath as Deno.KvKey });
-
   for await (const entry of iter) {
     const remainingKey = entry.key.slice(targetPath.length);
     if (remainingKey.length > 0) {
       const nextPart = remainingKey[0];
       const displayKey = formatKeyPart(nextPart);
-
       if (!seenKeys.has(displayKey)) {
         keys.push(displayKey);
         seenKeys.add(displayKey);
@@ -137,7 +117,6 @@ export async function doLs(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
   }
   return keys;
 }
-
 function formatKeyPart(part: Deno.KvKeyPart): string {
   if (typeof part === "string") return JSON.stringify(part);
   if (typeof part === "number" || typeof part === "boolean") {
@@ -147,13 +126,11 @@ function formatKeyPart(part: Deno.KvKeyPart): string {
   if (part instanceof Uint8Array) return `u8[${Array.from(part).join(",")}]`;
   return String(part);
 }
-
 export async function doGet(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
   await checkPermission(slug, "read");
   const res = await kv.get(targetPath as Deno.KvKey);
   return res;
 }
-
 export async function doSet(
   kv: Deno.Kv,
   slug: string,
@@ -163,7 +140,6 @@ export async function doSet(
 ) {
   await checkPermission(slug, "write");
   let parsedValue: unknown;
-
   if (options.rich) {
     parsedValue = ValueCodec.decode(JSON.parse(value));
   } else {
@@ -179,7 +155,6 @@ export async function doSet(
   }
   await kv.set(targetPath as Deno.KvKey, parsedValue);
 }
-
 export async function doUpdate(
   kv: Deno.Kv,
   slug: string,
@@ -202,56 +177,50 @@ export async function doUpdate(
       newValue = value;
     }
   }
-
   const res = await kv.get(targetPath as Deno.KvKey);
   const existingValue = res.value;
   let mergedValue = newValue;
-
   if (
     existingValue !== null && typeof existingValue === "object" &&
     newValue !== null && typeof newValue === "object"
   ) {
+    const isPlainObject = (obj: unknown) =>
+      obj?.constructor === Object || Object.getPrototypeOf(obj) === null;
+
     if (Array.isArray(existingValue) && Array.isArray(newValue)) {
       if (options.mergeArrays) {
         mergedValue = Array.from(new Set([...existingValue, ...newValue]));
       } else {
         mergedValue = newValue;
       }
-    } else if (!Array.isArray(existingValue) && !Array.isArray(newValue)) {
+    } else if (isPlainObject(existingValue) && isPlainObject(newValue)) {
       mergedValue = { ...existingValue, ...(newValue as object) };
     }
   }
-
   const commit = await kv.atomic()
     .check(res)
     .set(targetPath as Deno.KvKey, mergedValue)
     .commit();
-
   if (!commit.ok) {
     throw new Error("Failed to update: versionstamp check failed or conflict.");
   }
 }
-
 // --- User Management Actions ---
-
 export async function doUserAdd(options: CreateUserOptions) {
   await checkUserManagePermission();
   return await createUser(options);
 }
-
 export async function doUserLs() {
   await checkUserManagePermission();
   const { result: users } = await db.users.getMany();
   return users.map((u) => ({ ...u.value, id: u.id }));
 }
-
 export async function doUserResetPassword(email: string, password: string) {
   await checkUserManagePermission();
   const userDoc = await findUserByEmail(email);
   if (!userDoc) throw new Error(`User with email '${email}' not found.`);
   return await changePassword(userDoc.id, password);
 }
-
 export async function doMv(
   _kv: Deno.Kv,
   slug: string,
@@ -261,16 +230,13 @@ export async function doMv(
 ) {
   let targetId = slug;
   let targetPathRaw = newPathStr;
-
   if (newPathStr.includes(":")) {
     const parts = newPathStr.split(":");
     targetId = parts[0];
     targetPathRaw = parts.slice(1).join(":");
   }
-
   const repo = new DatabaseRepository(db);
   const oldPathStr = KeyCodec.encode(oldPath as ApiKvKeyPart[]);
-
   return await repo.moveRecords(slug, {
     oldPath: oldPathStr,
     newPath: targetPathRaw,
@@ -278,7 +244,6 @@ export async function doMv(
     targetId,
   });
 }
-
 export async function doCp(
   _kv: Deno.Kv,
   slug: string,
@@ -288,16 +253,13 @@ export async function doCp(
 ) {
   let targetId = slug;
   let targetPathRaw = newPathStr;
-
   if (newPathStr.includes(":")) {
     const parts = newPathStr.split(":");
     targetId = parts[0];
     targetPathRaw = parts.slice(1).join(":");
   }
-
   const repo = new DatabaseRepository(db);
   const oldPathStr = KeyCodec.encode(oldPath as ApiKvKeyPart[]);
-
   return await repo.copyRecords(slug, {
     oldPath: oldPathStr,
     newPath: targetPathRaw,
@@ -305,7 +267,6 @@ export async function doCp(
     targetId,
   });
 }
-
 export async function doExport(
   kv: Deno.Kv,
   slug: string,
@@ -316,7 +277,6 @@ export async function doExport(
   const explorer = new KvExplorer(kv);
   return await explorer.exportToJson(path as Deno.KvKey, recursive);
 }
-
 export async function doImport(
   kv: Deno.Kv,
   slug: string,
@@ -329,38 +289,30 @@ export async function doImport(
   console.log(`Successfully imported ${result.importedCount} records.`);
   return result;
 }
-
 export async function doTree(
   kv: Deno.Kv,
   slug: string,
   targetPath: unknown[],
 ) {
   await checkPermission(slug, "read");
-
   const prefix = targetPath as Deno.KvKey;
   const iter = kv.list({ prefix });
-
   interface TreeNode {
     children: Map<string, TreeNode>;
     isValue: boolean;
     type?: string;
   }
-
   const root: TreeNode = { children: new Map(), isValue: false };
-
   for await (const entry of iter) {
     const relativeKey = entry.key.slice(prefix.length);
     let current = root;
-
     for (let i = 0; i < relativeKey.length; i++) {
       const part = relativeKey[i];
       const keyStr = formatKeyPart(part);
-
       if (!current.children.has(keyStr)) {
         current.children.set(keyStr, { children: new Map(), isValue: false });
       }
       current = current.children.get(keyStr)!;
-
       if (i === relativeKey.length - 1) {
         current.isValue = true;
         // Determine type
@@ -372,32 +324,27 @@ export async function doTree(
       }
     }
   }
-
   function print(node: TreeNode, indent = "", isLast = true, label = "") {
     if (label !== "") {
       const connector = isLast ? "└── " : "├── ";
       const typeInfo = node.isValue ? ` \x1b[90m(${node.type})\x1b[0m` : "";
       console.log(`${indent}${connector}${label}${typeInfo}`);
     }
-
     const childIndent = indent +
       (label === "" ? "" : (isLast ? "    " : "│   "));
     const entries = Array.from(node.children.entries()).sort(([a], [b]) =>
       a.localeCompare(b)
     );
-
     for (let i = 0; i < entries.length; i++) {
       const [name, child] = entries[i];
       print(child, childIndent, i === entries.length - 1, name);
     }
   }
-
   const header = `\x1b[1m${slug}\x1b[0m` +
     (prefix.length > 0 ? ` \x1b[90m[${prefix.join("/")}]\x1b[0m` : "");
   console.log(header);
   print(root);
 }
-
 export async function doStats(
   slug: string,
   pathInfo?: string,
@@ -405,7 +352,6 @@ export async function doStats(
 ) {
   await checkPermission(slug, "manage");
   const { user } = await ensureAuthenticated();
-
   const repo = new DatabaseRepository(db);
   return await repo.getDatabaseStats(slug, pathInfo, user.id, timeoutMs);
 }

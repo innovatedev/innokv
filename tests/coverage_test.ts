@@ -1,9 +1,7 @@
-import { KeySerialization } from "@/lib/KeySerialization.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
-import { ValueCodec } from "@/lib/ValueCodec.ts";
+import { KeyCodec, KeySerialization, ValueCodec } from "@/codec/mod.ts";
+
 import { ApiKvKeyPart } from "@/lib/types.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
-
 Deno.test("Full Type Coverage - Keys (Strict)", () => {
   const types: Deno.KvKeyPart[] = [
     "string",
@@ -15,11 +13,9 @@ Deno.test("Full Type Coverage - Keys (Strict)", () => {
     NaN,
     Infinity,
   ];
-
   for (const t of types) {
     const serialized = KeySerialization.serialize(t);
     const parsed = KeySerialization.parse(serialized);
-
     if (t instanceof Uint8Array) {
       assert(parsed instanceof Uint8Array);
       assertEquals(Array.from(parsed as Uint8Array), Array.from(t));
@@ -30,7 +26,6 @@ Deno.test("Full Type Coverage - Keys (Strict)", () => {
     }
   }
 });
-
 Deno.test("KeyCodec Path Representation Coverage - Shorthands", () => {
   const testCases: { parts: ApiKvKeyPart[]; path: string }[] = [
     {
@@ -81,17 +76,14 @@ Deno.test("KeyCodec Path Representation Coverage - Shorthands", () => {
       path: '"user"/1/u8[255]',
     },
   ];
-
   for (const { parts, path } of testCases) {
     // Test Encode
     const encoded = KeyCodec.encode(parts);
     assertEquals(encoded, path);
-
     // Test Decode
     const decoded = KeyCodec.decode(encoded);
     assertEquals(decoded, parts);
   }
-
   // Test unquoted string fallback (Decode only)
   const unquoted = "user/1/u8[255]";
   const decoded = KeyCodec.decode(unquoted);
@@ -101,7 +93,6 @@ Deno.test("KeyCodec Path Representation Coverage - Shorthands", () => {
     { type: "Uint8Array", value: [255] },
   ]);
 });
-
 Deno.test("Full Type Coverage - Values", () => {
   const now = new Date();
   const values = [
@@ -125,11 +116,9 @@ Deno.test("Full Type Coverage - Values", () => {
     new Map<unknown, unknown>([["key", "val"], [1, 2]]),
     new Set<unknown>([1, 2, "three"]),
   ];
-
   for (const v of values) {
     const encoded = ValueCodec.encode(v);
     const decoded = ValueCodec.decode(encoded);
-
     if (v instanceof Date) {
       assert(decoded instanceof Date);
       assertEquals((decoded as Date).getTime(), v.getTime());

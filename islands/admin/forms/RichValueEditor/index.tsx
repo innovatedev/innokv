@@ -1,5 +1,6 @@
+import { RichValue, RichValueType, ValueCodec } from "@/codec/mod.ts";
 import { useEffect, useState } from "preact/hooks";
-import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
+
 import { ObjectEditor } from "./ObjectEditor.tsx";
 import { ArrayEditor } from "./ArrayEditor.tsx";
 import { MapEditor } from "./MapEditor.tsx";

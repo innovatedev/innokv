@@ -1,6 +1,14 @@
 import { ApiKvKeyPart } from "./types.ts";
 
+/**
+ * KeyCodec provides utilities for converting between Deno KV keys and their
+ * human-readable string representations, as well as their JSON-serializable formats.
+ */
 export class KeyCodec {
+  /**
+   * Encodes a list of API key parts into a human-readable path string.
+   * Example: [{type: "string", value: "a"}, {type: "number", value: 1}] -> "a/1"
+   */
   static encode(parts: ApiKvKeyPart[]): string {
     return parts.map((p) => this.encodePart(p)).join("/");
   }
@@ -38,6 +46,7 @@ export class KeyCodec {
       return p.value as string;
     });
   }
+
   /**
    * Converts a native Deno.KvKey to ApiKvKeyPart[] format.
    */
@@ -45,6 +54,9 @@ export class KeyCodec {
     return key.map((p) => this.fromNativePart(p));
   }
 
+  /**
+   * Converts a single native Deno.KvKeyPart to an ApiKvKeyPart.
+   */
   static fromNativePart(part: Deno.KvKeyPart): ApiKvKeyPart {
     if (typeof part === "string") return { type: "string", value: part };
     if (typeof part === "number") return { type: "number", value: part };
@@ -58,6 +70,10 @@ export class KeyCodec {
     return { type: "string", value: String(part) };
   }
 
+  /**
+   * Decodes a path string into a list of ApiKvKeyParts.
+   * Handles quoted strings, numbers, booleans, bigints, and Uint8Arrays.
+   */
   static decode(str: string): ApiKvKeyPart[] {
     const parts: ApiKvKeyPart[] = [];
     let current = "";

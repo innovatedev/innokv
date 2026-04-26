@@ -1,8 +1,8 @@
+import { KeyCodec, RichValue, ValueCodec } from "@/codec/mod.ts";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { ApiKvEntry, ApiKvKey, ApiKvKeyPart } from "@/lib/types.ts";
 import RichValueEditor from "./RichValueEditor/index.tsx";
-import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { KeyDisplay } from "../KeyDisplay.tsx";
 import JsonEditor from "./JsonEditor.tsx";
 import { NumberInput } from "./RichValueEditor/NumberInput.tsx";

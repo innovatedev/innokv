@@ -1,12 +1,10 @@
+import { KeySerialization, ValueCodec } from "@/codec/mod.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { KvExplorer } from "../lib/KvExplorer.ts";
-import { ValueCodec } from "../lib/ValueCodec.ts";
-import { KeySerialization } from "../lib/KeySerialization.ts";
 
 Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (t) => {
   const db = await Deno.openKv(":memory:");
   const explorer = new KvExplorer(db);
-
   const complexTypes = [
     { name: "string", key: ["type", "string"], value: "hello" },
     { name: "number", key: ["type", 123], value: 456 },
@@ -33,15 +31,12 @@ Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (
     { name: "NaN", key: ["type", NaN], value: NaN },
     { name: "Infinity", key: ["type", Infinity], value: Infinity },
   ];
-
   for (const item of complexTypes) {
     await db.set(item.key as Deno.KvKey, item.value);
   }
-
   await t.step("getRecords preserves types bit-for-bit", async () => {
     const { records } = await explorer.getRecords(["type"]);
     assertEquals(records.length, complexTypes.length);
-
     for (const item of complexTypes) {
       const record = records.find((r) => {
         // Compare keys (decoded)
@@ -59,10 +54,8 @@ Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (
           return p === item.key[i];
         });
       });
-
       assert(record, `Should find record for ${item.name}`);
       const decodedValue = ValueCodec.decode(record.value);
-
       if (item.value instanceof Date) {
         assertEquals((decodedValue as Date).getTime(), item.value.getTime());
       } else if (item.value instanceof Uint8Array) {
@@ -92,13 +85,10 @@ Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (
       }
     }
   });
-
   await t.step("moveRecords preserves types", async () => {
     await explorer.moveRecords(["type"], ["moved"]);
-
     const { records } = await explorer.getRecords(["moved"]);
     assertEquals(records.length, complexTypes.length);
-
     // Check one specific complex item: bigint
     const bigintRecord = records.find((r) =>
       r.key.some((p) => p.type === "bigint" && p.value === "100")
@@ -106,26 +96,20 @@ Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (
     assert(bigintRecord, "Should find moved bigint record");
     assertEquals(ValueCodec.decode(bigintRecord.value), 200n);
   });
-
   await t.step("export/import preserves types", async () => {
     const exported = await explorer.exportToJson(["moved"]);
-
     // Clear moved
     const iter = db.list({ prefix: ["moved"] });
     for await (const entry of iter) await db.delete(entry.key);
-
     // Import to "imported"
     const importedData = exported.map((e) => {
       const newKey = [...e.key];
       newKey[0] = { type: "string", value: "imported" };
       return { ...e, key: newKey };
     });
-
     await explorer.importFromJson(importedData);
-
     const { records } = await explorer.getRecords(["imported"]);
     assertEquals(records.length, complexTypes.length);
-
     // Check one specific complex item: Uint8Array
     const u8Record = records.find((r) =>
       r.key.some((p) =>
@@ -138,6 +122,5 @@ Deno.test("Integration Fidelity - Full Type Support in Keys and Values", async (
     assertEquals(val[0], 4);
     assertEquals(val[1], 5);
   });
-
   db.close();
 });

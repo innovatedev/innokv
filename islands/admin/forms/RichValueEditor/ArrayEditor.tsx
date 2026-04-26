@@ -1,5 +1,6 @@
+import { RichValue, RichValueType, ValueCodec } from "@/codec/mod.ts";
 import { useState } from "preact/hooks";
-import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
+
 import RichValueEditor from "./index.tsx";
 
 interface ArrayEditorProps {

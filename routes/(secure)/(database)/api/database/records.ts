@@ -1,39 +1,32 @@
+import { RichValue } from "@/codec/mod.ts";
 import { DatabaseRepository } from "@/lib/Database.ts";
 import { db as kvdex } from "@/kv/db.ts";
 import { BaseRepository } from "@/lib/BaseRepository.ts";
 import { ApiKvKeyPart } from "@/lib/types.ts";
 
-import { RichValue } from "@/lib/ValueCodec.ts";
-
 const db = new DatabaseRepository(kvdex);
-
 export const handler = BaseRepository.handlers({
   GET: (ctx) =>
     db.handleApiCall(ctx, async () => {
       const dbId = ctx.url.searchParams.get("id");
-
       if (!dbId) {
         throw new Error("Database ID is required");
       }
       ctx.state.plugins.permissions.requires(`database:read:${dbId}`);
-
       const database = await db.getDatabaseBySlugOrId(dbId);
       const pathInfo = ctx.url.searchParams.get("pathInfo") || "";
-
       // Handle Export
       if (ctx.url.searchParams.has("export")) {
         const recursive = ctx.url.searchParams.get("recursive") === "true";
         const all = ctx.url.searchParams.get("all") === "true";
         const wireKeys = ctx.url.searchParams.get("keys");
         let keys: Deno.KvKey[] | undefined;
-
         if (wireKeys) {
           const parsed = JSON.parse(wireKeys);
           keys = (parsed as ApiKvKeyPart[][]).map((k) =>
             k.map((p) => db.parseKeyPart(p))
           );
         }
-
         return db.exportRecords(database.id, {
           pathInfo,
           recursive,
@@ -41,14 +34,12 @@ export const handler = BaseRepository.handlers({
           keys,
         });
       }
-
       const cursor = ctx.url.searchParams.get("cursor") || undefined;
       const limit = parseInt(ctx.url.searchParams.get("limit") || "100");
       const recursiveParam = ctx.url.searchParams.get("recursive");
       const recursive = recursiveParam !== null
         ? recursiveParam === "true"
         : undefined;
-
       return db.getRecords(database.id, pathInfo, cursor, limit, { recursive });
     }),
   POST: (ctx) =>
@@ -67,9 +58,7 @@ export const handler = BaseRepository.handlers({
       if (!id) throw new Error("Database ID is required");
       if (!wireKey) throw new Error("Key is required");
       ctx.state.plugins.permissions.requires(`database:write:${id as string}`);
-
       const key = (wireKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
-
       if (action === "increment") {
         return await db.incrementRecord(
           id as string,
@@ -78,12 +67,10 @@ export const handler = BaseRepository.handlers({
           ctx.state.userId,
         );
       }
-
       let oldKey: Deno.KvKey | undefined;
       if (wireOldKey) {
         oldKey = (wireOldKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
       }
-
       const database = await db.getDatabaseBySlugOrId(id as string);
       if (database.value.mode === "r") {
         throw new Error("Database is read-only");
@@ -131,14 +118,12 @@ export const handler = BaseRepository.handlers({
       if (targetId && targetId !== id) {
         ctx.state.plugins.permissions.requires(`database:write:${targetId}`);
       }
-
       let keys: Deno.KvKey[] | undefined;
       if (wireKeys) {
         keys = (wireKeys as ApiKvKeyPart[][]).map((k) =>
           k.map((p) => db.parseKeyPart(p))
         );
       }
-
       const options = {
         oldPath,
         keys,
@@ -147,7 +132,6 @@ export const handler = BaseRepository.handlers({
         targetId,
         sourcePath,
       };
-
       if (mode === "copy") {
         return await db.copyRecords(id, options, ctx.state.userId);
       }
@@ -171,18 +155,15 @@ export const handler = BaseRepository.handlers({
         data;
       if (!id) throw new Error("Database ID is required");
       ctx.state.plugins.permissions.requires(`database:write:${id as string}`);
-
       const database = await db.getDatabaseBySlugOrId(id as string);
       if (database.value.mode === "r") {
         throw new Error("Database is read-only");
       }
-
       // Single key delete
       if (wireKey) {
         const key = (wireKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
         return db.deleteRecord(database.id, key, ctx.state.userId);
       }
-
       // Bulk delete
       let keys: Deno.KvKey[] | undefined;
       if (wireKeys) {
@@ -190,7 +171,6 @@ export const handler = BaseRepository.handlers({
           k.map((p) => db.parseKeyPart(p))
         );
       }
-
       return db.deleteRecords(database.id, {
         keys,
         all: all as boolean | undefined,

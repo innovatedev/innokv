@@ -1,216 +1,190 @@
 # InnoKV
 
-Deno KV admin/management tool. Connect to local or remote Deno KV and manage
-your Deno KV data stores.
+**Development workspace and admin tool for Deno KV.**
+
+InnoKV is a professional management interface and CLI for working with real Deno
+KV systems across environments.
+
+- Connect to **local, remote, or in-memory** databases
+- Inspect and edit data with **full type fidelity** (no JSON flattening)
+- Move, copy, and migrate **entire keyspaces or subtrees**
+- Compare environments and debug issues **without writing scripts**
+- Built for both **humans and automation (CLI + agents)**
+
+If you’re using Deno KV beyond trivial data, InnoKV helps you understand,
+manage, and evolve your data safely.
+
+---
 
 ## AI Transparency
 
-⚠️ This project is primarily AI-assisted (Antigravity, Copilot, Cursor, Gemini,
-ChatGPT, Composer, Claude, Grok); all code is directed, reviewed, and tested by
+⚠️ This project is heavily AI-assisted (Antigravity, Copilot, Cursor, Gemini,
+ChatGPT, Composer, Claude, Grok). All code is directed, reviewed, and tested by
 humans.
+
+---
 
 ## Quick Start
 
 ```bash
+# 1. Install the CLI
 deno run -A --unstable-kv jsr:@innovatedev/innokv install
+
+# 2. Start the Server
+innokv serve
+
+# 3. Open the UI
+# http://localhost:4665
 ```
 
-### Server
+---
+
+## Key Features
+
+- **Type Fidelity**: Preserves `BigInt`, `Uint8Array`, `Date`, `Map`, `Set`, and
+  more.
+- **Visual Explorer**: Tree and flat views for intuitive data navigation.
+- **Recursive Operations**: Move, copy, or delete entire branches across
+  databases.
+- **Bulk Migration**: High-performance JSON import/export with pipe support.
+- **Multi-Database Workflow**: Manage dev, test, prod, and scratch side-by-side.
+- **Security**: Granular permission system for administrative users and API
+  agents.
+
+---
+
+## Why InnoKV?
+
+Deno KV is extremely flexible—but that flexibility comes with real complexity:
+
+- Keys are structured (not just strings)
+- Values are rich types (not just JSON)
+- No built-in way to explore or compare environments
+- Debugging often requires one-off scripts
+
+InnoKV provides a **type-safe, structure-aware interface** for working with KV
+data directly.
+
+### Core principles
+
+- **Faithful to data** — no lossy conversions or hidden coercion
+- **Structured operations** — work with subtrees, not just individual keys
+- **Safe mutation** — understand changes before they happen
+- **Automation-ready** — CLI + JSON modes for scripting and AI agents
+
+---
+
+## CLI Reference
+
+| Command                    | Description                                   |
+| :------------------------- | :-------------------------------------------- |
+| `serve`                    | Start the Web UI and API server.              |
+| `ls <db> [path]`           | List keys at a specific path.                 |
+| `tree <db> [path]`         | Visualize keys in a tree structure.           |
+| `get <db> <path>`          | Retrieve a record (use `--rich` or `--json`). |
+| `set <db> <path> <val>`    | Create or overwrite a record.                 |
+| `update <db> <path> <val>` | Merge or update an existing record.           |
+| `mv/cp <db> <src> <dest>`  | Move or copy records (`-r` for recursion).    |
+| `rm <db> <path>`           | Delete records (`-r` for recursion).          |
+| `import/export`            | Bulk JSON operations.                         |
+
+Run `innokv --help` for full usage.
+
+---
+
+## The "Rich Mode" Standard
+
+Standard JSON cannot represent many Deno KV types (like `BigInt` or
+`Uint8Array`). InnoKV solves this with **Rich Mode**—a transport format for
+preserving all Deno KV data types.
+
+### Using `--rich`
 
 ```bash
-innokv
+# Set a Uint8Array
+innokv set my-db raw/bytes '{"type":"Uint8Array","value":[1,2,3]}' --rich
+
+# Get a value in Rich Format
+innokv get my-db raw/bytes --rich
+# {"type":"Uint8Array","value":[1,2,3]}
+
+# Update an object
+innokv update my-db users/alice '{"lastLogin": "2024-04-26"}'
 ```
 
-Open http://localhost:4665 in your browser. On the first run, the CLI will
-prompt you to create an administrative account.
+### Using `--json`
 
-## CLI Usage
+Returns full `Deno.KvEntry` (including `versionstamp`) with value encoded in
+Rich Format. Recommended for automation and AI agents.
 
-InnoKV includes a powerful CLI for managing your databases directly from the
-terminal.
+---
 
-### Basic Commands
+## Advanced Usage
 
-| Command                 | Description                                         |
-| :---------------------- | :-------------------------------------------------- |
-| **serve**               | Start the web server (default).                     |
-| **db**                  | Manage and connect to databases.                    |
-| **ls** / **tree**       | List or visualize keys.                             |
-| **get** / **set**       | Read or write individual records.                   |
-| **mv** / **cp**         | Move or copy records (supports `-r` for recursion). |
-| **rm**                  | Delete records (supports `-r`, `-f`).               |
-| **import** / **export** | Bulk data migration via JSON.                       |
-| **user**                | Manage administrative users.                        |
-| **config**              | Manage global server settings.                      |
-
-Run `innokv --help` for the full list of commands and options.
-
-### CLI Authentication & Security
-
-CLI authentication is primarily designed for **agent access** (automation,
-CI/CD, or AI assistants).
-
-> [!IMPORTANT]
-> **Read-Only Mode**: When a database is set to "Read Only", all mutation
-> operations (set, update, mv, cp, rm, import) are strictly blocked across both
-> the Web UI and the CLI.
-
-> [!NOTE]
-> The security model assumes that access to the server's local SQLite database
-> is controlled. Sensitive information, such as remote KV access tokens and
-> connection strings, is stored within the central database to facilitate
-> management across multiple sessions and agents.
-
-### Running the Binary
-
-The `innokv` binary works as both the server and the CLI.
+### Path Syntax
 
 ```bash
-# Start the server (default)
-innokv
-
-# Start on a specific port
-innokv --port 4665
-
-# Start with a custom session cookie
-innokv --cookie-name my_session
-
-# Run a CLI command
-innokv db
-```
-
-### Examples
-
-**Visual Tree View:**
-
-```bash
-innokv tree my-db
-# my-db
-# └── "users"
-#     ├── "alice" (object)
-#     └── "bob" (object)
-```
-
-**Bulk Operations:**
-
-```bash
-# Move ONLY the exact key (Shallow)
-innokv mv my-db users/old users/new
-
-# Move a path recursively
-innokv mv my-db users/old users/new -r
-
-# Copy a path recursively
-innokv cp my-db users/old users/backup -r
-```
-
-**JSON Redirection (Import/Export):**
-
-InnoKV supports standard input/output redirection, making it easy to pipe data
-between databases or save backups.
-
-**Unix / Linux / macOS (Bash/Zsh):**
-
-```bash
-# Export to a file using redirection
-innokv export my-db users > users_backup.json
-
-# Import from a file using redirection
-innokv import my-db < users_backup.json
-
-# Pipe data directly between databases
-innokv export prod-db | innokv import staging-db
-```
-
-**Windows (PowerShell):**
-
-```powershell
-# Export to a file
-innokv export my-db users | Out-File -FilePath users_backup.json -Encoding utf8
-
-# Import from a file
-Get-Content users_backup.json | innokv import my-db
-```
-
-**Windows (Command Prompt):**
-
-```cmd
-# Export to a file
-innokv export my-db users > users_backup.json
-
-# Import from a file
-innokv import my-db < users_backup.json
-```
-
-**Interactive Mode:** In addition to standard navigation, the Web UI supports
-**Bulk Export** of selected records or entire folder views, making it easy to
-backup specific subsets of your data.
-
-```bash
-innokv repl my-db
-# > ls
-# > get users/admin
-# > cd users
-# > ls
-```
-
-**Quick Key Inspection:**
-
-```bash
-# List keys in 'users' path
-innokv ls my-db users
-
-# Get keys as a JSON array (for AI agents)
-innokv ls my-db users --json
-
-# Get a specific value
-innokv get my-db users/admin
-
-# Get full entry (key, value, versionstamp) as JSON
-innokv get my-db users/admin --json
-
-# Set a value with native BigInt support
-innokv set my-db settings/counter 100n
-
-# Set complex types using Rich Mode (ValueCodec format)
-innokv set my-db raw/data '{"type":"Uint8Array","value":[1,2,3]}' --rich
-
-# Update an object (merges by default)
-innokv update my-db users/alice '{"lastLogin": "2024-04-24"}'
-
-# Navigate to complex keys (using KeyCodec formatting)
 innokv get my-db "users"/123/true/u8[1,2,3]
 ```
 
-### Rich Type Support & AI/Agent Use
+### Piping Data
 
-InnoKV is designed for **100% faithful representation** of Deno KV types. This
-means that `BigInt`, `Uint8Array`, `Date`, `RegExp`, `Map`, `Set`, and all
-`TypedArray` variants are preserved without data loss.
-
-For AI agents and automation, use the `--json` and `--rich` flags:
-
-- **`--json`**: Outputs the entire `Deno.KvEntry` as a machine-readable JSON
-  object. The `value` is encoded using a transport-safe "rich" format.
-- **`--rich`**:
-  - On **get**: Outputs just the value in the rich transport format.
-  - On **set** / **update**: Parses the input string as a rich transport object,
-    allowing you to write types that standard JSON doesn't support (like
-    `BigInt` or `Uint8Array`).
-
-Example Rich Format:
-
-```json
-{
-  "type": "bigint",
-  "value": "900719925474099100"
-}
+```bash
+innokv export prod-db | innokv import local-db
 ```
+
+---
+
+## Packages
+
+InnoKV also exposes reusable libraries for working with Deno KV outside of the
+UI.
+
+### codec/
+
+Utilities for encoding and decoding Deno KV data:
+
+- **KeyCodec** — deterministic key ↔ path transformations
+- **ValueCodec** — full-fidelity serialization of all Deno KV types
+- **KeySerialization** — transport-safe key formats
+- **Types** — `ApiKvKey`, `RichValue`, and core types
+
+---
+
+### migrations/
+
+Generic KV migration engine, independent of InnoKV internals.
+
+- Works with any key structure via optional `parsePath`
+- Supports arbitrary key parsing conventions
+
+```ts
+import { ... } from "@innovatedev/innokv/migrations"
+```
+
+---
+
+## Security & Auth
+
+> **Read-Only Databases**: When a database is marked read-only, all mutation
+> commands (`set`, `update`, `mv`, `rm`, etc.) are blocked at the API level.
+
+### Authentication
+
+The CLI uses token-based authentication. Run:
+
+```bash
+innokv login
+```
+
+---
 
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
+---
+
 ## Security Issues
 
-Report any security related issues to security@innovate.dev
+Report security issues to [security@innovate.dev](mailto:security@innovate.dev)

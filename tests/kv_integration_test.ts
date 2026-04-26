@@ -1,9 +1,8 @@
+import { ValueCodec } from "@/codec/mod.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { ValueCodec } from "../lib/ValueCodec.ts";
 
 Deno.test("Deno KV Integration - Round-trip complex values", async () => {
   const kv = await Deno.openKv(":memory:");
-
   const original = {
     str: "hello",
     num: 1.23,
@@ -25,22 +24,17 @@ Deno.test("Deno KV Integration - Round-trip complex values", async () => {
       arr: [1, { x: 2 }],
     },
   };
-
   // 1. Encode for transport (simulating UI/API)
   const encoded = ValueCodec.encode(original);
-
   // 2. Decode (simulating backend receiving from UI)
   const decoded = ValueCodec.decode(encoded);
-
   // 3. Save to actual Deno KV
   const key = ["integration_test"];
   await kv.set(key, decoded);
-
   // 4. Read back from Deno KV
   const res = await kv.get(key);
   // deno-lint-ignore no-explicit-any
   const back = res.value as any;
-
   // 5. Assertions
   assertEquals(back.str, original.str);
   assertEquals(back.num, original.num);
@@ -64,27 +58,21 @@ Deno.test("Deno KV Integration - Round-trip complex values", async () => {
   assertEquals(back.regexp.flags, "gi");
   assert(back.error instanceof Error);
   assertEquals(back.error.message, "boom");
-
   // NOTE: Deno KV currently only preserves Deno.KvU64 as a native instance
   // when it is the TOP-LEVEL value. When nested in an object, it becomes
   // a plain object { value: bigint }.
   assertEquals(back.kvu64.value, 100n);
-
   // 6. Test top-level KvU64 (where it SHOULD stay native)
   const u64Key = ["top_level_u64"];
   await kv.set(u64Key, new Deno.KvU64(500n));
   const u64Res = await kv.get(u64Key);
   assert(u64Res.value instanceof Deno.KvU64);
   assertEquals((u64Res.value as Deno.KvU64).value, 500n);
-
   assertEquals(back.nested.arr[1].x, 2);
-
   await kv.close();
 });
-
 Deno.test("Deno KV Integration - Key fidelity", async () => {
   const kv = await Deno.openKv(":memory:");
-
   const complexKey: Deno.KvKey = [
     "string",
     123,
@@ -97,19 +85,15 @@ Deno.test("Deno KV Integration - Key fidelity", async () => {
     Infinity,
     -Infinity,
   ];
-
   await kv.set(complexKey, "fidelity-test");
-
   // 1. Get exact key
   const res = await kv.get(complexKey);
   assertEquals(res.value, "fidelity-test");
   assertEquals(res.key, complexKey);
-
   // 2. Test list with prefix
   const iter = kv.list({ prefix: ["string", 123] });
   const entry = await iter.next();
   assert(!entry.done);
   assertEquals(entry.value.key, complexKey);
-
   await kv.close();
 });

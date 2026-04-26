@@ -1,7 +1,7 @@
+import { KeyCodec, RichValue } from "@/codec/mod.ts";
 import { ApiKvEntry, ApiKvKeyPart, SearchResult } from "@/lib/types.ts";
-import { RichValue } from "@/lib/ValueCodec.ts";
+
 import RecordItem from "./RecordItem.tsx";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
 
 interface SearchResultsProps {
   databaseId: string;

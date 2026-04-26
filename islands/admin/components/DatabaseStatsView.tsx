@@ -1,3 +1,4 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { Database } from "@/kv/models.ts";
 import {
   InfoIcon,
@@ -6,7 +7,7 @@ import {
 import { formatSize } from "@/lib/utils.ts";
 import { ApiKvKeyPart } from "@/lib/types.ts";
 import { useEffect, useState } from "preact/hooks";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { KeyDisplay } from "../KeyDisplay.tsx";
 
 interface DatabaseStatsViewProps {

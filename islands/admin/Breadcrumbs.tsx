@@ -1,3 +1,4 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { Signal } from "@preact/signals";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ApiKvKeyPart, DbNode } from "@/lib/types.ts";
@@ -7,7 +8,7 @@ import {
   ChevronRightIcon,
   LockIcon,
 } from "../../components/icons/ActionIcons.tsx";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { DatabaseIcon } from "../../components/icons/DatabaseIcons.tsx";
 
 interface BreadcrumbsProps {

@@ -1,6 +1,7 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { Signal, useSignal } from "@preact/signals";
 import { ApiKvEntry, ApiKvKeyPart, DbNode, SearchResult } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { Database } from "@/kv/models.ts";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
 

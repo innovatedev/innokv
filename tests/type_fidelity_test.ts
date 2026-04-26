@@ -1,9 +1,9 @@
+import { KeyCodec, ValueCodec } from "@/codec/mod.ts";
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { KeyCodec } from "../lib/KeyCodec.ts";
-import { ApiKvKeyPart } from "../lib/types.ts";
-import { ValueCodec } from "../lib/ValueCodec.ts";
-import { resolvePath } from "../cli/utils.ts";
 
+import { ApiKvKeyPart } from "../lib/types.ts";
+
+import { resolvePath } from "../cli/utils.ts";
 Deno.test("Type Fidelity - KeyCodec", async (t) => {
   const cases: [unknown[], string][] = [
     [["string"], '"string"'],
@@ -19,7 +19,6 @@ Deno.test("Type Fidelity - KeyCodec", async (t) => {
     [[-Infinity], "-Infinity"],
     [[-0], "0"], // Deno KV treats -0 and 0 as same in keys
   ];
-
   for (const [native, encoded] of cases) {
     await t.step(`Encode ${typeof native[0]}: ${String(native[0])}`, () => {
       const apiParts = native.map((p) => ({
@@ -30,7 +29,6 @@ Deno.test("Type Fidelity - KeyCodec", async (t) => {
       } as Record<string, unknown>));
       assertEquals(KeyCodec.encode(apiParts as ApiKvKeyPart[]), encoded);
     });
-
     await t.step(`Decode ${encoded}`, () => {
       const decoded = KeyCodec.decode(encoded);
       const backToNative = KeyCodec.toNative(decoded);
@@ -38,7 +36,6 @@ Deno.test("Type Fidelity - KeyCodec", async (t) => {
     });
   }
 });
-
 Deno.test("Type Fidelity - ValueCodec", async (t) => {
   const complexValue = {
     str: "hello",
@@ -69,12 +66,10 @@ Deno.test("Type Fidelity - ValueCodec", async (t) => {
     kvu64: new (globalThis as any).Deno.KvU64(100n),
     negativeZero: -0,
   };
-
   await t.step("Encode and Decode complex value", () => {
     const encoded = ValueCodec.encode(complexValue);
     // deno-lint-ignore no-explicit-any
     const decoded = ValueCodec.decode(encoded) as any;
-
     assertEquals(decoded.str, complexValue.str);
     assertEquals(decoded.num, complexValue.num);
     assertEquals(decoded.big, complexValue.big);
@@ -89,7 +84,6 @@ Deno.test("Type Fidelity - ValueCodec", async (t) => {
     assertEquals(Array.from(decoded.b64), [100n, 200n]);
     assert(decoded.map instanceof Map);
     assertEquals(decoded.map.get("key"), "val");
-
     let foundDateKey = false;
     let foundU8Key = false;
     for (const [mk, mv] of decoded.map) {
@@ -107,7 +101,6 @@ Deno.test("Type Fidelity - ValueCodec", async (t) => {
     }
     assert(foundDateKey, "Should have found Date key in Map");
     assert(foundU8Key, "Should have found Uint8Array key in Map");
-
     assert(decoded.set instanceof Set);
     assert(decoded.set.has(2));
     assert(decoded.regexp instanceof RegExp);
@@ -123,12 +116,10 @@ Deno.test("Type Fidelity - ValueCodec", async (t) => {
     assertEquals(decoded.nested.a[1], 2n);
   });
 });
-
 Deno.test("Type Fidelity - resolvePath", async (t) => {
   await t.step("Resolve path with complex parts", () => {
     const path = '"a"/123/true/123n/u8[1,2,3]/..';
     const resolved = resolvePath([], path);
-
     assertEquals(resolved.length, 4);
     assertEquals(resolved[0], "a");
     assertEquals(resolved[1], 123);
@@ -136,7 +127,6 @@ Deno.test("Type Fidelity - resolvePath", async (t) => {
     assertEquals(resolved[3], 123n);
     // u8[1,2,3] was popped by ..
   });
-
   await t.step("Resolve absolute path", () => {
     const path = '/"root"/"sub"';
     const resolved = resolvePath(["old", "path"], path);

@@ -1,18 +1,20 @@
 import {
+  KeyCodec,
+  KeySerialization,
+  RichValue,
+  ValueCodec,
+} from "@/codec/mod.ts";
+import {
   ApiKvEntry,
   ApiKvKeyPart,
   type DbNode,
   type SearchOptions,
   type SearchResult,
 } from "./types.ts";
-import { KeyCodec } from "./KeyCodec.ts";
-import { RichValue, ValueCodec } from "./ValueCodec.ts";
-import { KeySerialization } from "./KeySerialization.ts";
-import { serialize } from "node:v8";
 
+import { serialize } from "node:v8";
 export class KvExplorer {
   constructor(private kv: Deno.Kv) {}
-
   /**
    * Calculates the approximate size of a value in bytes using V8 serialization.
    */
@@ -23,7 +25,6 @@ export class KvExplorer {
       return 0;
     }
   }
-
   /**
    * Retrieves tree structure under a prefix.
    * Uses a "skip scan" strategy for top-level keys to be efficient.
@@ -43,10 +44,8 @@ export class KvExplorer {
       // but for now we just use the skip scan to get top-level keys
       // and let the UI request more as needed.
     }
-
     return await this.getTopLevelKeys(prefix, options);
   }
-
   /**
    * Retrieves top-level keys under a prefix using a "skip scan" strategy.
    * This is efficient for large datasets as it avoids iterating over all children.
@@ -62,7 +61,6 @@ export class KvExplorer {
     const limit = options.limit ?? 100;
     const nodes: DbNode[] = [];
     const depth = prefix.length;
-
     let currentStart: Deno.KvKey;
     if (options.cursor) {
       try {
@@ -76,35 +74,26 @@ export class KvExplorer {
     } else {
       currentStart = [...prefix];
     }
-
     let processedCount = 0;
     let nextCursor = "";
-
     while (processedCount < limit) {
       const selector: { prefix: Deno.KvKey; start?: Deno.KvKey } = { prefix };
       if (processedCount > 0 || options.cursor) {
         selector.start = currentStart;
       }
-
       const iter = this.kv.list(selector, { limit: 1 });
       const entry = await iter.next();
-
       if (entry.done) {
         break;
       }
-
       const key = entry.value.key;
-
       if (key.length <= depth) {
         currentStart = [...prefix, new Uint8Array([0])];
         continue;
       }
-
       const partVal = key[depth];
       const partInfo = this.stringifyKeyPart(partVal);
-
       let hasChildren = key.length > depth + 1;
-
       if (!hasChildren) {
         const childIter = this.kv.list({
           prefix: [...prefix, partVal],
@@ -115,28 +104,22 @@ export class KvExplorer {
           hasChildren = true;
         }
       }
-
       const nextStart = [...prefix, partVal, true];
-
       nodes.push({
         type: partInfo.type,
         value: partInfo.value,
         hasChildren,
         children: {},
       });
-
       processedCount++;
       // deno-lint-ignore no-explicit-any
       currentStart = nextStart as any;
-
       nextCursor = KeyCodec.encode(
         currentStart.map((p) => this.stringifyKeyPart(p)),
       );
     }
-
     return { keys: nodes, cursor: nodes.length >= limit ? nextCursor : "" };
   }
-
   /**
    * Retrieves records under a prefix.
    */
@@ -146,17 +129,14 @@ export class KvExplorer {
   ): Promise<{ records: ApiKvEntry<RichValue>[]; cursor: string }> {
     const limit = options.limit ?? 100;
     const recursive = options.recursive ?? true;
-
     let start: Deno.KvKey | undefined;
     if (options.cursor) {
       try {
         start = this.parsePath(options.cursor);
       } catch { /* ignore invalid cursor */ }
     }
-
     const iter = this.kv.list({ prefix, start }, { limit: limit + 1 });
     const records: Deno.KvEntry<unknown>[] = [];
-
     for await (const entry of iter) {
       if (!recursive) {
         if (entry.key.length > prefix.length + 1) {
@@ -165,7 +145,6 @@ export class KvExplorer {
       }
       records.push(entry);
     }
-
     let nextCursor = "";
     if (records.length > limit) {
       const next = records.pop();
@@ -175,29 +154,23 @@ export class KvExplorer {
         );
       }
     }
-
     const apiRecords = records.map((entry) => ({
       ...entry,
       key: entry.key.map((p) => this.stringifyKeyPart(p)),
       value: ValueCodec.encode(entry.value),
       size: this.calculateSize(entry.value),
     }));
-
     return { records: apiRecords, cursor: nextCursor };
   }
-
   private stringifyKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
     return KeySerialization.serialize(part);
   }
-
   private parseKeyPart(part: ApiKvKeyPart): Deno.KvKeyPart {
     return KeySerialization.parse(part);
   }
-
   parsePath(pathInfo: string): Deno.KvKey {
     return KeyCodec.decode(pathInfo).map((p) => this.parseKeyPart(p));
   }
-
   async deleteRecords(
     prefix: Deno.KvKey,
     recursive = true,
@@ -208,11 +181,9 @@ export class KvExplorer {
       await this.kv.delete(prefix);
       deletedCount++;
     }
-
     const iter = this.kv.list({ prefix });
     let atomic = this.kv.atomic();
     let count = 0;
-
     for await (const entry of iter) {
       if (!recursive && entry.key.length > prefix.length + 1) {
         continue;
@@ -220,21 +191,17 @@ export class KvExplorer {
       atomic.delete(entry.key);
       count++;
       deletedCount++;
-
       if (count >= 100) {
         await atomic.commit();
         atomic = this.kv.atomic();
         count = 0;
       }
     }
-
     if (count > 0) {
       await atomic.commit();
     }
-
     return { ok: true, deletedCount };
   }
-
   /**
    * Moves records from one prefix to another.
    * Performs an atomic move (delete + set) for each entry found.
@@ -250,7 +217,6 @@ export class KvExplorer {
     let movedCount = 0;
     const destKv = targetKv ?? this.kv;
     const isCrossDb = destKv !== this.kv;
-
     // Handle the prefix key itself
     if (oldPrefix.length > 0) {
       const rootEntry = await this.kv.get(oldPrefix);
@@ -275,19 +241,15 @@ export class KvExplorer {
         }
       }
     }
-
     const iter = this.kv.list({ prefix: oldPrefix });
     let atomic = this.kv.atomic();
     let count = 0;
-
     for await (const entry of iter) {
       if (!recursive && entry.key.length > oldPrefix.length + 1) {
         continue;
       }
-
       const suffix = entry.key.slice(oldPrefix.length);
       const newKey = [...newPrefix, ...suffix];
-
       if (isCrossDb) {
         await destKv.set(newKey, entry.value);
         // Verify write before delete
@@ -303,7 +265,6 @@ export class KvExplorer {
         atomic.delete(entry.key).set(newKey, entry.value);
         count += 2; // 1 delete + 1 set
         movedCount++;
-
         if (count >= batchSize) {
           const res = await atomic.commit();
           if (!res.ok) {
@@ -316,14 +277,11 @@ export class KvExplorer {
         }
       }
     }
-
     if (count > 0 && !isCrossDb) {
       await atomic.commit();
     }
-
     return { ok: true, movedCount };
   }
-
   /**
    * Copies records from one prefix to another.
    */
@@ -338,7 +296,6 @@ export class KvExplorer {
     let copiedCount = 0;
     const destKv = targetKv ?? this.kv;
     const isCrossDb = destKv !== this.kv;
-
     // Handle the prefix key itself
     if (oldPrefix.length > 0) {
       const rootEntry = await this.kv.get(oldPrefix);
@@ -347,25 +304,20 @@ export class KvExplorer {
         copiedCount++;
       }
     }
-
     const iter = this.kv.list({ prefix: oldPrefix });
     let atomic = destKv.atomic();
     let count = 0;
-
     for await (const entry of iter) {
       if (!recursive && entry.key.length > oldPrefix.length + 1) {
         continue;
       }
-
       const suffix = entry.key.slice(oldPrefix.length);
       const newKey = [...newPrefix, ...suffix];
-
       if (isCrossDb) {
         await destKv.set(newKey, entry.value);
       } else {
         atomic.set(newKey, entry.value);
         count++;
-
         if (count >= batchSize) {
           await atomic.commit();
           atomic = destKv.atomic();
@@ -374,14 +326,11 @@ export class KvExplorer {
       }
       copiedCount++;
     }
-
     if (count > 0 && !isCrossDb) {
       await atomic.commit();
     }
-
     return { ok: true, copiedCount };
   }
-
   /**
    * Exports records under a prefix to a JSON-serializable array.
    */
@@ -391,21 +340,17 @@ export class KvExplorer {
   ): Promise<ApiKvEntry<RichValue>[]> {
     const iter = this.kv.list({ prefix });
     const entries: ApiKvEntry<RichValue>[] = [];
-
     for await (const entry of iter) {
       if (!recursive && entry.key.length > prefix.length + 1) {
         continue;
       }
-
       entries.push({
         key: entry.key.map((k) => this.stringifyKeyPart(k)),
         value: ValueCodec.encode(entry.value),
       });
     }
-
     return entries;
   }
-
   /**
    * Imports records from a JSON-serializable array into the database.
    */
@@ -417,15 +362,12 @@ export class KvExplorer {
     let importedCount = 0;
     let atomic = this.kv.atomic();
     let count = 0;
-
     for (const entry of entries) {
       const key = entry.key.map((p) => this.parseKeyPart(p));
       const value = ValueCodec.decode(entry.value);
-
       atomic.set(key, value);
       count++;
       importedCount++;
-
       if (count >= batchSize) {
         const res = await atomic.commit();
         if (!res.ok) {
@@ -437,17 +379,14 @@ export class KvExplorer {
         count = 0;
       }
     }
-
     if (count > 0) {
       const res = await atomic.commit();
       if (!res.ok) {
         throw new Error(`Failed to commit final atomic import batch`);
       }
     }
-
     return { importedCount };
   }
-
   /**
    * Searches for keys and values under a prefix.
    */
@@ -461,33 +400,26 @@ export class KvExplorer {
       ? new RegExp(options.query, options.caseSensitive ? "" : "i")
       : null;
     const queryLower = options.query.toLowerCase();
-
     let start: Deno.KvKey | undefined;
     if (options.cursor) {
       try {
         start = this.parsePath(options.cursor);
       } catch { /* ignore */ }
     }
-
     const iter = this.kv.list({ prefix, start }, {
       // We might need to scan more than 'limit' to find enough matches
       // But we don't want to scan forever.
       batchSize: 100,
     });
-
     const results: SearchResult[] = [];
     let lastKey: Deno.KvKey | undefined;
     let foundCount = 0;
-
     for await (const entry of iter) {
       lastKey = entry.key;
-
       if (!recursive && entry.key.length > prefix.length + 1) {
         continue;
       }
-
       let match: "key" | "value" | null = null;
-
       // Search Key
       if (options.target === "key" || options.target === "all") {
         const keyStr = KeyCodec.encode(
@@ -503,7 +435,6 @@ export class KvExplorer {
           else if (this.matchesTyped(options.query, entry.key)) match = "key";
         }
       }
-
       // Search Value
       if (!match && (options.target === "value" || options.target === "all")) {
         const valStr = this.stringifyForSearch(entry.value);
@@ -521,7 +452,6 @@ export class KvExplorer {
           }
         }
       }
-
       if (match) {
         results.push({
           key: entry.key.map((p) => this.stringifyKeyPart(p)),
@@ -534,24 +464,20 @@ export class KvExplorer {
         if (foundCount >= limit) break;
       }
     }
-
     let nextCursor = "";
     if (foundCount >= limit && lastKey) {
       nextCursor = KeyCodec.encode(
         lastKey.map((p) => this.stringifyKeyPart(p)),
       );
     }
-
     return { results, cursor: nextCursor };
   }
-
   private stringifyForSearch(val: unknown): string {
     if (val === null) return "null";
     if (val === undefined) return "undefined";
     if (val instanceof Uint8Array) return `u8[${val.join(",")}]`;
     if (val instanceof Date) return val.toISOString();
     if (typeof val === "bigint") return String(val);
-
     // Recursively extract values only, stripping metadata
     const extractValues = (v: unknown): unknown => {
       if (v === null || typeof v !== "object") return v;
@@ -569,7 +495,6 @@ export class KvExplorer {
       if (Array.isArray(v)) {
         return v.map((av) => extractValues(av));
       }
-
       // Standard object
       const obj: Record<string, unknown> = {};
       for (const [ok, ov] of Object.entries(v as object)) {
@@ -577,25 +502,20 @@ export class KvExplorer {
       }
       return obj;
     };
-
     if (typeof val === "object" || Array.isArray(val)) {
       return JSON.stringify(extractValues(val));
     }
-
     return String(val);
   }
-
   private matchesTyped(query: string, value: unknown): boolean {
     // Try to match numbers exactly
     const num = Number(query);
     if (query.trim() !== "" && !isNaN(num) && typeof value === "number") {
       return num === value;
     }
-
     // Try to match booleans exactly
     if (query === "true" && value === true) return true;
     if (query === "false" && value === false) return true;
-
     // Try to match u8[...] exactly
     if (query.startsWith("u8[") && value instanceof Uint8Array) {
       const content = query.slice(3, -1);
@@ -606,7 +526,6 @@ export class KvExplorer {
         return bytes.every((b, i) => b === value[i]);
       }
     }
-
     return false;
   }
 }

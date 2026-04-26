@@ -1,10 +1,11 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { useContext, useEffect, useRef } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
 import KvEntryForm from "./forms/KvEntry.tsx";
 import { useSignal } from "@preact/signals";
 import { ApiKvEntry, ApiKvKeyPart, DbNode } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import ConnectDatabaseForm from "./forms/ConnectDatabase.tsx";
 import MoveRecords from "./forms/MoveRecords.tsx";
 import Sidebar from "./Sidebar.tsx";

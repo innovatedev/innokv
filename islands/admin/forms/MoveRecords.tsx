@@ -1,8 +1,9 @@
+import { KeyCodec } from "@/codec/mod.ts";
 import { useSignal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import Dialog from "../Dialog.tsx";
 import { ApiKvKeyPart } from "@/lib/types.ts";
-import { KeyCodec } from "@/lib/KeyCodec.ts";
+
 import { KeyDisplay } from "../KeyDisplay.tsx";
 
 import { Database } from "@/kv/models.ts";

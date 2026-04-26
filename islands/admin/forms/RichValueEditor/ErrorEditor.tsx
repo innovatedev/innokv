@@ -1,4 +1,5 @@
-import { RichValue } from "@/lib/ValueCodec.ts";
+import { RichValue } from "@/codec/mod.ts";
+
 import RichValueEditor from "./index.tsx";
 
 interface ErrorEditorProps {

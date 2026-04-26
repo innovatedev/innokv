@@ -1,38 +1,4 @@
-export type RichValueType =
-  | "string"
-  | "number"
-  | "bigint"
-  | "boolean"
-  | "undefined"
-  | "null"
-  | "object"
-  | "array"
-  | "map"
-  | "set"
-  | "date"
-  | "regexp"
-  | "Uint8Array"
-  | "Int8Array"
-  | "Uint8ClampedArray"
-  | "Int16Array"
-  | "Uint16Array"
-  | "Int32Array"
-  | "Uint32Array"
-  | "Float32Array"
-  | "Float64Array"
-  | "BigInt64Array"
-  | "BigUint64Array"
-  | "ArrayBuffer"
-  | "DataView"
-  | "Error"
-  | "KvU64"
-  | "URL";
-
-export interface RichValue {
-  type: RichValueType;
-  // deno-lint-ignore no-explicit-any
-  value?: any; // The serialized transport format
-}
+import { RichValue, RichValueType } from "./types.ts";
 
 const TYPED_ARRAYS = [
   Uint8Array,
@@ -48,7 +14,16 @@ const TYPED_ARRAYS = [
   BigUint64Array,
 ];
 
+/**
+ * ValueCodec provides utilities for encoding and decoding complex JavaScript
+ * values into a JSON-serializable "RichValue" format. This allows transporting
+ * and storing types that are natively supported by Deno KV (like BigInt, Date, Map, Set)
+ * but not by standard JSON.
+ */
 export class ValueCodec {
+  /**
+   * Encodes a native value into a RichValue transport format.
+   */
   static encode(val: unknown): RichValue {
     if (val === undefined) return { type: "undefined" };
     if (val === null) return { type: "null" };
@@ -159,6 +134,9 @@ export class ValueCodec {
     return { type: "string", value: String(val) };
   }
 
+  /**
+   * Decodes an encoded RichValue back into its native format.
+   */
   static decode(encoded: RichValue): unknown {
     switch (encoded.type) {
       case "undefined":

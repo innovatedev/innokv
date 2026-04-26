@@ -1,16 +1,6 @@
-export type ApiKvKeyPart = {
-  type: string;
-  value: string | number | boolean | number[] | null;
-};
+import { ApiKvEntry, ApiKvKey, ApiKvKeyPart } from "@/codec/types.ts";
 
-export type ApiKvKey = ApiKvKeyPart[];
-export type ApiKvEntry<T = unknown> = {
-  key: ApiKvKey;
-  value: T;
-  versionstamp?: string;
-  size?: number;
-  expiresAt?: number | null;
-};
+export type { ApiKvEntry, ApiKvKey, ApiKvKeyPart };
 
 export type DbNode = ApiKvKeyPart & {
   children?: Record<string, DbNode>;
