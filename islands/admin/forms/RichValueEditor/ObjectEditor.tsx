@@ -24,7 +24,10 @@ export function ObjectEditor(
     if (newKey && !(newKey in (value || {}))) {
       onChange({
         ...value,
-        [newKey]: { type: lastType, value: ValueCodec.getDefaultValue(lastType) },
+        [newKey]: {
+          type: lastType,
+          value: ValueCodec.getDefaultValue(lastType),
+        },
       });
       setNewKey("");
       setIsAdding(false);

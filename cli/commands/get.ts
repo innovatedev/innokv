@@ -34,11 +34,15 @@ export const get: Command<any> = new Command()
       }
 
       if (options.json) {
-        console.log(JSON.stringify({
-          key: res.key,
-          value: ValueCodec.encode(res.value),
-          versionstamp: res.versionstamp,
-        }, null, 2));
+        console.log(JSON.stringify(
+          {
+            key: res.key,
+            value: ValueCodec.encode(res.value),
+            versionstamp: res.versionstamp,
+          },
+          null,
+          2,
+        ));
       } else if (options.rich) {
         console.log(JSON.stringify(ValueCodec.encode(res.value), null, 2));
       } else {

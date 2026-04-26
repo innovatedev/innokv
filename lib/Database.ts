@@ -312,7 +312,9 @@ export class DatabaseRepository extends BaseRepository {
       decodedValue = ValueCodec.decode(value as RichValue);
     }
 
-    const expireIn = expiresAt ? Math.max(1, expiresAt - Date.now()) : undefined;
+    const expireIn = expiresAt
+      ? Math.max(1, expiresAt - Date.now())
+      : undefined;
 
     if (oldKey && JSON.stringify(oldKey) !== JSON.stringify(key)) {
       // Move record atomically

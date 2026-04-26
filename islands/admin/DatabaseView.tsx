@@ -360,10 +360,17 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     if (!activeDatabase) return;
     const dbId = activeDatabase.slug || activeDatabase.id;
     try {
-      await api.saveRecord(dbId, KeyCodec.toNative(key), null, null, undefined, {
-        action: "increment",
-        amount: amount.toString(),
-      });
+      await api.saveRecord(
+        dbId,
+        KeyCodec.toNative(key),
+        null,
+        null,
+        undefined,
+        {
+          action: "increment",
+          amount: amount.toString(),
+        },
+      );
       // Refresh only the affected record if possible, but handleRefresh is safer for now
       await handleRefresh();
     } catch (err: unknown) {
@@ -495,6 +502,10 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
               }
             });
           }}
+          onEditDatabase={() => {
+            editingDatabase.value = activeDatabase;
+            createDatabaseRef.current?.showModal();
+          }}
         />
 
         <RecordsView
@@ -555,7 +566,7 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
           onRefresh={handleRefresh}
           onEditDatabase={(dbId) => {
             contextMenu.value = null;
-            const db = databases.value.find((d) => d.id === dbId);
+            const db = databases.value.find((d) => d.id === dbId || d.slug === dbId);
             if (db) {
               editingDatabase.value = db;
               createDatabaseRef.current?.showModal();

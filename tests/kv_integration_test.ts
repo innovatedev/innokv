@@ -1,9 +1,9 @@
-import { assertEquals, assert } from "jsr:@std/assert@1";
+import { assert, assertEquals } from "jsr:@std/assert@1";
 import { ValueCodec } from "../lib/ValueCodec.ts";
 
 Deno.test("Deno KV Integration - Round-trip complex values", async () => {
   const kv = await Deno.openKv(":memory:");
-  
+
   const original = {
     str: "hello",
     num: 1.23,
@@ -22,20 +22,20 @@ Deno.test("Deno KV Integration - Round-trip complex values", async () => {
     error: new Error("boom"),
     kvu64: new Deno.KvU64(100n),
     nested: {
-      arr: [1, { x: 2 }]
-    }
+      arr: [1, { x: 2 }],
+    },
   };
 
   // 1. Encode for transport (simulating UI/API)
   const encoded = ValueCodec.encode(original);
-  
+
   // 2. Decode (simulating backend receiving from UI)
   const decoded = ValueCodec.decode(encoded);
-  
+
   // 3. Save to actual Deno KV
   const key = ["integration_test"];
   await kv.set(key, decoded);
-  
+
   // 4. Read back from Deno KV
   const res = await kv.get(key);
   // deno-lint-ignore no-explicit-any
@@ -64,9 +64,9 @@ Deno.test("Deno KV Integration - Round-trip complex values", async () => {
   assertEquals(back.regexp.flags, "gi");
   assert(back.error instanceof Error);
   assertEquals(back.error.message, "boom");
-  
-  // NOTE: Deno KV currently only preserves Deno.KvU64 as a native instance 
-  // when it is the TOP-LEVEL value. When nested in an object, it becomes 
+
+  // NOTE: Deno KV currently only preserves Deno.KvU64 as a native instance
+  // when it is the TOP-LEVEL value. When nested in an object, it becomes
   // a plain object { value: bigint }.
   assertEquals(back.kvu64.value, 100n);
 
@@ -84,7 +84,7 @@ Deno.test("Deno KV Integration - Round-trip complex values", async () => {
 
 Deno.test("Deno KV Integration - Key fidelity", async () => {
   const kv = await Deno.openKv(":memory:");
-  
+
   const complexKey: Deno.KvKey = [
     "string",
     123,
@@ -95,11 +95,11 @@ Deno.test("Deno KV Integration - Key fidelity", async () => {
     new Uint8Array([1, 2, 3]),
     NaN,
     Infinity,
-    -Infinity
+    -Infinity,
   ];
-  
+
   await kv.set(complexKey, "fidelity-test");
-  
+
   // 1. Get exact key
   const res = await kv.get(complexKey);
   assertEquals(res.value, "fidelity-test");

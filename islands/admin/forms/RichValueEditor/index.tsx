@@ -6,6 +6,7 @@ import { MapEditor } from "./MapEditor.tsx";
 import { TypedArrayInput } from "./TypedArrayInput.tsx";
 import { RegExpEditor } from "./RegExpEditor.tsx";
 import { NumberInput } from "./NumberInput.tsx";
+import { ErrorEditor } from "./ErrorEditor.tsx";
 
 interface RichValueEditorProps {
   value: RichValue;
@@ -44,21 +45,22 @@ export default function RichValueEditor({
     onChange({ type, value: v });
   };
 
-  const isBinaryType = (t: string) => [
-    "Uint8Array",
-    "Int8Array",
-    "Uint8ClampedArray",
-    "Int16Array",
-    "Uint16Array",
-    "Int32Array",
-    "Uint32Array",
-    "Float32Array",
-    "Float64Array",
-    "BigInt64Array",
-    "BigUint64Array",
-    "ArrayBuffer",
-    "DataView",
-  ].includes(t);
+  const isBinaryType = (t: string) =>
+    [
+      "Uint8Array",
+      "Int8Array",
+      "Uint8ClampedArray",
+      "Int16Array",
+      "Uint16Array",
+      "Int32Array",
+      "Uint32Array",
+      "Float32Array",
+      "Float64Array",
+      "BigInt64Array",
+      "BigUint64Array",
+      "ArrayBuffer",
+      "DataView",
+    ].includes(t);
 
   return (
     <div
@@ -259,6 +261,13 @@ export default function RichValueEditor({
               onChange={(newVal) => handlePrimitiveChange(newVal)}
               depth={depth + 1}
               isReadOnly={isReadOnly}
+            />
+          )}
+          {type === "Error" && (
+            <ErrorEditor
+              value={val}
+              isReadOnly={isReadOnly}
+              onChange={(v) => handlePrimitiveChange(v)}
             />
           )}
           {(type === "undefined" || type === "null") && (

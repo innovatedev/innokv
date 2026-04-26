@@ -20,7 +20,10 @@ export function ArrayEditor(
   );
 
   const addItem = () => {
-    onChange([...list, { type: lastType, value: ValueCodec.getDefaultValue(lastType) }]);
+    onChange([...list, {
+      type: lastType,
+      value: ValueCodec.getDefaultValue(lastType),
+    }]);
   };
 
   const removeItem = (idx: number) => {

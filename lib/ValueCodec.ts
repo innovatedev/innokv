@@ -85,7 +85,9 @@ export class ValueCodec {
     if (val instanceof DataView) {
       return {
         type: "DataView",
-        value: Array.from(new Uint8Array(val.buffer, val.byteOffset, val.byteLength)),
+        value: Array.from(
+          new Uint8Array(val.buffer, val.byteOffset, val.byteLength),
+        ),
       };
     }
     if (val instanceof RegExp) {
@@ -101,8 +103,9 @@ export class ValueCodec {
           name: val.name,
           message: val.message,
           stack: val.stack,
-          // deno-lint-ignore no-explicit-any
-          cause: (val as any).cause ? ValueCodec.encode((val as any).cause) : undefined,
+          cause: (val as { cause?: unknown }).cause
+            ? ValueCodec.encode((val as { cause: unknown }).cause)
+            : undefined,
         },
       };
     }
@@ -110,10 +113,13 @@ export class ValueCodec {
     const tag = Object.prototype.toString.call(val);
 
     // Deno specific types
-    // deno-lint-ignore no-explicit-any
-    if (tag === "[object Deno.KvU64]" || (typeof (globalThis as any).Deno !== "undefined" && val instanceof (globalThis as any).Deno.KvU64)) {
+    if (tag === "[object Deno.KvU64]" || (
       // deno-lint-ignore no-explicit-any
-      return { type: "KvU64", value: String((val as any).value) };
+      typeof (globalThis as any).Deno !== "undefined" &&
+        // deno-lint-ignore no-explicit-any
+        val instanceof (globalThis as any).Deno.KvU64
+    )) {
+      return { type: "KvU64", value: String((val as { value: bigint }).value) };
     }
 
     if (val instanceof Map || tag === "[object Map]") {
@@ -219,6 +225,7 @@ export class ValueCodec {
       case "KvU64":
         // deno-lint-ignore no-explicit-any
         if (typeof (globalThis as any).Deno !== "undefined") {
+          // deno-lint-ignore no-explicit-any
           return new (globalThis as any).Deno.KvU64(BigInt(encoded.value));
         }
         // Fallback for UI/Browser: just return the BigInt

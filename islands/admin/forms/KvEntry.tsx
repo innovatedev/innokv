@@ -101,7 +101,9 @@ export default function KvEntryForm({
   }, [entry, path]);
 
   const [expiresAt, setExpiresAt] = useState<string>(
-    entry?.expiresAt ? new Date(entry.expiresAt).toISOString().slice(0, 16) : "",
+    entry?.expiresAt
+      ? new Date(entry.expiresAt).toISOString().slice(0, 16)
+      : "",
   );
   const [hasExpiration, setHasExpiration] = useState(!!entry?.expiresAt);
 
@@ -314,30 +316,30 @@ export default function KvEntryForm({
                           </div>
                         )
                         : part.type === "number"
-                          ? (
-                            <div class="flex-1 max-w-xs">
-                              <NumberInput
-                                value={part.value}
-                                disabled={isReadOnly}
-                                onChange={(v) =>
-                                  updatePart(i, "value", String(v))}
-                              />
-                            </div>
-                          )
-                          : (
-                            <input
-                              type="text"
-                              class="input input-bordered input-xs flex-1"
+                        ? (
+                          <div class="flex-1 max-w-xs">
+                            <NumberInput
                               value={part.value}
-                              readOnly={isReadOnly}
-                              onInput={(e) =>
-                                updatePart(
-                                  i,
-                                  "value",
-                                  (e.target as HTMLInputElement).value,
-                                )}
+                              disabled={isReadOnly}
+                              onChange={(v) =>
+                                updatePart(i, "value", String(v))}
                             />
-                          )}
+                          </div>
+                        )
+                        : (
+                          <input
+                            type="text"
+                            class="input input-bordered input-xs flex-1"
+                            value={part.value}
+                            readOnly={isReadOnly}
+                            onInput={(e) =>
+                              updatePart(
+                                i,
+                                "value",
+                                (e.target as HTMLInputElement).value,
+                              )}
+                          />
+                        )}
                       {!isReadOnly && (
                         <button
                           type="button"

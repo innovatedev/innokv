@@ -22,9 +22,9 @@ export function NumberInput({ value, onChange, disabled }: NumberInputProps) {
       onChange(val);
       return;
     }
-    
+
     if (val.trim() === "") {
-        return; // Don't trigger change on empty string yet
+      return; // Don't trigger change on empty string yet
     }
 
     const n = Number(val);
@@ -56,7 +56,9 @@ export function NumberInput({ value, onChange, disabled }: NumberInputProps) {
         <div class="flex gap-1">
           <button
             type="button"
-            class={`btn btn-xs ${text === "NaN" ? "btn-primary" : "btn-outline"}`}
+            class={`btn btn-xs ${
+              text === "NaN" ? "btn-primary" : "btn-outline"
+            }`}
             onClick={() => setSpecial("NaN")}
             disabled={disabled}
             title="Set as NaN"
@@ -65,7 +67,9 @@ export function NumberInput({ value, onChange, disabled }: NumberInputProps) {
           </button>
           <button
             type="button"
-            class={`btn btn-xs ${text === "Infinity" ? "btn-primary" : "btn-outline"}`}
+            class={`btn btn-xs ${
+              text === "Infinity" ? "btn-primary" : "btn-outline"
+            }`}
             onClick={() => setSpecial("Infinity")}
             disabled={disabled}
             title="Set as Positive Infinity"
@@ -74,7 +78,9 @@ export function NumberInput({ value, onChange, disabled }: NumberInputProps) {
           </button>
           <button
             type="button"
-            class={`btn btn-xs ${text === "-Infinity" ? "btn-primary" : "btn-outline"}`}
+            class={`btn btn-xs ${
+              text === "-Infinity" ? "btn-primary" : "btn-outline"
+            }`}
             onClick={() => setSpecial("-Infinity")}
             disabled={disabled}
             title="Set as Negative Infinity"

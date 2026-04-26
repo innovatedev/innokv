@@ -24,7 +24,9 @@ export function RegExpEditor({ value, onChange, disabled }: RegExpEditorProps) {
   return (
     <div class="flex flex-col gap-2 p-2 bg-base-200/30 rounded border border-base-300 max-w-lg">
       <div class="flex flex-col gap-1">
-        <label class="text-[10px] font-bold opacity-50 uppercase">Pattern</label>
+        <label class="text-[10px] font-bold opacity-50 uppercase">
+          Pattern
+        </label>
         <div class="flex items-center gap-1">
           <span class="text-base-content/50 font-mono">/</span>
           <input
@@ -41,7 +43,8 @@ export function RegExpEditor({ value, onChange, disabled }: RegExpEditorProps) {
             class="input input-bordered input-xs w-16 font-mono"
             value={flags}
             disabled={disabled}
-            onInput={(e) => update(source, (e.target as HTMLInputElement).value)}
+            onInput={(e) =>
+              update(source, (e.target as HTMLInputElement).value)}
             placeholder="flags"
           />
         </div>

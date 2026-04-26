@@ -8,6 +8,7 @@ import {
   LockIcon,
 } from "../../components/icons/ActionIcons.tsx";
 import { DatabaseIcon } from "../../components/icons/DatabaseIcons.tsx";
+import { KeyCodec } from "@/lib/KeyCodec.ts";
 
 interface BreadcrumbsProps {
   pathInfo: Signal<ApiKvKeyPart[] | null>;
@@ -20,11 +21,12 @@ interface BreadcrumbsProps {
   isReadOnly: boolean;
   onLoadNodes: (path: ApiKvKeyPart[]) => void;
   onContextMenu: (
-    e: MouseEvent,
+    e: MouseEvent | PointerEvent,
     type: "folder" | "item" | "database",
     path: ApiKvKeyPart[],
     dbId?: string,
   ) => void;
+  onEditDatabase?: () => void;
   activeDatabase: Database | null;
 }
 
@@ -40,6 +42,7 @@ export const Breadcrumbs = (
     isReadOnly,
     onLoadNodes,
     onContextMenu,
+    onEditDatabase,
     activeDatabase,
   }: BreadcrumbsProps,
 ) => {
@@ -52,7 +55,7 @@ export const Breadcrumbs = (
     for (const p of parents) {
       const key: string | undefined = Object.keys(current!).find((k) => {
         const child = current![k];
-        return child.value === p.value && child.type === p.type;
+        return KeyCodec.encodePart(child) === KeyCodec.encodePart(p);
       });
       if (key && current![key]?.children) {
         current = current![key].children!;
@@ -76,7 +79,7 @@ export const Breadcrumbs = (
     if (!siblings) return null;
     const key = Object.keys(siblings).find((k) => {
       const n = siblings[k];
-      return n.value === lastPart.value && n.type === lastPart.type;
+      return KeyCodec.encodePart(n) === KeyCodec.encodePart(lastPart);
     });
     return key ? siblings[key] : null;
   };
@@ -91,11 +94,19 @@ export const Breadcrumbs = (
           <DatabaseSwitcher
             databases={databases}
             onSwitch={onSwitchDatabase}
+            onContextMenu={onContextMenu}
           />
-          <button
-            class="hover:underline font-bold flex items-center gap-1"
-            type="button"
-            onClick={navigateToRoot}
+          <a
+            class="hover:underline font-bold flex items-center gap-1 cursor-pointer"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              if (path.length === 0 && onEditDatabase) {
+                onEditDatabase();
+              } else {
+                navigateToRoot();
+              }
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               if (activeDatabase) {
@@ -117,7 +128,7 @@ export const Breadcrumbs = (
                 <LockIcon className="w-3.5 h-3.5 text-warning" />
               </div>
             )}
-          </button>
+          </a>
           <BreadcrumbSeparator
             candidates={rootChildren}
             basePath={[]}
@@ -126,6 +137,7 @@ export const Breadcrumbs = (
             prettyPrintDates={prettyPrintDates}
             onLoadNodes={() => onLoadNodes([])}
             hasChildren
+            onContextMenu={onContextMenu}
           />
         </li>
 
@@ -136,9 +148,9 @@ export const Breadcrumbs = (
 
           return (
             <li key={`pathInfo-${i}`} class="flex items-center gap-0.5">
-              <button
-                class="block max-w-xs text-left truncate px-1 hover:bg-base-200 rounded hover:underline"
-                type="button"
+              <a
+                class="block max-w-xs text-left truncate px-1 hover:bg-base-200 rounded hover:underline cursor-pointer"
+                href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   pathInfo.value = myPath;
@@ -158,7 +170,7 @@ export const Breadcrumbs = (
                   value={node.value}
                   prettyPrint={prettyPrintDates}
                 />
-              </button>
+              </a>
               <BreadcrumbSeparator
                 candidates={children}
                 basePath={myPath}
@@ -167,6 +179,7 @@ export const Breadcrumbs = (
                 prettyPrintDates={prettyPrintDates}
                 onLoadNodes={() => onLoadNodes(myPath)}
                 hasChildren={fullNode?.hasChildren}
+                onContextMenu={onContextMenu}
               />
             </li>
           );
@@ -177,9 +190,15 @@ export const Breadcrumbs = (
 };
 
 const DatabaseSwitcher = (
-  { databases, onSwitch }: {
+  { databases, onSwitch, onContextMenu }: {
     databases: Database[];
     onSwitch: (id: string) => void;
+    onContextMenu: (
+      e: MouseEvent | PointerEvent,
+      type: "folder" | "item" | "database",
+      path: ApiKvKeyPart[],
+      dbId?: string,
+    ) => void;
   },
 ) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -232,9 +251,21 @@ const DatabaseSwitcher = (
           {databases.map((db) => (
             <li key={db.id}>
               <a
-                onClick={() => {
+                class="cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
                   onSwitch(db.id);
                   setIsOpen(false);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onContextMenu(
+                    e,
+                    "database",
+                    [],
+                    db.slug || db.id,
+                  );
                 }}
               >
                 {db.name || db.id}
@@ -256,6 +287,7 @@ const BreadcrumbSeparator = (
     prettyPrintDates,
     onLoadNodes,
     hasChildren,
+    onContextMenu,
   }: {
     candidates: Record<string, DbNode> | null;
     basePath: ApiKvKeyPart[];
@@ -264,19 +296,17 @@ const BreadcrumbSeparator = (
     prettyPrintDates: boolean;
     onLoadNodes: () => void;
     hasChildren?: boolean;
+    onContextMenu: (
+      e: MouseEvent | PointerEvent,
+      type: "folder" | "item" | "database",
+      path: ApiKvKeyPart[],
+      dbId?: string,
+    ) => void;
   },
 ) => {
-  const folders = candidates
-    ? Object.values(candidates).filter((n: DbNode) => n.hasChildren)
-    : [];
-  const hasLoadedFolders = folders.length > 0;
-
-  const nextSegment = pathInfo.value && pathInfo.value.length > basePath.length
-    ? pathInfo.value[basePath.length]
-    : null;
-  const isRedundant = folders.length === 1 && nextSegment &&
-    folders[0].value === nextSegment.value &&
-    folders[0].type === nextSegment.type;
+  const nodes = candidates ? Object.values(candidates) : [];
+  const subKeys = nodes.filter((n) => n.hasChildren);
+  const hasLoadedNodes = nodes.length > 0;
 
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -303,11 +333,10 @@ const BreadcrumbSeparator = (
     />
   );
 
-  if (isLast && !hasChildren && !hasLoadedFolders) return null;
-
-  if (isRedundant && !isLast) {
-    return <div class="px-0.5 opacity-40">{Chevron}</div>;
-  }
+  // Simplified visibility: 
+  // - If it's not the last item, we MUST show it to separate segments.
+  // - If it's the last item, we show it to allow discovery, unless confirmed empty.
+  if (isLast && hasLoadedNodes && nodes.length === 0) return null;
 
   return (
     <div
@@ -318,13 +347,14 @@ const BreadcrumbSeparator = (
         type="button"
         onClick={(e) => {
           e.preventDefault();
-          if (!isOpen && !hasLoadedFolders && hasChildren) {
+          if (!isOpen && !hasLoadedNodes && (hasChildren || isLast)) {
             setLoading(true);
             onLoadNodes();
+            // We wait a bit for the data to arrive before opening
             setTimeout(() => {
               setLoading(false);
               setIsOpen(true);
-            }, 300);
+            }, 500);
           } else {
             setIsOpen(!isOpen);
           }
@@ -346,26 +376,43 @@ const BreadcrumbSeparator = (
           class="dropdown-content z-50 menu p-2 shadow bg-base-100 rounded-box w-64 max-h-80 overflow-y-auto flex-nowrap block border border-base-200"
           onClick={(e) => e.stopPropagation()}
         >
-          {hasLoadedFolders
-            ? folders.map((folder: DbNode) => (
-              <li key={folder.value}>
-                <a
-                  onClick={() => {
-                    pathInfo.value = [...basePath, folder];
-                    setIsOpen(false);
-                  }}
-                >
-                  <KeyDisplay
-                    type={folder.type}
-                    value={folder.value}
-                    prettyPrint={prettyPrintDates}
-                  />
-                </a>
+          {loading
+            ? (
+              <li class="disabled px-4 py-2 opacity-50 text-xs text-center italic">
+                Loading...
               </li>
-            ))
+            )
+            : subKeys.length > 0
+            ? (
+              <>
+                {subKeys.map((subKey) => (
+                  <li key={KeyCodec.encodePart(subKey)}>
+                    <a
+                      class="cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        pathInfo.value = [...basePath, subKey];
+                        setIsOpen(false);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onContextMenu(e, "folder", [...basePath, subKey]);
+                      }}
+                    >
+                      <KeyDisplay
+                        type={subKey.type}
+                        value={subKey.value}
+                        prettyPrint={prettyPrintDates}
+                      />
+                    </a>
+                  </li>
+                ))}
+              </>
+            )
             : (
-              <li class="disabled px-4 py-2 opacity-50 text-xs">
-                No child folders found
+              <li class="disabled px-4 py-2 opacity-50 text-xs text-center">
+                No sub-keys found
               </li>
             )}
         </ul>

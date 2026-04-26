@@ -40,8 +40,8 @@ export function ContextMenu({
 }: ContextMenuProps) {
   return (
     <div
-      class="fixed z-50 bg-base-100 border border-base-300 shadow-lg rounded py-1 min-w-[150px]"
-      style={{ top: state.y, left: state.x }}
+      class="fixed z-100 bg-base-100 border border-base-300 shadow-lg rounded py-1 min-w-[150px]"
+      style={{ top: state.y + 2, left: state.x + 2 }}
     >
       {state.type === "database"
         ? (

@@ -41,6 +41,7 @@ interface ToolbarProps {
     path: ApiKvKeyPart[],
     dbId?: string,
   ) => void;
+  onEditDatabase?: () => void;
 }
 
 export default function Toolbar(
@@ -67,6 +68,7 @@ export default function Toolbar(
     onRefresh,
     onLoadNodes,
     onContextMenu,
+    onEditDatabase,
   }: ToolbarProps,
 ) {
   return (
@@ -108,6 +110,7 @@ export default function Toolbar(
               isReadOnly={activeDatabase?.mode === "r"}
               onLoadNodes={onLoadNodes}
               onContextMenu={onContextMenu}
+              onEditDatabase={onEditDatabase}
               activeDatabase={activeDatabase}
             />
           </div>

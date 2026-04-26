@@ -184,16 +184,22 @@ innokv get my-db "users"/123/true/u8[1,2,3]
 
 ### Rich Type Support & AI/Agent Use
 
-InnoKV is designed for **100% faithful representation** of Deno KV types. This means that `BigInt`, `Uint8Array`, `Date`, `RegExp`, `Map`, `Set`, and all `TypedArray` variants are preserved without data loss.
+InnoKV is designed for **100% faithful representation** of Deno KV types. This
+means that `BigInt`, `Uint8Array`, `Date`, `RegExp`, `Map`, `Set`, and all
+`TypedArray` variants are preserved without data loss.
 
 For AI agents and automation, use the `--json` and `--rich` flags:
 
-- **`--json`**: Outputs the entire `Deno.KvEntry` as a machine-readable JSON object. The `value` is encoded using a transport-safe "rich" format.
-- **`--rich`**: 
-    - On **get**: Outputs just the value in the rich transport format.
-    - On **set** / **update**: Parses the input string as a rich transport object, allowing you to write types that standard JSON doesn't support (like `BigInt` or `Uint8Array`).
+- **`--json`**: Outputs the entire `Deno.KvEntry` as a machine-readable JSON
+  object. The `value` is encoded using a transport-safe "rich" format.
+- **`--rich`**:
+  - On **get**: Outputs just the value in the rich transport format.
+  - On **set** / **update**: Parses the input string as a rich transport object,
+    allowing you to write types that standard JSON doesn't support (like
+    `BigInt` or `Uint8Array`).
 
 Example Rich Format:
+
 ```json
 {
   "type": "bigint",

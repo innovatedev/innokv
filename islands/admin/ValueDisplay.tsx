@@ -248,9 +248,7 @@ export function ValueDisplay(
         rich.value === "NaN" || rich.value === "Infinity" ||
         rich.value === "-Infinity"
       ) {
-        return (
-          <span class="text-info font-mono font-bold">{rich.value}</span>
-        );
+        return <span class="text-info font-mono font-bold">{rich.value}</span>;
       }
       // For normal numbers, just show the number without a tag
       return <ValueDisplay value={rich.value} />;

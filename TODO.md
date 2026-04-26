@@ -1,3 +1,0 @@
-- [x] Edit database from tree - missing type/mode/path value if editing other db than selected one?
-- [ ] Edit db from breakcrumbs doesn't work? should be same as tree
-- [ ] CLI - can't create db? should be able to create/edit/delete db from cli (cli config [db] - interactive mode, allow setting via cli flags too, name required to edit)

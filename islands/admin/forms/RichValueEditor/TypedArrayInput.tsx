@@ -75,7 +75,8 @@ export function TypedArrayInput(
       />
       {hasError && (
         <span class="text-[10px] text-error font-bold px-1">
-          Invalid values for {type}. {isBigInt ? "Must be integers." : "Must be numbers."}
+          Invalid values for {type}.{" "}
+          {isBigInt ? "Must be integers." : "Must be numbers."}
         </span>
       )}
     </div>

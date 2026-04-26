@@ -140,7 +140,9 @@ export async function doLs(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
 
 function formatKeyPart(part: Deno.KvKeyPart): string {
   if (typeof part === "string") return JSON.stringify(part);
-  if (typeof part === "number" || typeof part === "boolean") return String(part);
+  if (typeof part === "number" || typeof part === "boolean") {
+    return String(part);
+  }
   if (typeof part === "bigint") return `${part}n`;
   if (part instanceof Uint8Array) return `u8[${Array.from(part).join(",")}]`;
   return String(part);
