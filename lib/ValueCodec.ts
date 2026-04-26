@@ -12,13 +12,41 @@ export type RichValueType =
   | "date"
   | "regexp"
   | "Uint8Array"
-  | "ArrayBuffer"; // TODO: handle other implementation specifics if needed
+  | "Int8Array"
+  | "Uint8ClampedArray"
+  | "Int16Array"
+  | "Uint16Array"
+  | "Int32Array"
+  | "Uint32Array"
+  | "Float32Array"
+  | "Float64Array"
+  | "BigInt64Array"
+  | "BigUint64Array"
+  | "ArrayBuffer"
+  | "DataView"
+  | "Error"
+  | "KvU64"
+  | "URL";
 
 export interface RichValue {
   type: RichValueType;
   // deno-lint-ignore no-explicit-any
   value?: any; // The serialized transport format
 }
+
+const TYPED_ARRAYS = [
+  Uint8Array,
+  Int8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array,
+  BigInt64Array,
+  BigUint64Array,
+];
 
 export class ValueCodec {
   static encode(val: unknown): RichValue {
@@ -38,11 +66,27 @@ export class ValueCodec {
     if (type === "bigint") return { type: "bigint", value: String(val) };
 
     if (val instanceof Date) return { type: "date", value: val.toISOString() };
-    if (val instanceof Uint8Array) {
-      return { type: "Uint8Array", value: Array.from(val) };
+    if (val instanceof URL) return { type: "URL", value: val.href };
+
+    for (const TA of TYPED_ARRAYS) {
+      if (val instanceof TA) {
+        return {
+          type: TA.name as RichValueType,
+          value: Array.from(val as unknown as ArrayLike<unknown>).map((v) =>
+            typeof v === "bigint" ? String(v) : v
+          ),
+        };
+      }
     }
+
     if (val instanceof ArrayBuffer) {
       return { type: "ArrayBuffer", value: Array.from(new Uint8Array(val)) };
+    }
+    if (val instanceof DataView) {
+      return {
+        type: "DataView",
+        value: Array.from(new Uint8Array(val.buffer, val.byteOffset, val.byteLength)),
+      };
     }
     if (val instanceof RegExp) {
       return {
@@ -50,8 +94,27 @@ export class ValueCodec {
         value: { source: val.source, flags: val.flags },
       };
     }
+    if (val instanceof Error) {
+      return {
+        type: "Error",
+        value: {
+          name: val.name,
+          message: val.message,
+          stack: val.stack,
+          // deno-lint-ignore no-explicit-any
+          cause: (val as any).cause ? ValueCodec.encode((val as any).cause) : undefined,
+        },
+      };
+    }
 
     const tag = Object.prototype.toString.call(val);
+
+    // Deno specific types
+    // deno-lint-ignore no-explicit-any
+    if (tag === "[object Deno.KvU64]" || (typeof (globalThis as any).Deno !== "undefined" && val instanceof (globalThis as any).Deno.KvU64)) {
+      // deno-lint-ignore no-explicit-any
+      return { type: "KvU64", value: String((val as any).value) };
+    }
 
     if (val instanceof Map || tag === "[object Map]") {
       const m = val as Map<unknown, unknown>;
@@ -108,19 +171,60 @@ export class ValueCodec {
       case "date":
         return new Date(encoded.value as string);
       case "Uint8Array":
-        if (Array.isArray(encoded.value)) {
-          return new Uint8Array(encoded.value);
-        }
-        throw new Error("Uint8Array value must be an array of numbers");
+        return new Uint8Array(encoded.value);
+      case "Int8Array":
+        return new Int8Array(encoded.value);
+      case "Uint8ClampedArray":
+        return new Uint8ClampedArray(encoded.value);
+      case "Int16Array":
+        return new Int16Array(encoded.value);
+      case "Uint16Array":
+        return new Uint16Array(encoded.value);
+      case "Int32Array":
+        return new Int32Array(encoded.value);
+      case "Uint32Array":
+        return new Uint32Array(encoded.value);
+      case "Float32Array":
+        return new Float32Array(encoded.value);
+      case "Float64Array":
+        return new Float64Array(encoded.value);
+      case "BigInt64Array":
+        return new BigInt64Array(encoded.value.map((v: string) => BigInt(v)));
+      case "BigUint64Array":
+        return new BigUint64Array(encoded.value.map((v: string) => BigInt(v)));
       case "ArrayBuffer":
-        if (Array.isArray(encoded.value)) {
-          return new Uint8Array(encoded.value).buffer;
-        }
-        throw new Error("ArrayBuffer value must be an array of numbers");
+        return new Uint8Array(encoded.value).buffer;
+      case "DataView":
+        return new DataView(new Uint8Array(encoded.value).buffer);
       case "regexp": {
         const v = encoded.value as { source: string; flags: string };
         return new RegExp(v.source, v.flags);
       }
+      case "Error": {
+        const v = encoded.value as {
+          name: string;
+          message: string;
+          stack?: string;
+          cause?: RichValue;
+        };
+        const error = new Error(v.message);
+        error.name = v.name;
+        error.stack = v.stack;
+        if (v.cause) {
+          // deno-lint-ignore no-explicit-any
+          (error as any).cause = ValueCodec.decode(v.cause);
+        }
+        return error;
+      }
+      case "KvU64":
+        // deno-lint-ignore no-explicit-any
+        if (typeof (globalThis as any).Deno !== "undefined") {
+          return new (globalThis as any).Deno.KvU64(BigInt(encoded.value));
+        }
+        // Fallback for UI/Browser: just return the BigInt
+        return BigInt(encoded.value);
+      case "URL":
+        return new URL(encoded.value as string);
       case "map":
         return new Map(
           (encoded.value as [RichValue, RichValue][]).map(([k, v]) => [
@@ -148,6 +252,61 @@ export class ValueCodec {
       }
       default:
         return encoded.value;
+    }
+  }
+
+  /**
+   * Returns a default value for a given RichValueType.
+   */
+  // deno-lint-ignore no-explicit-any
+  static getDefaultValue(type: RichValueType): any {
+    switch (type) {
+      case "string":
+        return "";
+      case "number":
+        return 0;
+      case "bigint":
+        return "0";
+      case "boolean":
+        return true;
+      case "date":
+        return new Date().toISOString();
+      case "regexp":
+        return { source: "", flags: "" };
+      case "Uint8Array":
+      case "Int8Array":
+      case "Uint8ClampedArray":
+      case "Int16Array":
+      case "Uint16Array":
+      case "Int32Array":
+      case "Uint32Array":
+      case "Float32Array":
+      case "Float64Array":
+      case "BigInt64Array":
+      case "BigUint64Array":
+      case "ArrayBuffer":
+      case "DataView":
+        return [];
+      case "object":
+        return {};
+      case "array":
+        return [];
+      case "map":
+        return [];
+      case "set":
+        return [];
+      case "null":
+        return null;
+      case "undefined":
+        return undefined;
+      case "KvU64":
+        return "0";
+      case "URL":
+        return "https://";
+      case "Error":
+        return { name: "Error", message: "" };
+      default:
+        return "";
     }
   }
 }

@@ -12,6 +12,8 @@ import { KeyCodec } from "../lib/KeyCodec.ts";
 import { KvExplorer } from "../lib/KvExplorer.ts";
 import { ApiKvKeyPart } from "../lib/types.ts";
 
+import { ValueCodec } from "../lib/ValueCodec.ts";
+
 export interface UpdateOptions {
   mergeArrays?: boolean;
 }
@@ -118,33 +120,35 @@ export async function checkUserManagePermission() {
 export async function doLs(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
   await checkPermission(slug, "read");
   const seenKeys = new Set<string>();
+  const keys: string[] = [];
   const iter = kv.list({ prefix: targetPath as Deno.KvKey });
 
   for await (const entry of iter) {
     const remainingKey = entry.key.slice(targetPath.length);
     if (remainingKey.length > 0) {
       const nextPart = remainingKey[0];
-      let displayKey = String(nextPart);
-      if (typeof nextPart === "string") displayKey = `"${nextPart}"`;
-      else if (typeof nextPart === "bigint") displayKey = `${nextPart}n`;
-      else if (nextPart instanceof Uint8Array) {
-        displayKey = `u8[${nextPart.join(",")}]`;
-      }
+      const displayKey = formatKeyPart(nextPart);
 
       if (!seenKeys.has(displayKey)) {
-        console.log(displayKey);
+        keys.push(displayKey);
         seenKeys.add(displayKey);
       }
     }
   }
+  return keys;
+}
+
+function formatKeyPart(part: Deno.KvKeyPart): string {
+  if (typeof part === "string") return JSON.stringify(part);
+  if (typeof part === "number" || typeof part === "boolean") return String(part);
+  if (typeof part === "bigint") return `${part}n`;
+  if (part instanceof Uint8Array) return `u8[${Array.from(part).join(",")}]`;
+  return String(part);
 }
 
 export async function doGet(kv: Deno.Kv, slug: string, targetPath: unknown[]) {
   await checkPermission(slug, "read");
   const res = await kv.get(targetPath as Deno.KvKey);
-  if (res.versionstamp) {
-    console.log(res.value);
-  }
   return res;
 }
 
@@ -153,13 +157,23 @@ export async function doSet(
   slug: string,
   targetPath: unknown[],
   value: string,
+  options: { rich?: boolean } = {},
 ) {
   await checkPermission(slug, "write");
   let parsedValue: unknown;
-  try {
-    parsedValue = JSON.parse(value);
-  } catch {
-    parsedValue = value;
+
+  if (options.rich) {
+    parsedValue = ValueCodec.decode(JSON.parse(value));
+  } else {
+    try {
+      if (value.endsWith("n") && !isNaN(Number(value.slice(0, -1)))) {
+        parsedValue = BigInt(value.slice(0, -1));
+      } else {
+        parsedValue = JSON.parse(value);
+      }
+    } catch {
+      parsedValue = value;
+    }
   }
   await kv.set(targetPath as Deno.KvKey, parsedValue);
 }
@@ -169,14 +183,22 @@ export async function doUpdate(
   slug: string,
   targetPath: unknown[],
   value: string,
-  options: UpdateOptions = {},
+  options: UpdateOptions & { rich?: boolean } = {},
 ) {
   await checkPermission(slug, "write");
   let newValue: unknown;
-  try {
-    newValue = JSON.parse(value);
-  } catch {
-    newValue = value;
+  if (options.rich) {
+    newValue = ValueCodec.decode(JSON.parse(value));
+  } else {
+    try {
+      if (value.endsWith("n") && !isNaN(Number(value.slice(0, -1)))) {
+        newValue = BigInt(value.slice(0, -1));
+      } else {
+        newValue = JSON.parse(value);
+      }
+    } catch {
+      newValue = value;
+    }
   }
 
   const res = await kv.get(targetPath as Deno.KvKey);
@@ -330,11 +352,7 @@ export async function doTree(
 
     for (let i = 0; i < relativeKey.length; i++) {
       const part = relativeKey[i];
-      // Format key part for display
-      let keyStr = String(part);
-      if (typeof part === "string") keyStr = `"${part}"`;
-      else if (typeof part === "bigint") keyStr = `${part}n`;
-      else if (part instanceof Uint8Array) keyStr = `u8[${part.length}]`;
+      const keyStr = formatKeyPart(part);
 
       if (!current.children.has(keyStr)) {
         current.children.set(keyStr, { children: new Map(), isValue: false });

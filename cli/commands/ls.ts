@@ -4,16 +4,15 @@ import { DatabaseRepository } from "../../lib/Database.ts";
 import { resolvePath } from "../utils.ts";
 import { doLs } from "../actions.ts";
 
-type LsArgs = [string, string | undefined];
-
 /**
  * Command to list keys in a database.
  */
 // deno-lint-ignore no-explicit-any
 export const ls: Command<any> = new Command()
   .description("List keys in a database")
+  .option("--json", "Output keys as a JSON array")
   .arguments("<slug:string> [path:string]")
-  .action(async (_options, slug, path) => {
+  .action(async (options, slug, path) => {
     const repo = new DatabaseRepository(coreDb);
     try {
       const dbDoc = await repo.getDatabaseBySlugOrId(slug);
@@ -27,11 +26,17 @@ export const ls: Command<any> = new Command()
 
       // Resolve path
       const targetPath = resolvePath([], path);
-      await doLs(kv, slug, targetPath);
+      const keys = await doLs(kv, slug, targetPath);
+
+      if (options.json) {
+        console.log(JSON.stringify(keys, null, 2));
+      } else {
+        for (const key of keys) {
+          console.log(key);
+        }
+      }
 
       kv.close();
-      // Actually connectDatabase might return shared instance, careful with close if using in app.
-      // But this is CLI one-off.
     } catch (e) {
       console.error(e instanceof Error ? e.message : String(e));
       Deno.exit(1);

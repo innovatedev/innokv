@@ -5,6 +5,7 @@ import { RichValue, ValueCodec } from "@/lib/ValueCodec.ts";
 import { KeyCodec } from "@/lib/KeyCodec.ts";
 import { KeyDisplay } from "../KeyDisplay.tsx";
 import JsonEditor from "./JsonEditor.tsx";
+import { NumberInput } from "./RichValueEditor/NumberInput.tsx";
 
 interface KvEntryFormProps {
   onSubmit?: (
@@ -54,7 +55,12 @@ export default function KvEntryForm({
 
   const getNormalizedKey = () =>
     keyParts.map((p) => {
-      if (p.type === "number") return { ...p, value: parseFloat(p.value) };
+      if (p.type === "number") {
+        if (p.value === "NaN") return { ...p, value: NaN };
+        if (p.value === "Infinity") return { ...p, value: Infinity };
+        if (p.value === "-Infinity") return { ...p, value: -Infinity };
+        return { ...p, value: parseFloat(p.value) };
+      }
       if (p.type === "boolean") return { ...p, value: p.value === "true" };
       if (p.type === "Uint8Array") {
         const bytes = p.value.split(/[,\s]+/).map((n) => parseInt(n.trim()))
@@ -94,13 +100,25 @@ export default function KvEntryForm({
     else setRichValue({ type: "object", value: {} });
   }, [entry, path]);
 
+  const [expiresAt, setExpiresAt] = useState<string>(
+    entry?.expiresAt ? new Date(entry.expiresAt).toISOString().slice(0, 16) : "",
+  );
+  const [hasExpiration, setHasExpiration] = useState(!!entry?.expiresAt);
+
   const doSubmit = (e: Event) => {
     if (onSubmit) {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
       const key = KeyCodec.toNative(keyParts as ApiKvKeyPart[]);
 
-      onSubmit({ key, value: richValue }, form);
+      // deno-lint-ignore no-explicit-any
+      (onSubmit as any)({
+        key,
+        value: richValue,
+        expiresAt: (hasExpiration && expiresAt)
+          ? new Date(expiresAt).getTime()
+          : null,
+      }, form);
     }
   };
 
@@ -262,8 +280,16 @@ export default function KvEntryForm({
                             (e.target as HTMLSelectElement).value,
                           )}
                       >
-                        {["string", "number", "bigint", "boolean", "Uint8Array"]
-                          .map((t) => <option key={t} value={t}>{t}</option>)}
+                        {[
+                          { label: "String", val: "string" },
+                          { label: "Number", val: "number" },
+                          { label: "BigInt", val: "bigint" },
+                          { label: "Boolean", val: "boolean" },
+                          { label: "Uint8Array", val: "Uint8Array" },
+                        ]
+                          .map((t) => (
+                            <option key={t.val} value={t.val}>{t.label}</option>
+                          ))}
                       </select>
                       {part.type === "boolean"
                         ? (
@@ -287,20 +313,31 @@ export default function KvEntryForm({
                             </span>
                           </div>
                         )
-                        : (
-                          <input
-                            type={part.type === "number" ? "number" : "text"}
-                            class="input input-bordered input-xs flex-1"
-                            value={part.value}
-                            readOnly={isReadOnly}
-                            onInput={(e) =>
-                              updatePart(
-                                i,
-                                "value",
-                                (e.target as HTMLInputElement).value,
-                              )}
-                          />
-                        )}
+                        : part.type === "number"
+                          ? (
+                            <div class="flex-1 max-w-xs">
+                              <NumberInput
+                                value={part.value}
+                                disabled={isReadOnly}
+                                onChange={(v) =>
+                                  updatePart(i, "value", String(v))}
+                              />
+                            </div>
+                          )
+                          : (
+                            <input
+                              type="text"
+                              class="input input-bordered input-xs flex-1"
+                              value={part.value}
+                              readOnly={isReadOnly}
+                              onInput={(e) =>
+                                updatePart(
+                                  i,
+                                  "value",
+                                  (e.target as HTMLInputElement).value,
+                                )}
+                            />
+                          )}
                       {!isReadOnly && (
                         <button
                           type="button"
@@ -363,6 +400,110 @@ export default function KvEntryForm({
               }}
             />
           )}
+      </div>
+
+      <div class="mt-4 flex flex-col gap-2 border-t border-base-200 pt-4">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-xs checkbox-primary"
+            checked={hasExpiration}
+            disabled={isReadOnly}
+            onChange={(e) => {
+              const checked = (e.target as HTMLInputElement).checked;
+              setHasExpiration(checked);
+              if (checked && !expiresAt) {
+                // Default to 24h from now if enabling for the first time
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                setExpiresAt(tomorrow.toISOString().slice(0, 16));
+              }
+            }}
+          />
+          <span class="text-xs font-bold opacity-70">
+            Set Record Expiration (TTL)
+          </span>
+        </label>
+
+        {hasExpiration && (
+          <div class="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div class="flex gap-2 items-center">
+              <input
+                type="datetime-local"
+                class="input input-bordered input-sm flex-1"
+                value={expiresAt}
+                disabled={isReadOnly}
+                onChange={(e) =>
+                  setExpiresAt((e.target as HTMLInputElement).value)}
+              />
+              {expiresAt && !isReadOnly && (
+                <button
+                  type="button"
+                  class="btn btn-square btn-sm btn-ghost text-error"
+                  onClick={() => setExpiresAt("")}
+                  title="Clear date"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <span class="text-[10px] opacity-40 px-1">
+              Record will be automatically deleted by Deno KV at the specified
+              time.
+            </span>
+
+            {(() => {
+              if (richValue.type !== "object" || !hasExpiration) return null;
+              const inValueExpr =
+                (richValue.value as Record<string, RichValue>)["expiresAt"];
+              const inValueTime = inValueExpr?.type === "date"
+                ? new Date(inValueExpr.value as string).getTime()
+                : null;
+              const formTime = expiresAt ? new Date(expiresAt).getTime() : null;
+
+              if (inValueTime === formTime) return null;
+
+              return (
+                <div class="alert border-warning/30 bg-warning/5 py-2 px-3 text-[10px] gap-2 mt-2 leading-tight text-warning">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    class="stroke-current shrink-0 w-4 h-4 opacity-70"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <div class="flex-1 opacity-90">
+                    {inValueTime === null
+                      ? "Deno KV doesn't return expiration times when reading. Best practice is to track it in your value."
+                      : "In-value expiration is out of sync with the record expiration."}
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-outline btn-warning h-6 min-h-0 px-2 font-bold"
+                    onClick={() => {
+                      const obj = {
+                        ...(richValue.value as Record<string, RichValue>),
+                      };
+                      obj["expiresAt"] = {
+                        type: "date",
+                        value: new Date(expiresAt).toISOString(),
+                      };
+                      setRichValue({ ...richValue, value: obj });
+                    }}
+                  >
+                    {inValueTime === null ? "Sync to Value" : "Update Value"}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       <div class="mt-6 flex flex-col gap-2">

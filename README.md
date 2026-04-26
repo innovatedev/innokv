@@ -160,17 +160,45 @@ innokv repl my-db
 # List keys in 'users' path
 innokv ls my-db users
 
+# Get keys as a JSON array (for AI agents)
+innokv ls my-db users --json
+
 # Get a specific value
 innokv get my-db users/admin
 
-# Set a value (auto-parses JSON)
-innokv set my-db settings/theme '"dark"'
+# Get full entry (key, value, versionstamp) as JSON
+innokv get my-db users/admin --json
+
+# Set a value with native BigInt support
+innokv set my-db settings/counter 100n
+
+# Set complex types using Rich Mode (ValueCodec format)
+innokv set my-db raw/data '{"type":"Uint8Array","value":[1,2,3]}' --rich
 
 # Update an object (merges by default)
 innokv update my-db users/alice '{"lastLogin": "2024-04-24"}'
 
-# Navigate to a Uint8Array key
-innokv get my-db u8[1,2,3]
+# Navigate to complex keys (using KeyCodec formatting)
+innokv get my-db "users"/123/true/u8[1,2,3]
+```
+
+### Rich Type Support & AI/Agent Use
+
+InnoKV is designed for **100% faithful representation** of Deno KV types. This means that `BigInt`, `Uint8Array`, `Date`, `RegExp`, `Map`, `Set`, and all `TypedArray` variants are preserved without data loss.
+
+For AI agents and automation, use the `--json` and `--rich` flags:
+
+- **`--json`**: Outputs the entire `Deno.KvEntry` as a machine-readable JSON object. The `value` is encoded using a transport-safe "rich" format.
+- **`--rich`**: 
+    - On **get**: Outputs just the value in the rich transport format.
+    - On **set** / **update**: Parses the input string as a rich transport object, allowing you to write types that standard JSON doesn't support (like `BigInt` or `Uint8Array`).
+
+Example Rich Format:
+```json
+{
+  "type": "bigint",
+  "value": "900719925474099100"
+}
 ```
 
 ## Changelog

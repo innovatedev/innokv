@@ -12,6 +12,7 @@ export const update: Command<any> = new Command()
   .description("Update/merge a value in a database")
   .arguments("<slug:string> <path:string> <value:string>")
   .option("--merge-arrays", "Merge arrays instead of replacing them")
+  .option("--rich", "Parse value using rich ValueCodec format")
   .action(async (options, slug, path, value) => {
     const repo = new DatabaseRepository(coreDb);
     try {
@@ -25,9 +26,7 @@ export const update: Command<any> = new Command()
       const kv = await repo.connectDatabase(db as any);
 
       const targetPath = resolvePath([], path);
-      await doUpdate(kv, slug, targetPath, value, {
-        mergeArrays: options.mergeArrays,
-      });
+      await doUpdate(kv, slug, targetPath, value, options);
       console.log(`Successfully updated value at ${path}`);
 
       kv.close();

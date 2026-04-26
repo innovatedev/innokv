@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { RichValue } from "@/lib/ValueCodec.ts";
+import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
 import RichValueEditor from "./index.tsx";
 
 interface ObjectEditorProps {
@@ -17,11 +17,15 @@ export function ObjectEditor(
   const [isAdding, setIsAdding] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editKeyName, setEditKeyName] = useState("");
+  const [lastType, setLastType] = useState<RichValueType>("string");
 
   const addField = (e: Event) => {
     e.preventDefault();
     if (newKey && !(newKey in (value || {}))) {
-      onChange({ ...value, [newKey]: { type: "string", value: "" } });
+      onChange({
+        ...value,
+        [newKey]: { type: lastType, value: ValueCodec.getDefaultValue(lastType) },
+      });
       setNewKey("");
       setIsAdding(false);
     }
@@ -34,6 +38,7 @@ export function ObjectEditor(
   };
 
   const updateField = (key: string, newVal: RichValue) => {
+    setLastType(newVal.type);
     onChange({ ...value, [key]: newVal });
   };
 

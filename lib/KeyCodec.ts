@@ -89,7 +89,7 @@ export class KeyCodec {
     return parts;
   }
 
-  private static encodePart(part: ApiKvKeyPart): string {
+  static encodePart(part: ApiKvKeyPart): string {
     if (!part) {
       console.error("KeyCodec: received null/undefined part");
       return "undefined";

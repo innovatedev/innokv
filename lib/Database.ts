@@ -298,6 +298,7 @@ export class DatabaseRepository extends BaseRepository {
     value: unknown,
     versionstamp: string | null = null,
     oldKey?: Deno.KvKey,
+    expiresAt?: number | null,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
@@ -311,13 +312,18 @@ export class DatabaseRepository extends BaseRepository {
       decodedValue = ValueCodec.decode(value as RichValue);
     }
 
+    const expireIn = expiresAt ? Math.max(1, expiresAt - Date.now()) : undefined;
+
     if (oldKey && JSON.stringify(oldKey) !== JSON.stringify(key)) {
       // Move record atomically
       const atomic = kv.atomic();
       if (versionstamp) {
         atomic.check({ key: oldKey, versionstamp });
       }
-      return await atomic.delete(oldKey).set(key, decodedValue).commit();
+      return await atomic
+        .delete(oldKey)
+        .set(key, decodedValue, { expireIn })
+        .commit();
     }
 
     if (versionstamp) {
@@ -328,7 +334,14 @@ export class DatabaseRepository extends BaseRepository {
       }
     }
 
-    return await kv.set(key, decodedValue);
+    return await kv.set(key, decodedValue, { expireIn });
+  }
+
+  async incrementRecord(databaseId: string, key: Deno.KvKey, amount: bigint) {
+    await this.ensureWritable(databaseId);
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    return await kv.atomic().sum(key, amount).commit();
   }
 
   async deleteRecord(databaseId: string, key: Deno.KvKey) {

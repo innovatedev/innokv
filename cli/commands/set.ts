@@ -10,8 +10,9 @@ import { doSet } from "../actions.ts";
 // deno-lint-ignore no-explicit-any
 export const set: Command<any> = new Command()
   .description("Set a value in a database")
+  .option("--rich", "Parse value using rich ValueCodec format")
   .arguments("<slug:string> <path:string> <value:string>")
-  .action(async (_options, slug, path, value) => {
+  .action(async (options, slug, path, value) => {
     const repo = new DatabaseRepository(coreDb);
     try {
       const dbDoc = await repo.getDatabaseBySlugOrId(slug);
@@ -24,7 +25,7 @@ export const set: Command<any> = new Command()
       const kv = await repo.connectDatabase(db as any);
 
       const targetPath = resolvePath([], path);
-      await doSet(kv, slug, targetPath, value);
+      await doSet(kv, slug, targetPath, value, options);
       console.log(`Successfully set value at ${path}`);
 
       kv.close();

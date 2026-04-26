@@ -1,4 +1,5 @@
-import { RichValue } from "@/lib/ValueCodec.ts";
+import { useState } from "preact/hooks";
+import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
 import RichValueEditor from "./index.tsx";
 
 interface ArrayEditorProps {
@@ -14,9 +15,12 @@ export function ArrayEditor(
 ) {
   // value is array of RichValue
   const list = value || [];
+  const [lastType, setLastType] = useState<RichValueType>(
+    list.length > 0 ? list[list.length - 1].type : "string",
+  );
 
   const addItem = () => {
-    onChange([...list, { type: "string", value: "" }]);
+    onChange([...list, { type: lastType, value: ValueCodec.getDefaultValue(lastType) }]);
   };
 
   const removeItem = (idx: number) => {
@@ -24,6 +28,7 @@ export function ArrayEditor(
   };
 
   const updateItem = (idx: number, newVal: RichValue) => {
+    setLastType(newVal.type);
     const newList = [...list];
     newList[idx] = newVal;
     onChange(newList);

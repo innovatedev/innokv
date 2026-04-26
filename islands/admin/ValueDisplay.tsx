@@ -72,21 +72,18 @@ export function ValueDisplay(
     return <span class="text-info font-mono">{value}</span>;
   }
 
+  if (value instanceof Date) {
+    return (
+      <span class="text-secondary font-mono font-bold">
+        {value.toLocaleString()}
+        <span class="text-base-content/50 text-[10px] ml-1">
+          ({value.toISOString()})
+        </span>
+      </span>
+    );
+  }
+
   if (typeof value === "string") {
-    // Check if it's an ISO date
-    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
-      const date = new Date(value);
-      if (!isNaN(date.getTime())) {
-        return (
-          <span class="text-secondary font-mono">
-            "{value}"{" "}
-            <span class="text-base-content/50 text-xs">
-              ({date.toLocaleString()})
-            </span>
-          </span>
-        );
-      }
-    }
     return <span class="text-success font-mono">"{value}"</span>;
   }
 
@@ -227,12 +224,91 @@ export function ValueDisplay(
   }
 
   if (
-    value && typeof value === "object" && "type" in value && "value" in value
+    value && typeof value === "object" && "type" in value &&
+    (
+      "value" in value ||
+      (value as { type: string }).type === "undefined" ||
+      (value as { type: string }).type === "null"
+    )
   ) {
-    const rich = value as { type: string; value: unknown };
+    const rich = value as { type: string; value?: unknown };
+
+    if (rich.type === "undefined") {
+      return (
+        <span class="text-base-content/50 font-mono italic">undefined</span>
+      );
+    }
+
+    if (rich.type === "null") {
+      return <span class="text-error font-mono font-bold">null</span>;
+    }
+
+    if (rich.type === "number") {
+      if (
+        rich.value === "NaN" || rich.value === "Infinity" ||
+        rich.value === "-Infinity"
+      ) {
+        return (
+          <span class="text-info font-mono font-bold">{rich.value}</span>
+        );
+      }
+      // For normal numbers, just show the number without a tag
+      return <ValueDisplay value={rich.value} />;
+    }
+
+    if (rich.type === "date") {
+      const date = new Date(rich.value as string);
+      return (
+        <span class="text-secondary font-mono font-bold">
+          {date.toLocaleString()}
+          <span class="text-base-content/50 text-[10px] ml-1">
+            ({rich.value})
+          </span>
+        </span>
+      );
+    }
+
+    if (rich.type === "bigint") {
+      return (
+        <span class="text-info font-mono">
+          {rich.value}
+          <span class="text-primary font-bold">n</span>
+        </span>
+      );
+    }
+
+    if (rich.type === "KvU64") {
+      return (
+        <span class="text-info font-mono">
+          {rich.value}
+          <span class="text-primary font-bold ml-1 text-[10px]">U64</span>
+        </span>
+      );
+    }
+
+    if (rich.type === "string" || rich.type === "boolean") {
+      // Just show the value without a tag for these primitives
+      return <ValueDisplay value={rich.value} />;
+    }
 
     // Special handling for binary data in RichValue to avoid it being treated as a plain array
-    if (rich.type === "uint8array" || rich.type === "arraybuffer") {
+    const isBinary = [
+      "Uint8Array",
+      "Int8Array",
+      "Uint8ClampedArray",
+      "Int16Array",
+      "Uint16Array",
+      "Int32Array",
+      "Uint32Array",
+      "Float32Array",
+      "Float64Array",
+      "BigInt64Array",
+      "BigUint64Array",
+      "ArrayBuffer",
+      "DataView",
+    ].includes(rich.type);
+
+    if (isBinary) {
       const arr = Array.isArray(rich.value) ? rich.value : [];
       return (
         <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50 align-top">
@@ -252,8 +328,52 @@ export function ValueDisplay(
       );
     }
 
+    if (rich.type === "URL") {
+      return (
+        <a
+          href={rich.value as string}
+          target="_blank"
+          class="text-info underline hover:text-primary font-mono text-xs break-all"
+        >
+          {rich.value as string}
+        </a>
+      );
+    }
+
+    if (rich.type === "regexp") {
+      const v = rich.value as { source: string; flags: string };
+      return (
+        <span class="text-secondary font-mono font-bold">
+          /{v.source}/{v.flags}
+        </span>
+      );
+    }
+
+    if (rich.type === "Error") {
+      const v = rich.value as { name: string; message: string; stack?: string };
+      return (
+        <div class="inline-block border border-error/50 rounded px-1 bg-error/10 align-top">
+          <div
+            class="cursor-pointer hover:bg-error/20 inline-flex items-center px-1 rounded text-error select-none gap-1"
+            onClick={toggleExpanded}
+          >
+            <span class="text-xs font-bold mr-1">Error</span>
+            <span class="font-mono text-xs">
+              {v.name}: {v.message}
+            </span>
+            <span>{expanded ? "▼" : "▶"}</span>
+          </div>
+          {expanded && v.stack && (
+            <pre class="mt-1 text-[10px] opacity-70 whitespace-pre-wrap break-all bg-base-200 p-2 rounded max-w-2xl font-mono">
+              {v.stack}
+            </pre>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50">
+      <div class="inline-block border border-base-300 rounded px-1 bg-base-200/50 align-top">
         <span class="text-xs font-bold opacity-50 mr-1">{rich.type}</span>
         <ValueDisplay
           value={rich.value}

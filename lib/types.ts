@@ -8,6 +8,7 @@ export type ApiKvEntry<T = unknown> = {
   key: ApiKvKey;
   value: T;
   versionstamp: string;
+  expiresAt?: number | null;
 };
 
 export type DbNode = ApiKvKeyPart & {
@@ -32,5 +33,6 @@ export type SearchResult = {
   key: ApiKvKey;
   value: unknown;
   versionstamp: string;
+  expiresAt?: number | null;
   matchTarget: "key" | "value";
 };

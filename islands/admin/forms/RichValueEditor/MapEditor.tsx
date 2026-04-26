@@ -1,4 +1,5 @@
-import { RichValue } from "@/lib/ValueCodec.ts";
+import { useState } from "preact/hooks";
+import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
 import RichValueEditor from "./index.tsx";
 
 interface MapEditorProps {
@@ -13,12 +14,18 @@ export function MapEditor(
 ) {
   // value is array of [Key(RichValue), Value(RichValue)]
   const list = value || [];
+  const [lastKeyType, setLastKeyType] = useState<RichValueType>(
+    list.length > 0 ? list[list.length - 1][0].type : "string",
+  );
+  const [lastValueType, setLastValueType] = useState<RichValueType>(
+    list.length > 0 ? list[list.length - 1][1].type : "string",
+  );
 
   const addItem = () => {
-    onChange([...list, [{ type: "string", value: "key" }, {
-      type: "string",
-      value: "value",
-    }]]);
+    onChange([...list, [
+      { type: lastKeyType, value: ValueCodec.getDefaultValue(lastKeyType) },
+      { type: lastValueType, value: ValueCodec.getDefaultValue(lastValueType) },
+    ]]);
   };
 
   const removeItem = (idx: number) => {
@@ -30,6 +37,9 @@ export function MapEditor(
     type: "key" | "value",
     newVal: RichValue,
   ) => {
+    if (type === "key") setLastKeyType(newVal.type);
+    else setLastValueType(newVal.type);
+
     const newList = [...list];
     // newList[idx] is [k, v]
     const pair = [...newList[idx]] as [RichValue, RichValue];

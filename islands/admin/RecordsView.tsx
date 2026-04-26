@@ -35,6 +35,7 @@ interface RecordsViewProps {
   onBulkDelete: () => void;
   onBulkMove: () => void;
   onBulkCopy: () => void;
+  onIncrement?: (key: ApiKvKeyPart[], amount: bigint) => void;
   onExport: (recursive: boolean) => void;
 }
 
@@ -65,6 +66,7 @@ export default function RecordsView(
     onBulkDelete,
     onBulkMove,
     onBulkCopy,
+    onIncrement,
     onExport,
   }: RecordsViewProps,
 ) {
@@ -194,6 +196,7 @@ export default function RecordsView(
             onLoadMore={onLoadMoreSearch}
             selectedKeys={selectedKeys.value}
             onToggleSelection={onToggleSelection}
+            onIncrement={onIncrement}
           />
         )
         : (
@@ -215,6 +218,7 @@ export default function RecordsView(
                         true}
                       onEdit={() =>
                         onEditRecord(entry as ApiKvEntry<RichValue>)}
+                      onIncrement={(amount) => onIncrement?.(entry.key, amount)}
                       isReadOnly={activeDatabase?.mode === "r"}
                     />
                   ))}

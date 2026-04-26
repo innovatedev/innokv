@@ -1,9 +1,11 @@
 import { useState } from "preact/hooks";
-import { RichValue, RichValueType } from "@/lib/ValueCodec.ts";
+import { RichValue, RichValueType, ValueCodec } from "@/lib/ValueCodec.ts";
 import { ObjectEditor } from "./ObjectEditor.tsx";
 import { ArrayEditor } from "./ArrayEditor.tsx";
 import { MapEditor } from "./MapEditor.tsx";
-import { Uint8ArrayInput } from "./Uint8ArrayInput.tsx";
+import { TypedArrayInput } from "./TypedArrayInput.tsx";
+import { RegExpEditor } from "./RegExpEditor.tsx";
+import { NumberInput } from "./NumberInput.tsx";
 
 interface RichValueEditorProps {
   value: RichValue;
@@ -34,61 +36,29 @@ export default function RichValueEditor({
   );
 
   const handleTypeChange = (newType: RichValueType) => {
-    // deno-lint-ignore no-explicit-any
-    let newVal: any;
-
-    // Default values for types
-    switch (newType) {
-      case "string":
-        newVal = "";
-        break;
-      case "number":
-        newVal = 0;
-        break;
-      case "bigint":
-        newVal = "0";
-        break;
-      case "boolean":
-        newVal = true;
-        break;
-      case "date":
-        newVal = new Date().toISOString();
-        break;
-      case "Uint8Array":
-        newVal = [];
-        break;
-      case "ArrayBuffer":
-        newVal = [];
-        break;
-      case "object":
-        newVal = {};
-        break;
-      case "array":
-        newVal = [];
-        break;
-      case "map":
-        newVal = [];
-        break;
-      case "set":
-        newVal = [];
-        break;
-      case "null":
-        newVal = null;
-        break;
-      case "undefined":
-        newVal = undefined;
-        break;
-      default:
-        newVal = "";
-    }
-
-    onChange({ type: newType, value: newVal });
+    onChange({ type: newType, value: ValueCodec.getDefaultValue(newType) });
   };
 
   // deno-lint-ignore no-explicit-any
   const handlePrimitiveChange = (v: any) => {
     onChange({ type, value: v });
   };
+
+  const isBinaryType = (t: string) => [
+    "Uint8Array",
+    "Int8Array",
+    "Uint8ClampedArray",
+    "Int16Array",
+    "Uint16Array",
+    "Int32Array",
+    "Uint32Array",
+    "Float32Array",
+    "Float64Array",
+    "BigInt64Array",
+    "BigUint64Array",
+    "ArrayBuffer",
+    "DataView",
+  ].includes(t);
 
   return (
     <div
@@ -121,14 +91,35 @@ export default function RichValueEditor({
           <option value="boolean">Boolean</option>
           <option value="bigint">BigInt</option>
           <option value="date">Date</option>
-          <option value="Uint8Array">Uint8Array</option>
-          <option value="ArrayBuffer">ArrayBuffer</option>
-          <option value="object">Object</option>
-          <option value="array">Array</option>
-          <option value="map">Map</option>
-          <option value="set">Set</option>
-          <option value="null">Null</option>
-          <option value="undefined">Undefined</option>
+          <option value="regexp">RegExp</option>
+          <optgroup label="Binary / TypedArrays">
+            <option value="Uint8Array">Uint8Array</option>
+            <option value="Int8Array">Int8Array</option>
+            <option value="Uint8ClampedArray">Uint8ClampedArray</option>
+            <option value="Int16Array">Int16Array</option>
+            <option value="Uint16Array">Uint16Array</option>
+            <option value="Int32Array">Int32Array</option>
+            <option value="Uint32Array">Uint32Array</option>
+            <option value="Float32Array">Float32Array</option>
+            <option value="Float64Array">Float64Array</option>
+            <option value="BigInt64Array">BigInt64Array</option>
+            <option value="BigUint64Array">BigUint64Array</option>
+            <option value="ArrayBuffer">ArrayBuffer</option>
+            <option value="DataView">DataView</option>
+          </optgroup>
+          <optgroup label="Containers">
+            <option value="object">Object</option>
+            <option value="array">Array</option>
+            <option value="map">Map</option>
+            <option value="set">Set</option>
+          </optgroup>
+          <optgroup label="Special">
+            <option value="null">Null</option>
+            <option value="undefined">Undefined</option>
+            <option value="Error">Error</option>
+            <option value="KvU64">KvU64</option>
+            <option value="URL">URL</option>
+          </optgroup>
         </select>
       </div>
 
@@ -145,16 +136,10 @@ export default function RichValueEditor({
             />
           )}
           {type === "number" && (
-            <input
-              type="number"
-              step="any"
-              class="input input-bordered input-xs w-full max-w-xs"
-              value={val as number}
+            <NumberInput
+              value={val as number | string}
               disabled={isReadOnly}
-              onInput={(e) =>
-                handlePrimitiveChange(
-                  Number((e.target as HTMLInputElement).value),
-                )}
+              onChange={(v: number | string) => handlePrimitiveChange(v)}
             />
           )}
           {type === "bigint" && (
@@ -199,13 +184,45 @@ export default function RichValueEditor({
                 )}
             />
           )}
-          {(type === "Uint8Array" || type === "ArrayBuffer") && (
+          {type === "regexp" && (
+            <RegExpEditor
+              value={val}
+              disabled={isReadOnly}
+              onChange={(v) => handlePrimitiveChange(v)}
+            />
+          )}
+          {type === "KvU64" && (
+            <input
+              type="text"
+              class={`input input-bordered input-xs w-full max-w-xs font-mono ${
+                val && !/^[0-9]+$/.test(String(val)) ? "input-error" : ""
+              }`}
+              pattern="[0-9]+"
+              placeholder="Counter value"
+              value={val as string}
+              disabled={isReadOnly}
+              onInput={(e) =>
+                handlePrimitiveChange((e.target as HTMLInputElement).value)}
+            />
+          )}
+          {type === "URL" && (
+            <input
+              type="url"
+              class="input input-bordered input-xs w-full max-w-lg font-mono"
+              value={val as string}
+              disabled={isReadOnly}
+              onInput={(e) =>
+                handlePrimitiveChange((e.target as HTMLInputElement).value)}
+            />
+          )}
+          {isBinaryType(type) && (
             <div class="flex flex-col gap-1">
               <span class="text-xs text-base-content/50">
-                Comma separated bytes (0-255)
+                Comma separated values
               </span>
-              <Uint8ArrayInput
-                value={val as number[]}
+              <TypedArrayInput
+                value={val as (number | string)[]}
+                type={type}
                 disabled={isReadOnly}
                 onChange={(v) => handlePrimitiveChange(v)}
               />

@@ -54,13 +54,30 @@ export const handler = BaseRepository.handlers({
   POST: (ctx) =>
     db.handleApiCall(ctx, async (rawData) => {
       const data = rawData as Record<string, unknown>;
-      const { id, key: wireKey, value, versionstamp, oldKey: wireOldKey } =
-        data;
+      const {
+        id,
+        key: wireKey,
+        value,
+        versionstamp,
+        oldKey: wireOldKey,
+        expiresAt,
+        action,
+        amount,
+      } = data;
       if (!id) throw new Error("Database ID is required");
       if (!wireKey) throw new Error("Key is required");
       ctx.state.plugins.permissions.requires(`database:write:${id as string}`);
 
       const key = (wireKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
+
+      if (action === "increment") {
+        return await db.incrementRecord(
+          id as string,
+          key,
+          BigInt(amount as string | number | bigint),
+        );
+      }
+
       let oldKey: Deno.KvKey | undefined;
       if (wireOldKey) {
         oldKey = (wireOldKey as ApiKvKeyPart[]).map((p) => db.parseKeyPart(p));
@@ -76,6 +93,7 @@ export const handler = BaseRepository.handlers({
         value,
         versionstamp as string | null,
         oldKey,
+        expiresAt as number | null,
       );
     }),
   PATCH: (ctx) =>
