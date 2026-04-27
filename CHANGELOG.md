@@ -2,14 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.3
+
+- code quality/docs
+
 ## v0.4.2
 
 - logo fix
 
 ## v0.4.1
 
-- **Fixed JSR Asset Loading**: Implemented a "JSR Asset Bridge" middleware to resolve 500 errors when running from a JSR package. This ensures that UI assets (JS/CSS) and static files are correctly served from the JSR cache using Deno's `fetch` API.
-- **Improved CLI Commands**: Standardized `deno install` flags in documentation for better compatibility.
+- **Fixed JSR Asset Loading**: Implemented a "JSR Asset Bridge" middleware to
+  resolve 500 errors when running from a JSR package. This ensures that UI
+  assets (JS/CSS) and static files are correctly served from the JSR cache using
+  Deno's `fetch` API.
+- **Improved CLI Commands**: Standardized `deno install` flags in documentation
+  for better compatibility.
 
 ## v0.4.0
 

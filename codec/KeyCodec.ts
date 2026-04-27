@@ -124,6 +124,9 @@ export class KeyCodec {
     return parts;
   }
 
+  /**
+   * Encodes a single ApiKvKeyPart into its string representation.
+   */
   static encodePart(part: ApiKvKeyPart): string {
     if (!part) {
       console.error("KeyCodec: received null/undefined part");

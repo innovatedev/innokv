@@ -1,18 +1,23 @@
-import { define } from "@/utils.ts";
-import { HttpError } from "fresh";
 import { db } from "@/kv/db.ts";
 import { DatabaseRepository } from "@/lib/Database.ts";
 import { hasPermission } from "@/lib/permissions.ts";
+import { define } from "@/utils.ts";
 import { authOnlyMiddleware } from "@innovatedev/fresh-session";
+import { HttpError } from "fresh";
 
 export const handler = define.middleware([
   authOnlyMiddleware("/login"),
-
   async (ctx) => {
     // Initialize state plugins
-    ctx.state.plugins = ctx.state.plugins || {};
-    ctx.state.plugins.kvAdmin = ctx.state.plugins.kvAdmin || {};
+    ctx.state.plugins = ctx.state.plugins || {
+      kvAdmin: { databases: [] },
+      permissions: {
+        has: () => false,
+        requires: () => {},
+      },
+    };
 
+    // Permissions Plugin
     ctx.state.plugins.permissions = {
       has: (permission: string) =>
         hasPermission(ctx.state.user?.permissions || [], permission),
@@ -22,10 +27,6 @@ export const handler = define.middleware([
         }
       },
     };
-
-    if (!ctx.state.user) {
-      return ctx.redirect("/login");
-    }
 
     // Ensure userId is set for SecureState compatibility
     if (ctx.state.user && !ctx.state.userId) {
@@ -40,8 +41,11 @@ export const handler = define.middleware([
         reverse: false,
         limit: 100,
       });
-      const databases = fetchResult.result.map((doc) => doc.flat()).sort(
-        (a, b) => {
+
+      // deno-lint-ignore no-explicit-any
+      const databases = fetchResult.result.map((doc: any) => doc.flat()).sort(
+        // deno-lint-ignore no-explicit-any
+        (a: any, b: any) => {
           // Treat 0 as "end of list" / Infinity
           const valA = a.sort === 0 || !a.sort
             ? Number.MAX_SAFE_INTEGER
@@ -60,7 +64,8 @@ export const handler = define.middleware([
             } else if (b.lastAccessedAt) {
               return 1;
             }
-            return 0;
+            // Finally name
+            return a.name.localeCompare(b.name);
           }
           return valA - valB;
         },

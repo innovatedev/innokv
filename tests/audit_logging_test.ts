@@ -37,7 +37,8 @@ Deno.test({
       "userId",
       userId,
     );
-    const logs = allLogs.filter((l) => l.value.databaseId === database.id);
+    // deno-lint-ignore no-explicit-any
+    const logs = allLogs.filter((l: any) => l.value.databaseId === database.id);
     assertExists(logs);
     assertEquals(logs.length, 1);
     assertEquals(logs[0].value.action, "set");
@@ -98,7 +99,8 @@ Deno.test({
     assertExists(logs);
     // Should have 2 logs: "set" and "delete"
     assertEquals(logs.length, 2);
-    const deleteLog = logs.find((l) => l.value.action === "delete");
+    // deno-lint-ignore no-explicit-any
+    const deleteLog = logs.find((l: any) => l.value.action === "delete");
     assertExists(deleteLog);
     assertEquals(
       // deno-lint-ignore no-explicit-any

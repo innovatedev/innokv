@@ -58,12 +58,14 @@ export async function createToken(
  */
 export async function listTokens(userId: string): Promise<ApiToken[]> {
   const { result } = await db.apiTokens.getMany({
-    filter: (doc) => doc.value.userId === userId,
+    // deno-lint-ignore no-explicit-any
+    filter: (doc: any) => doc.value.userId === userId,
   });
 
   // Sort by createdAt desc
-  return result
-    .map((doc) => ({ ...doc.value, id: doc.id }))
+  // deno-lint-ignore no-explicit-any
+  return (result as any[])
+    .map((doc) => ({ ...doc.value, id: doc.id }) as ApiToken)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 

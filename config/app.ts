@@ -1,6 +1,28 @@
+/**
+ * Application configuration settings.
+ * @module
+ */
+
 import { getDefaultDbPath } from "@/lib/paths.ts";
 
-const settings = {
+/**
+ * Interface representing the application configuration.
+ */
+export interface Settings {
+  db: {
+    path: string;
+  };
+  allowRegistration: boolean;
+  server: {
+    port: number;
+    cookieName: string;
+  };
+  env: {
+    isProd: boolean;
+  };
+}
+
+const settings: Settings = {
   db: {
     path: getDefaultDbPath(),
   },

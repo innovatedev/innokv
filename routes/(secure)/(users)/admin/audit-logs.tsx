@@ -12,7 +12,8 @@ export default defineAuth.page(async function AdminAuditLogs({ state }) {
 
   const { result: logs } = await dbRepo.getAuditLogs({ limit: 100 });
   const databasesRes = await dbRepo.getDatabases();
-  const databases = databasesRes.result.map((d) => ({
+  // deno-lint-ignore no-explicit-any
+  const databases = databasesRes.result.map((d: any) => ({
     id: d.id,
     name: d.value.name,
   }));
@@ -25,7 +26,8 @@ export default defineAuth.page(async function AdminAuditLogs({ state }) {
     >
       <div class="p-6">
         <AuditLogsView
-          initialLogs={logs.map((l) => ({ id: l.id, ...l.value }))}
+          // deno-lint-ignore no-explicit-any
+          initialLogs={logs.map((l: any) => ({ id: l.id, ...l.value }))}
           databases={databases}
         />
       </div>

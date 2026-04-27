@@ -333,10 +333,8 @@ export class DatabaseRepository extends BaseRepository {
   ) {
     try {
       await this.kvdex.audit_logs.add({
-        databaseId: "unknown",
-        action: "set",
-        key: ["unknown"],
         ...log,
+        userId: log.userId || "system",
         timestamp: new Date(),
       });
     } catch (err) {
@@ -385,7 +383,8 @@ export class DatabaseRepository extends BaseRepository {
   }
   async purgeAuditLogs(options: { before?: Date; databaseId?: string } = {}) {
     const result = await this.kvdex.audit_logs.deleteMany({
-      filter: (doc) => {
+      // deno-lint-ignore no-explicit-any
+      filter: (doc: any) => {
         if (options.before && doc.value.timestamp >= options.before) {
           return false;
         }

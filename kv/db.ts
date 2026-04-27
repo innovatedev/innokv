@@ -1,3 +1,9 @@
+/**
+ * Database access layer for InnoKV.
+ * Provides the Kvdex instance and direct Deno.Kv access.
+ * @module
+ */
+
 import { collection, kvdex } from "@olli/kvdex";
 import {
   ApiTokenModel,
@@ -13,7 +19,10 @@ import settings from "@/config/app.ts";
 const path = settings.db.path;
 const dir = dirname(path);
 await Deno.mkdir(dir, { recursive: true });
-export const kv = await Deno.openKv(path);
+/**
+ * The native Deno KV instance.
+ */
+export const kv: Deno.Kv = await Deno.openKv(path);
 
 import { APP_VERSION, InnoKvMetadata } from "@/lib/metadata.ts";
 import { greaterThan, lessThan, parse } from "@std/semver";
@@ -21,7 +30,10 @@ import { greaterThan, lessThan, parse } from "@std/semver";
 import { runMigrations } from "@/kv/migrations/mod.ts";
 
 const metadataRes = await kv.get<InnoKvMetadata>(["__innokv__"]);
-let metadata = metadataRes.value;
+/**
+ * The metadata for the root database.
+ */
+let metadata: InnoKvMetadata | null = metadataRes.value;
 
 if (!metadata) {
   metadata = {
@@ -55,9 +67,13 @@ if (!metadata) {
   }
 }
 
-export const ROOT_DB_ID = metadata.id;
+export const ROOT_DB_ID: string = metadata?.id || "root";
 
-export const db = kvdex({
+/**
+ * The Kvdex database instance for the root database.
+ */
+// deno-lint-ignore no-explicit-any
+export const db: any = kvdex({
   kv: kv,
   schema: {
     databases: collection(DatabaseModel, {

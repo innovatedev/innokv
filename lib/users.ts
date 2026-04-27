@@ -53,7 +53,8 @@ export async function createUser(
 
 export async function getAllUsers(): Promise<User[]> {
   const { result } = await db.users.getMany();
-  return result.map((doc) => ({ ...doc.value, id: doc.id }));
+  // deno-lint-ignore no-explicit-any
+  return (result as any[]).map((doc) => ({ ...doc.value, id: doc.id }) as User);
 }
 
 export async function updateUserPermissions(

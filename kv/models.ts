@@ -1,4 +1,4 @@
-import { type } from "arktype";
+import { type Type, type } from "arktype";
 import type { KvValue } from "@olli/kvdex";
 
 /**
@@ -105,7 +105,8 @@ export interface DatabaseValue {
     sizeBytes: number;
     updatedAt: Date;
     isPartial?: boolean;
-    breakdown?: Record<string, number>;
+    // deno-lint-ignore no-explicit-any
+    breakdown?: Record<string, any>;
     topChildren?: {
       // deno-lint-ignore no-explicit-any
       key: any;
@@ -150,52 +151,69 @@ export type KvModel<T> = Model<T, any> & {
 
 // ================= ARKTYPE MODELS =================
 
-export const KvValueType = type("unknown").narrow((_data): _data is KvValue =>
-  true
+/**
+ * Validates any value that is natively supported by Deno KV.
+ */
+export const KvValueType: Type<KvValue> = type("unknown").narrow(
+  (_data): _data is KvValue => true,
 );
-export const KvKeyPartModel = type("string | number | boolean | bigint").or(
-  type(["instanceof", Uint8Array]),
+
+/**
+ * Validates a single part of a Deno KV key.
+ */
+export const KvKeyPartModel: Type<Deno.KvKeyPart> = type(
+  "string | number | boolean | bigint",
+).or(
+  type("unknown").narrow((data): data is Uint8Array =>
+    data instanceof Uint8Array
+  ),
 );
-export const KvKeyModel = KvKeyPartModel.array();
 
-export const UserSettingsModel = type({
-  "databases?": type({
-    "[string]": type({
-      "treeWidth?": "number | undefined",
-      "treeViewOpen?": "boolean | undefined",
-    }),
-  }).or("undefined"),
-  "theme?": "string | undefined",
-  "prettyPrintDates?": "boolean | undefined",
-  "hideEmail?": "boolean | undefined",
-});
+/**
+ * Validates a full Deno KV key.
+ */
+export const KvKeyModel: Type<Deno.KvKey> = KvKeyPartModel.array();
 
-export const UserModel = type({
-  "username?": "string | undefined",
+/**
+ * Validates User Settings.
+ */
+export const UserSettingsModel: Type<UserSettings> = type({
+  "databases?": "unknown",
+  "theme?": "string",
+  "prettyPrintDates?": "boolean",
+  "hideEmail?": "boolean",
+}).and({ "[string]": "unknown" }) as unknown as Type<UserSettings>;
+
+/**
+ * Validates a User record.
+ */
+export const UserModel: Type<UserValue> = type({
+  "username?": "string",
   email: "string",
   passwordHash: "string",
   lastLoginAt: "Date",
   permissions: "string[]",
-  // deno-lint-ignore no-explicit-any
-  "settings?": (UserSettingsModel as any).or("undefined"),
+  "settings?": UserSettingsModel,
   createdAt: "Date",
   updatedAt: "Date",
-});
+}).and({ "[string]": "unknown" }) as unknown as Type<UserValue>;
 
-export const SessionModel = type({
-  "userId?": "string | undefined",
-  flash: type({ "[string]": KvValueType }).default(() => ({})),
-  lastSeenAt: type("number").default(() => Date.now()),
-  "ua?": "string | undefined",
-  "ip?": "string | undefined",
-  data: type({
-    // deno-lint-ignore no-explicit-any
-    "settings?": (UserSettingsModel as any).or("undefined"),
-    "[string]": KvValueType,
-  }),
-});
+/**
+ * Validates a Session record.
+ */
+export const SessionModel: Type<SessionValue> = type({
+  "userId?": "string",
+  flash: "unknown",
+  lastSeenAt: "number",
+  "ua?": "string",
+  "ip?": "string",
+  data: "unknown",
+}).and({ "[string]": "unknown" }) as unknown as Type<SessionValue>;
 
-export const ApiTokenModel = type({
+/**
+ * Validates an API Token record.
+ */
+export const ApiTokenModel: Type<ApiTokenValue> = type({
   name: "string",
   userId: "string",
   tokenHash: "string",
@@ -203,63 +221,73 @@ export const ApiTokenModel = type({
   rules: type({
     effect: "'allow' | 'deny'",
     scope: "string",
-    permissions: type({
+    permissions: {
       read: "boolean",
       write: "boolean",
-      "manage?": "boolean | undefined",
-    }),
+      "manage?": "boolean",
+    },
   }).array(),
-  "expiresAt?": "Date | undefined",
-  "lastUsedAt?": "Date | undefined",
+  "expiresAt?": "Date",
+  "lastUsedAt?": "Date",
   createdAt: "Date",
-});
+}).and({ "[string]": "unknown" }) as unknown as Type<ApiTokenValue>;
 
-export const DatabaseModel = type({
+/**
+ * Validates a Database record.
+ */
+export const DatabaseModel: Type<DatabaseValue> = type({
   slug: "string",
   name: "string",
-  "description?": "string | undefined",
+  "description?": "string",
   path: "string",
   type: "'file' | 'memory' | 'remote'",
   createdAt: "Date",
   updatedAt: "Date",
-  "lastAccessedAt?": "Date | undefined",
-  "lastError?": "string | undefined",
-  "lastErrorAt?": "Date | undefined",
-  "accessToken?": "string | undefined",
+  "lastAccessedAt?": "Date",
+  "lastError?": "string",
+  "lastErrorAt?": "Date",
+  "accessToken?": "string",
   mode: "'r' | 'rw'",
-  "sort?": "number | undefined",
-  "settings?": type({
-    "prettyPrintDates?": "boolean | undefined",
-    batchSize: type("number").default(100),
-    scanTimeout: type("number").default(30),
-  }).or("undefined"),
-  "stats?": type({
+  "sort?": "number",
+  "settings?": {
+    "prettyPrintDates?": "boolean",
+    batchSize: "number",
+    scanTimeout: "number",
+  },
+  "stats?": {
     recordCount: "number",
     sizeBytes: "number",
     updatedAt: "Date",
-    "isPartial?": "boolean | undefined",
-    "breakdown?": type({ "[string]": "number" }).or("undefined"),
+    "isPartial?": "boolean",
+    "breakdown?": "unknown",
+    // @ts-ignore: ArkType string keywords can be unresolvable in some contexts
     "topChildren?": type({
-      key: KvValueType,
+      key: "unknown",
       size: "number",
       count: "number",
-    }).array().or("undefined"),
-  }).or("undefined"),
-});
+    }).array(),
+  },
+}).and({ "[string]": "unknown" }) as unknown as Type<DatabaseValue>;
 
-export const AppConfigModel = type({
-  "port?": "number | undefined",
-  "cookieName?": "string | undefined",
+/**
+ * Validates the global App Config record.
+ */
+export const AppConfigModel: Type<AppConfigValue> = type({
+  "port?": "number",
+  "cookieName?": "string",
   updatedAt: "Date",
-});
+}).and({ "[string]": "unknown" }) as unknown as Type<AppConfigValue>;
 
-export const AuditLogModel = type({
-  "userId?": "string | undefined",
+/**
+ * Validates an Audit Log record.
+ */
+export const AuditLogModel: Type<AuditLogValue> = type({
+  "userId?": "string",
   databaseId: "string",
   action: "'set' | 'delete' | 'move' | 'copy' | 'import' | 'increment'",
-  key: KvKeyModel,
-  "oldValue?": KvValueType.or("undefined"),
-  "newValue?": KvValueType.or("undefined"),
+  key: "unknown",
+  "oldValue?": "unknown",
+  "newValue?": "unknown",
   timestamp: "Date",
-  "details?": type({ "[string]": KvValueType }).or("undefined"),
-});
+  "details?": "unknown",
+}).and({ "[string]": "unknown" }) as unknown as Type<AuditLogValue>;

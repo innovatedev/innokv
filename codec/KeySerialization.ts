@@ -41,6 +41,9 @@ export class KeySerialization {
     return { value: String(part), type: "string" };
   }
 
+  /**
+   * Parses an ApiKvKeyPart back into a native Deno.KvKeyPart.
+   */
   static parse(part: ApiKvKeyPart): Deno.KvKeyPart {
     switch (part.type) {
       case "string":

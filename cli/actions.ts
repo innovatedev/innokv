@@ -210,10 +210,15 @@ export async function doUserAdd(options: CreateUserOptions) {
   await checkUserManagePermission();
   return await createUser(options);
 }
+import { type User } from "@/kv/models.ts";
+
 export async function doUserLs() {
   await checkUserManagePermission();
   const { result: users } = await db.users.getMany();
-  return users.map((u) => ({ ...u.value, id: u.id }));
+  // deno-lint-ignore no-explicit-any
+  return (users as any[])
+    .map((doc) => ({ ...doc.value, id: doc.id }) as User)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 export async function doUserResetPassword(email: string, password: string) {
   await checkUserManagePermission();
