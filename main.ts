@@ -32,11 +32,15 @@ async function getPackageRoot() {
 
 app.use(async (ctx) => {
   const { pathname } = ctx.url;
-  const root = await getPackageRoot();
   
-  const isJsr = import.meta.url.startsWith("jsr:");
+  const isJsr = import.meta.url.startsWith("jsr:") || import.meta.url.startsWith("https://jsr.io");
   if (!isJsr) return ctx.next();
 
+  if (pathname === "/") {
+    console.log("[InnoKV] JSR Asset Bridge Active");
+  }
+
+  const root = await getPackageRoot();
   const { join, fromFileUrl } = await import("@std/path");
   let baseDir = root && root.startsWith("file:") ? fromFileUrl(root) : root;
   if (baseDir && (baseDir.endsWith(".ts") || baseDir.endsWith(".js") || baseDir.endsWith(".mjs"))) {
