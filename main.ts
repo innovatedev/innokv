@@ -2,7 +2,6 @@ import { App, csrf, staticFiles } from "fresh";
 import { type State } from "./utils.ts";
 import { session } from "@/config/session.ts";
 
-
 export const app = new App<State>();
 
 app.use(staticFiles());

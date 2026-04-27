@@ -47,19 +47,13 @@ async function startServer(
   console.log(`Using Database: ${settings.db.path}`);
   console.log(`Listening on: http://localhost:${settings.server.port}`);
 
-  // In compiled mode, use the pre-built server bundle from _fresh/server.js.
-  // In dev mode, fall back to the Fresh App from main.ts.
-  try {
-    const server = await import("../_fresh/server.js");
-    Deno.serve(
-      { port: settings.server.port, hostname: "0.0.0.0" },
-      (req: Request) => server.default.fetch(req),
-    );
-  } catch {
-    // Dev mode fallback: _fresh/server.js doesn't exist or can't be imported
-    const { app } = await import("../main.ts");
-    await app.listen({ port: settings.server.port });
-  }
+  // Use the pre-built server bundle from _fresh/server.js.
+  // For dev mode, use `deno task dev` instead.
+  const server = await import("../_fresh/server.js");
+  Deno.serve(
+    { port: settings.server.port, hostname: "0.0.0.0" },
+    (req: Request) => server.default.fetch(req),
+  );
 }
 
 /**

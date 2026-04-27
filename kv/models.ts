@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { sessionSchemaFactory } from "@innovatedev/fresh-session/kvdex-store";
 
 /**
  * Common types for the application.
@@ -46,8 +45,12 @@ export const UserModel = z.object({
   updatedAt: z.date(),
 });
 
-export const SessionModel = sessionSchemaFactory(z).extend({
-  lastSeenAt: z.number().default(Date.now),
+export const SessionModel = z.object({
+  userId: z.string().optional(),
+  flash: z.record(z.any()).default({}),
+  lastSeenAt: z.number().default(() => Date.now()),
+  ua: z.string().optional(),
+  ip: z.string().optional(),
   data: z.object({
     settings: UserSettingsModel.optional(),
   }).catchall(z.any()).describe("Session data"),

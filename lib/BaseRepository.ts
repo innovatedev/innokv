@@ -1,7 +1,13 @@
 import { db } from "@/kv/db.ts";
 import { json } from "./http.ts";
-import { FreshContext } from "fresh";
-import { type State } from "@/utils.ts";
+// deno-lint-ignore no-explicit-any
+export interface SimpleContext<State = any> {
+  req: Request;
+  url: URL;
+  params: Record<string, string>;
+  state: State;
+  next: () => Promise<Response>;
+}
 
 export class DatabaseError extends Error {
   // deno-lint-ignore no-explicit-any
@@ -30,8 +36,9 @@ export class BaseRepository {
     return model.parse(data);
   }
 
-  async handleApiCall<T, S = State>(
-    ctx: FreshContext<S>,
+  // deno-lint-ignore no-explicit-any
+  async handleApiCall<T, S = any>(
+    ctx: SimpleContext<S>,
     callback: (data: unknown) => Promise<T>,
   ): Promise<Response> {
     try {
@@ -56,10 +63,11 @@ export class BaseRepository {
     }
   }
 
-  static handlers<S = State>(
-    handlersMap: Record<string, (ctx: FreshContext<S>) => Promise<Response>>,
-  ): (ctx: FreshContext<S>) => Promise<Response> {
-    return async (ctx: FreshContext<S>) => {
+  // deno-lint-ignore no-explicit-any
+  static handlers<S = any>(
+    handlersMap: Record<string, (ctx: SimpleContext<S>) => Promise<Response>>,
+  ): (ctx: SimpleContext<S>) => Promise<Response> {
+    return async (ctx: SimpleContext<S>) => {
       const method = ctx.req.method.toUpperCase();
       const handler = handlersMap[method];
 
