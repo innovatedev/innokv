@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.5
+
+- Fix session validation errors by purging legacy sessions
+
 ## v0.4.4
 
 - Session fix, fix logo

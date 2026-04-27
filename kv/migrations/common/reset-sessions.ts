@@ -1,10 +1,9 @@
 import { Migration } from "../mod.ts";
 
-const migration: Migration = {
-  version: "0.3.0",
+const migration: Omit<Migration, "version"> = {
   name: "Purge sessions due to schema change and bug",
   run: async (kv: Deno.Kv) => {
-    console.log("Running migration 0.3.0: Purging sessions...");
+    console.log("Running session purge migration...");
     const prefix = ["__kvdex__", "sessions"];
     const iter = kv.list({ prefix });
     let count = 0;

@@ -6,6 +6,7 @@ import {
   runMigrations as runGenericMigrations,
 } from "@/migrations/mod.ts";
 export type { Migration };
+import activeMigrations from "./active.ts";
 /**
  * Runs migrations for the InnoKV application.
  *
@@ -13,9 +14,7 @@ export type { Migration };
  * @param currentVersion Optional current version (fetched from __innokv__ if omitted)
  */
 export async function runMigrations(kv: Deno.Kv, currentVersion?: string) {
-  const migrations = await discoverMigrations([
-    import("./0.3.0.ts"),
-  ]);
+  const migrations = await discoverMigrations(activeMigrations);
   await runGenericMigrations({
     kv,
     currentVersion,

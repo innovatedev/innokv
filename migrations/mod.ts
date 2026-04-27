@@ -175,25 +175,88 @@ export async function loadMigrationsFromDir(dir: string): Promise<Migration[]> {
   return migrations;
 }
 
+import { type } from "arktype";
+
 /**
- * Resolves a list of migrations from dynamic imports.
+ * Validates a string follows semantic versioning.
+ */
+export const Semver = type("string").matching(
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/,
+);
+
+/**
+ * Basic compile-time SemVer check for TypeScript.
+ */
+export type SemverString = `${number}.${number}.${number}${string}`;
+
+/**
+ * Schema for the migrations map, enforcing SemVer keys.
+ */
+export const MigrationMap = type({
+  "[string]": "unknown",
+}).narrow((data, ctx) => {
+  for (const key in data) {
+    if (Semver(key) instanceof type.errors) {
+      ctx.error({
+        message: `Key '${key}' must be a valid SemVer string`,
+        path: [key],
+      });
+    }
+  }
+  return true;
+});
+
+/**
+ * The TypeScript type inferred from the MigrationMap schema.
+ */
+export type MigrationMap = Record<
+  string,
+  Promise<{ default: Omit<Migration, "version"> }>
+>;
+
+/**
+ * Resolves a list of migrations from dynamic imports or a version map.
  * This allows defining migrations in separate files while maintaining
  * compatibility with environments that don't support runtime directory scanning (like JSR).
  *
  * @example
  * ```ts
+ * // Array format (requires 'version' in each file)
  * const migrations = await discoverMigrations([
  *   import("./migrations/0.1.0.ts"),
- *   import("./migrations/0.2.0.ts"),
  * ]);
+ *
+ * // Record format (injects version from key)
+ * const migrations = await discoverMigrations({
+ *   "0.1.0": import("./migrations/common/reset.ts"),
+ * });
  * ```
  *
- * @param modules An array of dynamic import promises
+ * @param migrations An array of imports or a map of version strings to imports
  * @returns A promise that resolves to an array of Migration objects
  */
 export async function discoverMigrations(
-  modules: (Promise<{ default: Migration }> | { default: Migration })[],
+  migrations:
+    | Record<
+      string,
+      Promise<{ default: Omit<Migration, "version"> }> | {
+        default: Omit<Migration, "version">;
+      }
+    >
+    | (Promise<{ default: Migration }> | { default: Migration })[],
 ): Promise<Migration[]> {
-  const resolved = await Promise.all(modules);
-  return resolved.map((m) => m.default);
+  if (Array.isArray(migrations)) {
+    const resolved = await Promise.all(migrations);
+    return resolved.map((m) => m.default);
+  }
+
+  // Validate the map structure and keys
+  const validated = MigrationMap.assert(migrations) as MigrationMap;
+
+  const entries = Object.entries(validated);
+  const resolved = await Promise.all(entries.map(([_, p]) => p));
+  return resolved.map((m, i) => ({
+    ...(m.default as Migration),
+    version: entries[i][0], // Override or set version from the map key
+  }));
 }
