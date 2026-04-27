@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.4
+
+- Session fix, fix logo
+
 ## v0.4.3
 
 - code quality/docs
