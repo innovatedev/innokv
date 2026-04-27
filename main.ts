@@ -16,16 +16,16 @@ async function getPackageRoot() {
   if (!isJsr) return null;
 
   try {
-    // We use deno info to find where this package is cached locally
     const command = new Deno.Command(Deno.execPath(), {
       args: ["info", "--json", `jsr:@innovatedev/innokv@${APP_VERSION}`],
     });
     const { stdout } = await command.output();
     const info = JSON.parse(new TextDecoder().decode(stdout));
-    // The registry search finds the local directory for JSR packages
+    // Try to find the local path for the entry point
     packageRoot = info.modules?.[0]?.local || null;
     return packageRoot;
-  } catch {
+  } catch (e) {
+    console.error("[InnoKV] Failed to resolve package root:", e);
     return null;
   }
 }
@@ -33,35 +33,51 @@ async function getPackageRoot() {
 app.use(async (ctx) => {
   const { pathname } = ctx.url;
   const root = await getPackageRoot();
-  if (!root) return ctx.next();
+  
+  const isJsr = import.meta.url.startsWith("jsr:");
+  if (!isJsr) return ctx.next();
 
   const { join, fromFileUrl } = await import("@std/path");
-  let baseDir = root.startsWith("file:") ? fromFileUrl(root) : root;
-  if (baseDir.endsWith(".ts") || baseDir.endsWith(".js") || baseDir.endsWith(".mjs")) {
-    baseDir = join(baseDir, "..", ".."); // entry is in /cli/mod.ts, we want /
+  let baseDir = root && root.startsWith("file:") ? fromFileUrl(root) : root;
+  if (baseDir && (baseDir.endsWith(".ts") || baseDir.endsWith(".js") || baseDir.endsWith(".mjs"))) {
+    baseDir = join(baseDir, "..", "..");
   }
 
   // 1. Handle compiled assets (_fresh/client/assets)
   if (pathname.startsWith("/assets/")) {
+    // Try local file first (Offline)
+    if (baseDir) {
+      try {
+        const filePath = join(baseDir, "_fresh", "client", pathname);
+        const content = await Deno.readFile(filePath);
+        const contentType = pathname.endsWith(".css") ? "text/css" : "text/javascript";
+        return new Response(content, { headers: { "content-type": contentType } });
+      } catch { /* fallback to HTTPS */ }
+    }
+
+    // Fallback to HTTPS (Online)
+    const jsrUrl = `https://jsr.io/@innovatedev/innokv/${APP_VERSION}/_fresh/client${pathname}`;
     try {
-      const filePath = join(baseDir, "_fresh", "client", pathname);
-      const content = await Deno.readFile(filePath);
-      const contentType = pathname.endsWith(".css")
-        ? "text/css"
-        : pathname.endsWith(".js")
-        ? "text/javascript"
-        : "application/octet-stream";
-      return new Response(content, { headers: { "content-type": contentType } });
+      const resp = await fetch(jsrUrl);
+      if (resp.ok) return resp;
     } catch { /* fallback */ }
   }
 
   // 2. Handle static files (static/*)
   const staticFiles = ["/favicon.ico", "/logo.png", "/logo.svg"];
   if (staticFiles.includes(pathname)) {
+    if (baseDir) {
+      try {
+        const filePath = join(baseDir, "static", pathname);
+        const content = await Deno.readFile(filePath);
+        return new Response(content);
+      } catch { /* fallback to HTTPS */ }
+    }
+
+    const jsrUrl = `https://jsr.io/@innovatedev/innokv/${APP_VERSION}/static${pathname}`;
     try {
-      const filePath = join(baseDir, "static", pathname);
-      const content = await Deno.readFile(filePath);
-      return new Response(content);
+      const resp = await fetch(jsrUrl);
+      if (resp.ok) return resp;
     } catch { /* fallback */ }
   }
 
