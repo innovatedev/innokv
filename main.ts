@@ -64,7 +64,7 @@ app.use(async (ctx) => {
   }
 
   // 2. Handle static files (static/*)
-  const staticFiles = ["/favicon.ico", "/logo.png", "/logo.svg"];
+  const staticFiles = ["/favicon.ico", "/logo.png"];
   if (staticFiles.includes(pathname)) {
     if (baseDir) {
       try {
