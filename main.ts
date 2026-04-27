@@ -36,10 +36,6 @@ app.use(async (ctx) => {
   const isJsr = import.meta.url.startsWith("jsr:") || import.meta.url.startsWith("https://jsr.io");
   if (!isJsr) return ctx.next();
 
-  if (pathname === "/") {
-    console.log("[InnoKV] JSR Asset Bridge Active");
-  }
-
   const root = await getPackageRoot();
   const { join, fromFileUrl } = await import("@std/path");
   let baseDir = root && root.startsWith("file:") ? fromFileUrl(root) : root;
@@ -74,7 +70,14 @@ app.use(async (ctx) => {
       try {
         const filePath = join(baseDir, "static", pathname);
         const content = await Deno.readFile(filePath);
-        return new Response(content);
+        const contentType = pathname.endsWith(".svg") 
+          ? "image/svg+xml" 
+          : pathname.endsWith(".png") 
+          ? "image/png" 
+          : pathname.endsWith(".ico") 
+          ? "image/x-icon" 
+          : "application/octet-stream";
+        return new Response(content, { headers: { "content-type": contentType } });
       } catch { /* fallback to HTTPS */ }
     }
 
