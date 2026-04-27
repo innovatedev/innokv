@@ -36,7 +36,7 @@ humans.
 Installs a small wrapper script that uses your local Deno runtime.
 
 ```bash
-deno install -n innokv -A jsr:@innovatedev/innokv
+deno install --global --unstable-kv -fAn innokv jsr:@innovatedev/innokv
 ```
 
 **Method B: Standalone Binary**\
