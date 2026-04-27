@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.4
+
+- **Fix Compiled Binary**: Restored CLI + server dual-mode support in compiled
+  binaries. All v0.3.0–v0.3.3 binaries were broken (always started the server,
+  CLI commands were unreachable). The compiled entrypoint now routes through the
+  CLI parser, with the server as the default action.
+- **Fix Release Workflow**: Removed non-existent `innokv` artifact from GitHub
+  release uploads.
+
 ## v0.3.3
 
 - **Fix JSR Migration Loading**: Switched to static imports for internal

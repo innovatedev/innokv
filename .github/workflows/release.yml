@@ -58,7 +58,6 @@ jobs:
         with:
           body_path: RELEASE_NOTES.md
           files: |
-            innokv
             target/innokv-linux
             target/innokv-mac
             target/innokv-win.exe

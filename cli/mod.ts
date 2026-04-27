@@ -18,12 +18,49 @@ import { stats } from "./commands/stats.ts";
 import { configCmd } from "./commands/config.ts";
 import { deleteConfig } from "./config.ts";
 import { install } from "./commands/install.ts";
-import { app } from "../main.ts";
+
 import { APP_VERSION } from "../lib/metadata.ts";
 import settings from "../config/app.ts";
 
 // Re-export Command so it is part of the public API, fixing 'private-type-ref' errors.
 export { Command } from "@cliffy/command";
+
+/**
+ * Start the InnoKV web server.
+ *
+ * Detects whether running as a compiled binary or in dev mode:
+ * - Compiled: Uses the pre-built _fresh/server.js handler (routes bundled by Vite)
+ * - Dev: Uses the Fresh App from main.ts with runtime fsRoutes()
+ */
+async function startServer(
+  options?: { port?: number; cookieName?: string },
+) {
+  const { performFirstBootCheck } = await import(
+    "../lib/first-boot-check.ts"
+  );
+  const { loadGlobalConfig } = await import("../lib/config-loader.ts");
+
+  await performFirstBootCheck();
+  await loadGlobalConfig(options);
+
+  console.log(`InnoKV Version: ${APP_VERSION}`);
+  console.log(`Using Database: ${settings.db.path}`);
+  console.log(`Listening on: http://localhost:${settings.server.port}`);
+
+  // In compiled mode, use the pre-built server bundle from _fresh/server.js.
+  // In dev mode, fall back to the Fresh App from main.ts.
+  try {
+    const server = await import("../_fresh/server.js");
+    Deno.serve(
+      { port: settings.server.port, hostname: "0.0.0.0" },
+      (req: Request) => server.default.fetch(req),
+    );
+  } catch {
+    // Dev mode fallback: _fresh/server.js doesn't exist or can't be imported
+    const { app } = await import("../main.ts");
+    await app.listen({ port: settings.server.port });
+  }
+}
 
 /**
  * The main entry point for the InnoKV CLI.
@@ -43,19 +80,7 @@ export const cmd: Command<any> = new Command()
     default: "innokv_session",
   })
   .action(async (options) => {
-    const { performFirstBootCheck } = await import(
-      "../lib/first-boot-check.ts"
-    );
-    const { loadGlobalConfig } = await import("../lib/config-loader.ts");
-
-    await performFirstBootCheck();
-    await loadGlobalConfig(options);
-
-    console.log(`InnoKV Version: ${APP_VERSION}`);
-    console.log(`Using Database: ${settings.db.path}`);
-    console.log(`Listening on: http://localhost:${settings.server.port}`);
-
-    await app.listen({ port: settings.server.port });
+    await startServer(options);
   })
   .command("repl", repl)
   .command("db", db)
@@ -82,21 +107,7 @@ export const cmd: Command<any> = new Command()
       .option("-p, --port <number:number>", "Port to run the server on")
       .option("--cookie-name <name:string>", "Name of the session cookie")
       .action(async (options) => {
-        const { performFirstBootCheck } = await import(
-          "../lib/first-boot-check.ts"
-        );
-        const { loadGlobalConfig } = await import("../lib/config-loader.ts");
-
-        await performFirstBootCheck();
-        await loadGlobalConfig(
-          options as { port?: number; cookieName?: string },
-        );
-
-        console.log(`InnoKV Version: ${APP_VERSION}`);
-        console.log(`Using Database: ${settings.db.path}`);
-        console.log(`Listening on: http://localhost:${settings.server.port}`);
-
-        await app.listen({ port: settings.server.port });
+        await startServer(options as { port?: number; cookieName?: string });
       }),
   )
   .command(
