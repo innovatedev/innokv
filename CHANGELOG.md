@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.5
+
+- **Halved Executable Size**: Resolved a regression from the `v0.3.x` releases
+  where the standalone executable size had accidentally ballooned to over 200MB.
+  Binaries for all platforms are now back to their lean, standard size (~100MB),
+  resulting in much faster download times and a reduced disk footprint.
+
 ## v0.3.4
 
 - **Fix Compiled Binary**: Restored CLI + server dual-mode support in compiled
