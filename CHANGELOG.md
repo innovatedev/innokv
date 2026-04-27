@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.0
+
+- **Lightweight Installation**: Added support for `deno install`. Users can now
+  install a ~6MB lightweight version that uses their local Deno runtime,
+  significantly reducing download size.
+- **Official JSR Support**: InnoKV is now officially available on JSR. The web
+  UI is now bundled directly into the package for a seamless experience.
+- **Improved Stability**: Fixed a crash that occurred when analyzing database
+  statistics for certain key structures.
+- **Better Type Support**: Hardened the system to ensure complex Deno KV types
+  like `BigInt`, `Date`, and `Uint8Array` are preserved and displayed correctly
+  across the UI and CLI.
+
 ## v0.3.5
 
 - **Halved Executable Size**: Resolved a regression from the `v0.3.x` releases

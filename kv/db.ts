@@ -4,10 +4,10 @@ import {
   AppConfigModel,
   AuditLogModel,
   DatabaseModel,
+  SessionModel,
+  UserModel,
 } from "@/kv/models.ts";
 import { dirname } from "jsr:@std/path@1.0.8";
-import { SessionModel } from "@/kv/models.ts";
-import { UserModel } from "@/kv/models.ts";
 import settings from "@/config/app.ts";
 
 const path = settings.db.path;

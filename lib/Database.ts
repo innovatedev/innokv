@@ -1,5 +1,10 @@
 import { KeySerialization, RichValue, ValueCodec } from "@/codec/mod.ts";
-import { AuditLogValue, Database, DatabaseModel } from "@/kv/models.ts";
+import {
+  AuditLogValue,
+  Database,
+  DatabaseModel,
+  DatabaseValue,
+} from "@/kv/models.ts";
 import { ApiKvKeyPart } from "./types.ts";
 import { KvExplorer } from "./KvExplorer.ts";
 
@@ -20,17 +25,20 @@ export class DatabaseRepository extends BaseRepository {
     // Set default timestamps if missing
     if (!data.createdAt) data.createdAt = new Date();
     if (!data.updatedAt) data.updatedAt = new Date();
-    const databaseFromModel = DatabaseModel.safeParse(data);
-    if (!databaseFromModel.success) {
+    let record: DatabaseValue;
+    try {
+      record = DatabaseModel.assert(data);
+    } catch (error) {
       console.error(
         "ERROR: Failed to validate database:",
-        databaseFromModel.error,
+        error,
       );
       throw new DatabaseError(
-        `Invalid database data: ${databaseFromModel.error.message}`,
+        `Invalid database data: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
-    const record = databaseFromModel.data;
     const database = await this.kvdex.databases.add(record);
     if (!database.ok) {
       console.error("ERROR: Failed to create database:", record);
@@ -44,18 +52,29 @@ export class DatabaseRepository extends BaseRepository {
     };
   }
   async updateDatabase(id: string, data: Partial<Database>) {
-    data.updatedAt = new Date();
-    const databaseFromModel = DatabaseModel.partial().safeParse(data);
-    if (!databaseFromModel.success) {
+    // For partial updates, we might bypass strict model validation
+    // or validate only provided fields. Since ArkType doesn't have partial(),
+    // we'll merge with existing data before validation.
+    const existing = await this.kvdex.databases.find(id);
+    if (!existing) {
+      throw new DatabaseError(`Database with id "${id}" not found`);
+    }
+    const mergedData = { ...existing.flat(), ...data, updatedAt: new Date() };
+
+    let record: DatabaseValue;
+    try {
+      record = DatabaseModel.assert(mergedData);
+    } catch (error) {
       console.error(
         "ERROR: Failed to validate database update:",
-        databaseFromModel.error,
+        error,
       );
       throw new DatabaseError(
-        `Invalid database data: ${databaseFromModel.error.message}`,
+        `Invalid database data: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
-    const record = databaseFromModel.data;
     const database = await this.kvdex.databases.update(id, record);
     if (!database.ok) {
       console.error("ERROR: Failed to update database:", record, database);
@@ -314,6 +333,9 @@ export class DatabaseRepository extends BaseRepository {
   ) {
     try {
       await this.kvdex.audit_logs.add({
+        databaseId: "unknown",
+        action: "set",
+        key: ["unknown"],
         ...log,
         timestamp: new Date(),
       });

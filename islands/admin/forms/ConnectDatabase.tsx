@@ -37,7 +37,8 @@ export default function ConnectDatabaseForm({
       }
 
       // Handle nested settings
-      const settings = database?.settings || {};
+      const settings = database?.settings ||
+        { batchSize: 100, scanTimeout: 30 };
       payload.settings = {
         ...settings,
         prettyPrintDates: payload["settings.prettyPrintDates"] === "true",

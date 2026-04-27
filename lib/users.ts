@@ -115,7 +115,7 @@ export async function authenticateUser(
   // Check if different from original
   if (
     permissions.length !== userData.permissions.length ||
-    !permissions.every((p) => userData.permissions.includes(p))
+    !permissions.every((p: string) => userData.permissions.includes(p))
   ) {
     updates.permissions = permissions;
   }

@@ -1,0 +1,14 @@
+.env
+node_modules/
+tests/
+tools/
+islands/
+routes/
+components/
+target/
+innokv
+innokv-data/
+compile.json
+vite.config.ts
+.gitignore
+.gitignore.bak

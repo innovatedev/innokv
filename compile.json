@@ -23,6 +23,6 @@
     "@cliffy/table": "jsr:@cliffy/table@1.0.0-rc.8",
     "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.5.1",
     "@olli/kvdex": "jsr:@olli/kvdex@^3.6.5",
-    "zod": "npm:zod@^3.25.75"
+    "arktype": "npm:arktype@^2.2.0"
   }
 }

@@ -32,8 +32,8 @@ export class BaseRepository {
   }
 
   // deno-lint-ignore no-explicit-any
-  protected parseModel<T>(model: { parse: (data: any) => T }, data: any): T {
-    return model.parse(data);
+  protected parseModel<T>(model: { assert: (data: any) => T }, data: any): T {
+    return model.assert(data);
   }
 
   // deno-lint-ignore no-explicit-any

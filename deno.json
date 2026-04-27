@@ -1,30 +1,26 @@
 {
-  "nodeModulesDir": "auto",
-  "version": "0.3.5",
+  "nodeModulesDir": "none",
+  "version": "0.4.0-dev",
   "name": "@innovatedev/innokv",
   "exports": {
     ".": "./cli/mod.ts",
-    "./migrations": "./migrations/mod.ts",
+    "./kv": "./kv/db.ts",
     "./codec": "./codec/mod.ts"
   },
   "publish": {
-    "exclude": [
-      "tests/**",
-      "routes/**",
-      "components/**",
-      "islands/**"
-    ]
+    "exclude": []
   },
   "tasks": {
     "check": "deno fmt --check . && deno lint . && deno check && deno task test",
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "deno run -A --node-modules-dir=auto npm:vite",
+    "build": "deno run -A --node-modules-dir=auto npm:vite build",
     "start": "deno serve -A _fresh/server.js",
     "compile": "deno compile -A --config compile.json --include _fresh --output innokv compile-entry.ts",
     "compile:linux": "deno compile -A --config compile.json --target=x86_64-unknown-linux-gnu --include _fresh --output target/innokv-linux compile-entry.ts",
     "compile:mac": "deno compile -A --config compile.json --target=aarch64-apple-darwin --include _fresh --output target/innokv-mac compile-entry.ts",
     "compile:win": "deno compile -A --config compile.json --icon static/favicon.ico --target=x86_64-pc-windows-msvc --include _fresh --output target/innokv-win.exe compile-entry.ts",
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
+    "publish": "deno task build && mv .gitignore .gitignore.bak && deno publish --allow-slow-types --allow-dirty; mv .gitignore.bak .gitignore",
     "cli": "deno run -A cli/mod.ts",
     "test": "mkdir -p innokv-data && INNOKV_DB_PATH=innokv-data/test.db deno test -A --node-modules-dir=auto && rm -f innokv-data/test.db innokv-data/test.db-shm innokv-data/test.db-wal",
     "version": "deno run -A tools/version.ts",
@@ -39,7 +35,7 @@
     }
   },
   "exclude": [
-    "**/_fresh/*"
+    "node_modules"
   ],
   "imports": {
     "@/": "./",
@@ -63,7 +59,7 @@
     "tailwindcss": "npm:tailwindcss@^4.1.10",
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",
     "@olli/kvdex": "jsr:@olli/kvdex@^3.6.5",
-    "zod": "npm:zod@^3.25.75",
+    "arktype": "npm:arktype@^2.2.0",
     "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.5.1"
   },
   "compilerOptions": {

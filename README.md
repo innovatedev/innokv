@@ -30,19 +30,32 @@ humans.
 
 ## Quick Start
 
+### 1. Install the CLI
+
+**Method A: Lightweight (Recommended for Deno users)**\
+Installs a small wrapper script that uses your local Deno runtime.
+
 ```bash
-# 1. Install the CLI
-deno run -A --unstable-kv jsr:@innovatedev/innokv install
-
-# update with
-# deno run -Ar --unstable-kv jsr:@innovatedev/innokv install --force
-
-# 2. Start the Server
-innokv serve
-
-# 3. Open the UI
-# http://localhost:4665
+deno install -n innokv -A jsr:@innovatedev/innokv
 ```
+
+**Method B: Standalone Binary**\
+Downloads the pre-compiled standalone binary (useful if you want to avoid
+`deno run` overhead or share with non-Deno users).
+
+```bash
+deno run -A jsr:@innovatedev/innokv install
+```
+
+### 2. Start the Server
+
+```bash
+innokv serve
+```
+
+### 3. Open the UI
+
+Go to [http://localhost:4665](http://localhost:4665)
 
 ---
 

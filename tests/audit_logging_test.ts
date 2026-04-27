@@ -45,7 +45,11 @@ Deno.test({
     assertEquals(logs[0].value.databaseId, database.id);
     assertEquals(JSON.stringify(logs[0].value.key), JSON.stringify(key));
     // RichValue for object has nested RichValues in its value
-    assertEquals(logs[0].value.newValue.value.foo.value, "bar");
+    assertEquals(
+      // deno-lint-ignore no-explicit-any
+      (logs[0].value.newValue as Record<string, any>).value.foo.value,
+      "bar",
+    );
     // Cleanup
     const kv = DatabaseRepository.memoryInstances.get(database.id);
     if (kv) {
@@ -96,7 +100,11 @@ Deno.test({
     assertEquals(logs.length, 2);
     const deleteLog = logs.find((l) => l.value.action === "delete");
     assertExists(deleteLog);
-    assertEquals(deleteLog.value.oldValue.value, value);
+    assertEquals(
+      // deno-lint-ignore no-explicit-any
+      (deleteLog.value.oldValue as Record<string, any>).value,
+      value,
+    );
     // Cleanup
     const kv = DatabaseRepository.memoryInstances.get(database.id);
     if (kv) {
