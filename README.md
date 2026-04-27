@@ -1,6 +1,10 @@
 # InnoKV
 
+[![JSR](https://jsr.io/badges/@innovatedev/innokv)](https://jsr.io/@innovatedev/innokv)
+
 **Development workspace and admin tool for Deno KV.**
+
+<img src="./static/logo.png" height="256" style="display: block; margin: 0 auto 1em;" />
 
 InnoKV is a professional management interface and CLI for working with real Deno
 KV systems across environments.
@@ -29,6 +33,9 @@ humans.
 ```bash
 # 1. Install the CLI
 deno run -A --unstable-kv jsr:@innovatedev/innokv install
+
+# update with
+# deno run -Ar --unstable-kv jsr:@innovatedev/innokv install --force
 
 # 2. Start the Server
 innokv serve
