@@ -1,9 +1,3 @@
-/**
- * CLI entrypoint for InnoKV.
- * Provides the management interface for Deno KV databases.
- * @module
- */
-
 import { Command } from "@cliffy/command";
 import { Confirm } from "@cliffy/prompt";
 import { repl } from "./commands/repl.ts";

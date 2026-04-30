@@ -1,5 +1,5 @@
 import { APP_VERSION } from "@/lib/metadata.ts";
-import { type FreshContext } from "fresh";
+import { define } from "@/utils.ts";
 
 /**
  * JSR Asset Bridge Middleware.
@@ -33,8 +33,7 @@ async function getPackageRoot() {
 /**
  * Middleware to bridge JSR asset serving for Fresh 2.0.
  */
-// deno-lint-ignore no-explicit-any
-export async function jsrAssetBridge(ctx: FreshContext<any>) {
+export const jsrAssetBridge = define.middleware(async (ctx) => {
   const { pathname } = ctx.url;
 
   const isJsr = import.meta.url.startsWith("jsr:") ||
@@ -106,4 +105,4 @@ export async function jsrAssetBridge(ctx: FreshContext<any>) {
   }
 
   return ctx.next();
-}
+});
