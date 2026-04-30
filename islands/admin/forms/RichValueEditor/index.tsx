@@ -44,6 +44,19 @@ export default function RichValueEditor({
     let active = true;
     const timeout = setTimeout(async () => {
       if (!active) return;
+
+      // Client-side validation to avoid unnecessary/crashing server calls
+      try {
+        ValueCodec.decode(value);
+      } catch (_err) {
+        // Data is currently invalid (e.g. typing a URL), skip size calculation
+        if (active) {
+          setIsCalculatingSize(false);
+          setSize(null);
+        }
+        return;
+      }
+
       setIsCalculatingSize(true);
       try {
         const res = await fetch("/api/database/utils", {
@@ -54,6 +67,8 @@ export default function RichValueEditor({
         if (res.ok) {
           const data = await res.json();
           if (active) setSize(data.size);
+        } else {
+          if (active) setSize(null);
         }
       } catch (err) {
         console.error("Failed to calculate size", err);

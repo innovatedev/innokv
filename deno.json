@@ -1,5 +1,5 @@
 {
-  "nodeModulesDir": "none",
+  "nodeModulesDir": "auto",
   "version": "0.4.5",
   "name": "@innovatedev/innokv",
   "exports": {
@@ -29,8 +29,8 @@
   },
   "tasks": {
     "check": "deno fmt --check . && deno lint . && deno check && deno task test",
-    "dev": "deno run -A --node-modules-dir=auto npm:vite",
-    "build": "deno run -A --node-modules-dir=auto npm:vite build",
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:vite build",
     "start": "deno serve -A _fresh/server.js",
     "compile": "deno compile -A --config compile.json --include _fresh --output innokv compile-entry.ts",
     "compile:linux": "deno compile -A --config compile.json --target=x86_64-unknown-linux-gnu --include _fresh --output target/innokv-linux compile-entry.ts",
@@ -39,7 +39,7 @@
     "release": "deno task build && deno task compile:linux && deno task compile:mac && deno task compile:win",
     "publish": "deno task build && mv .gitignore .gitignore.bak && deno publish --allow-slow-types --allow-dirty; mv .gitignore.bak .gitignore",
     "cli": "deno run -A cli/mod.ts",
-    "test": "mkdir -p innokv-data && INNOKV_DB_PATH=innokv-data/test.db deno test -A --node-modules-dir=auto && rm -f innokv-data/test.db innokv-data/test.db-shm innokv-data/test.db-wal",
+    "test": "mkdir -p innokv-data && INNOKV_DB_PATH=innokv-data/test.db deno test -A && rm -f innokv-data/test.db innokv-data/test.db-shm innokv-data/test.db-wal",
     "version": "deno run -A tools/version.ts",
     "update": "deno run -A -r jsr:@fresh/update ."
   },

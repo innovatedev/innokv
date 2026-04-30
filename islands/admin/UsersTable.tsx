@@ -27,7 +27,7 @@ export default function UsersTable(
     if (!appliedSearch) return true;
     const searchLower = appliedSearch.toLowerCase();
     const emailMatch = u.email.toLowerCase().includes(searchLower);
-    const permMatch = u.permissions.some((p) =>
+    const permMatch = u.permissions.some((p: string) =>
       p.toLowerCase().includes(searchLower)
     );
     return emailMatch || permMatch;

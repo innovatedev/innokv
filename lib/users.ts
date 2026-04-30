@@ -45,7 +45,7 @@ export async function createUser(
   const commit = await db.users.set(id, user);
 
   if (commit.ok) {
-    return { ok: true, user: { ...user, id } };
+    return { ok: true, user: { ...user, id } as User };
   } else {
     return { ok: false, error: "Failed to create user in database" };
   }
@@ -53,8 +53,7 @@ export async function createUser(
 
 export async function getAllUsers(): Promise<User[]> {
   const { result } = await db.users.getMany();
-  // deno-lint-ignore no-explicit-any
-  return (result as any[]).map((doc) => ({ ...doc.value, id: doc.id }) as User);
+  return result.map((doc) => ({ ...doc.value, id: doc.id }) as User);
 }
 
 export async function updateUserPermissions(
@@ -123,8 +122,9 @@ export async function authenticateUser(
 
   // Always update lastLoginAt and save
   await db.users.update(userDoc.id, updates);
+  const user = { ...userData, id: userDoc.id } as User;
 
-  return { ok: true, user: { ...userData, id: userDoc.id }, id: userDoc.id };
+  return { ok: true, user, id: userDoc.id };
 }
 
 export async function changePassword(
@@ -152,7 +152,7 @@ export async function updateUserSettings(
   if (!userDoc) return false;
 
   const currentSettings = userDoc.value.settings || {};
-  const newSettings = { ...currentSettings, ...settings };
+  const newSettings = { ...currentSettings, ...(settings || {}) };
 
   const result = await db.users.update(userId, {
     settings: newSettings,

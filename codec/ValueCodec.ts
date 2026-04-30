@@ -289,7 +289,7 @@ export class ValueCodec {
       case "KvU64":
         return "0";
       case "URL":
-        return "https://";
+        return "https://example.com";
       case "Error":
         return { name: "Error", message: "" };
       default:

@@ -1,7 +1,7 @@
 import { KeyCodec } from "@/codec/mod.ts";
 import { createContext, FunctionalComponent } from "preact";
 import { Signal, signal, useSignal } from "@preact/signals";
-import { Database, User } from "@/kv/models.ts";
+import { Database, User, UserSettings } from "@/kv/models.ts";
 import { useEffect, useRef, useState } from "preact/hooks";
 import KvAdminClient from "@/lib/KvAdminClient.ts";
 import { ApiKvEntry, ApiKvKeyPart } from "@/lib/types.ts";
@@ -111,13 +111,16 @@ const DatabaseProvider: FunctionalComponent<DatabaseProviderProps> = ({
       for (const [id, settings] of Object.entries(newSettings.databases)) {
         merged.databases[id] = {
           ...(current.databases?.[id] || {}),
-          ...settings,
+          ...(settings as object),
         };
       }
     }
 
     // Merge other top-level keys
-    const { databases: _, ...rest } = newSettings;
+    const { databases: _, ...rest } = newSettings as Omit<
+      UserSettings,
+      "databases"
+    >;
     Object.assign(merged, rest);
 
     userSettings.value = merged;

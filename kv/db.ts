@@ -72,8 +72,7 @@ export const ROOT_DB_ID: string = metadata?.id || "root";
 /**
  * The Kvdex database instance for the root database.
  */
-// deno-lint-ignore no-explicit-any
-export const db: any = kvdex({
+export const db = kvdex({
   kv: kv,
   schema: {
     databases: collection(DatabaseModel, {

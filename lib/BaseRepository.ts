@@ -48,13 +48,28 @@ export class BaseRepository {
       const result = await callback(data);
       return json(result);
     } catch (error: unknown) {
-      const status = error instanceof Error ? 400 : 500;
-      console.error(error);
+      const errorObj = (typeof error === "object" && error !== null)
+        ? error as Record<string, unknown>
+        : null;
+
+      const isValidationError = error instanceof DatabaseError ||
+        (errorObj && "problems" in errorObj) ||
+        Array.isArray(error) ||
+        (error instanceof Error && error.name === "TypeError");
+
+      const status = isValidationError ? 400 : 500;
       const message = error instanceof Error
         ? error.message
         : "Internal Server Error";
-      // deno-lint-ignore no-explicit-any
-      const details = (error as any).details;
+
+      // ArkType errors often have a 'problems' property or are array-like
+      const details = errorObj?.details || errorObj?.problems ||
+        (Array.isArray(error) ? error : undefined);
+
+      // Only log unexpected server errors (500)
+      if (status >= 500) {
+        console.error("API Error:", error);
+      }
 
       return json({
         error: message,
