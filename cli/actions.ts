@@ -141,7 +141,8 @@ export async function doSet(
   await checkPermission(slug, "write");
   let parsedValue: unknown;
   if (options.rich) {
-    parsedValue = ValueCodec.decode(JSON.parse(value));
+    const rich = JSON.parse(value);
+    parsedValue = ValueCodec.decodeForKv(rich);
   } else {
     try {
       if (value.endsWith("n") && !isNaN(Number(value.slice(0, -1)))) {
@@ -165,7 +166,8 @@ export async function doUpdate(
   await checkPermission(slug, "write");
   let newValue: unknown;
   if (options.rich) {
-    newValue = ValueCodec.decode(JSON.parse(value));
+    const rich = JSON.parse(value);
+    newValue = ValueCodec.decodeForKv(rich);
   } else {
     try {
       if (value.endsWith("n") && !isNaN(Number(value.slice(0, -1)))) {

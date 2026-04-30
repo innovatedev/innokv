@@ -3,7 +3,7 @@ import { Input } from "@cliffy/prompt";
 import { state } from "../state.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
 import { db as coreDb } from "@/kv/db.ts";
-import { resolvePath } from "../utils.ts";
+import { formatValue, resolvePath } from "../utils.ts";
 import { doGet, doLs, doSet, doUpdate } from "../actions.ts";
 
 export async function startRepl(initialSlug?: string) {
@@ -93,7 +93,12 @@ export async function startRepl(initialSlug?: string) {
           continue;
         }
         const targetPath = resolvePath(state.currentPath, args[1]);
-        await doGet(state.kv, state.currentDbName!, targetPath);
+        const res = await doGet(state.kv, state.currentDbName!, targetPath);
+        if (res.versionstamp) {
+          console.log(formatValue(res.value));
+        } else {
+          console.log("Not found.");
+        }
       } else if (cmd === "set") {
         if (!state.kv) {
           console.log("No database connected.");

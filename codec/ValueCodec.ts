@@ -22,9 +22,20 @@ const TYPED_ARRAYS = [
  */
 export class ValueCodec {
   /**
+   * Checks if a value is a RichValue.
+   */
+  static isRichValue(v: unknown): v is RichValue {
+    if (!v || typeof v !== "object") return false;
+    const obj = v as Record<string, unknown>;
+    return typeof obj.type === "string" &&
+      ("value" in obj || obj.type === "undefined" || obj.type === "null");
+  }
+
+  /**
    * Encodes a native value into a RichValue transport format.
    */
   static encode(val: unknown): RichValue {
+    if (this.isRichValue(val)) return val;
     if (val === undefined) return { type: "undefined" };
     if (val === null) return { type: "null" };
 
@@ -40,8 +51,14 @@ export class ValueCodec {
     if (type === "boolean") return { type: "boolean", value: val };
     if (type === "bigint") return { type: "bigint", value: String(val) };
 
-    if (val instanceof Date) return { type: "date", value: val.toISOString() };
-    if (val instanceof URL) return { type: "URL", value: val.href };
+    const tag = Object.prototype.toString.call(val);
+
+    if (val instanceof Date || tag === "[object Date]") {
+      return { type: "date", value: (val as Date).toISOString() };
+    }
+    if (val instanceof URL || tag === "[object URL]") {
+      return { type: "URL", value: (val as URL).href };
+    }
 
     for (const TA of TYPED_ARRAYS) {
       if (val instanceof TA) {
@@ -65,10 +82,11 @@ export class ValueCodec {
         ),
       };
     }
-    if (val instanceof RegExp) {
+    if (val instanceof RegExp || tag === "[object RegExp]") {
+      const v = val as RegExp;
       return {
         type: "regexp",
-        value: { source: val.source, flags: val.flags },
+        value: { source: v.source, flags: v.flags },
       };
     }
     if (val instanceof Error) {
@@ -84,8 +102,6 @@ export class ValueCodec {
         },
       };
     }
-
-    const tag = Object.prototype.toString.call(val);
 
     // Deno specific types
     if (
@@ -132,6 +148,15 @@ export class ValueCodec {
 
     // Fallback?
     return { type: "string", value: String(val) };
+  }
+
+  /**
+   * Decodes a RichValue into a native value, but preserves types
+   * that Deno KV (structuredClone) cannot handle natively (like URL).
+   */
+  static decodeForKv(encoded: RichValue): unknown {
+    if (encoded.type === "URL") return encoded;
+    return this.decode(encoded);
   }
 
   /**

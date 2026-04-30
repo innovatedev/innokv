@@ -12,7 +12,6 @@ interface RecordItemProps {
   isOpen: boolean;
   onToggle: (isOpen: boolean) => void;
   onEdit: () => void;
-  onIncrement?: (amount: bigint) => void;
   isReadOnly: boolean;
 }
 
@@ -23,7 +22,6 @@ export default function RecordItem(
     onToggleSelection,
     prettyPrintDates,
     onEdit,
-    onIncrement,
     isReadOnly,
   }: Omit<RecordItemProps, "isOpen" | "onToggle">,
 ) {
@@ -34,7 +32,7 @@ export default function RecordItem(
 
   return (
     <div
-      class={`flex flex-col border border-base-300 rounded-lg overflow-hidden mb-2 transition-shadow hover:shadow-md ${
+      class={`group flex flex-col border border-base-300 rounded-lg overflow-hidden mb-2 transition-shadow hover:shadow-md ${
         selected ? "ring-2 ring-primary ring-inset" : ""
       }`}
     >
@@ -99,21 +97,8 @@ export default function RecordItem(
 
           <div class="mt-1.5 pl-[28px] min-w-0 flex items-center gap-2">
             <div class="text-xs text-base-content/40 font-mono">
-              <ValueDisplay value={rich?.value} />
+              <ValueDisplay value={rich} />
             </div>
-            {rich?.type === "KvU64" && !isReadOnly && onIncrement && (
-              <button
-                type="button"
-                class="btn btn-brand btn-xs h-5 min-h-0 text-[10px] px-1.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onIncrement(1n);
-                }}
-                title="Atomic Increment (+1)"
-              >
-                +1
-              </button>
-            )}
           </div>
         </div>
 

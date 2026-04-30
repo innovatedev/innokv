@@ -14,7 +14,6 @@ interface SearchResultsProps {
   onLoadMore: () => void;
   selectedKeys: Set<string>;
   onToggleSelection: (key: ApiKvKeyPart[]) => void;
-  onIncrement?: (key: ApiKvKeyPart[], amount: bigint) => void;
 }
 
 export default function SearchResults(
@@ -28,7 +27,6 @@ export default function SearchResults(
     onLoadMore,
     selectedKeys,
     onToggleSelection,
-    onIncrement,
   }: SearchResultsProps,
 ) {
   if (results.length === 0 && !isLoading) {
@@ -58,7 +56,6 @@ export default function SearchResults(
               onToggleSelection={onToggleSelection}
               prettyPrintDates={prettyPrintDates}
               onEdit={() => onEditRecord(record)}
-              onIncrement={(amount) => onIncrement?.(result.key, amount)}
               isReadOnly={isReadOnly}
             />
           </div>

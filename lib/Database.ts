@@ -461,10 +461,8 @@ export class DatabaseRepository extends BaseRepository {
     }
     // Decode if it's a RichValue from the UI
     let decodedValue = value;
-    if (
-      value && typeof value === "object" && "type" in value && "value" in value
-    ) {
-      decodedValue = ValueCodec.decode(value as RichValue);
+    if (ValueCodec.isRichValue(value)) {
+      decodedValue = ValueCodec.decodeForKv(value);
     }
     const expireIn = expiresAt
       ? Math.max(1, expiresAt - Date.now())

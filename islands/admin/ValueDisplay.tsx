@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
+import { RichValue, ValueCodec } from "@/codec/mod.ts";
 
 interface ValueDisplayProps {
   value: unknown;
@@ -68,18 +69,85 @@ export function ValueDisplay(
     return <span class="text-warning font-mono">{value.toString()}</span>;
   }
 
+  if (typeof value === "bigint") {
+    return (
+      <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+        <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+          BigInt
+        </span>
+        <span class="text-info font-mono text-xs">
+          {String(value)}
+          <span class="text-primary font-bold">n</span>
+        </span>
+      </div>
+    );
+  }
+
   if (typeof value === "number") {
     return <span class="text-info font-mono">{value}</span>;
   }
 
   if (value instanceof Date) {
     return (
-      <span class="text-secondary font-mono font-bold">
-        {value.toLocaleString()}
-        <span class="text-base-content/50 text-[10px] ml-1">
-          ({value.toISOString()})
+      <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+        <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+          Date
         </span>
-      </span>
+        <span class="text-secondary font-mono font-bold text-xs">
+          {value.toLocaleString()}
+          <span class="text-base-content/50 text-[10px] ml-1 font-normal">
+            ({value.toISOString()})
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  if (value instanceof URL) {
+    return (
+      <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+        <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+          URL
+        </span>
+        <a
+          href={value.href}
+          target="_blank"
+          class="text-info underline hover:text-primary font-mono text-xs break-all"
+        >
+          {value.href}
+        </a>
+      </div>
+    );
+  }
+
+  if (value instanceof RegExp) {
+    return (
+      <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+        <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+          RegExp
+        </span>
+        <span class="text-secondary font-mono font-bold text-xs">
+          /{value.source}/{value.flags}
+        </span>
+      </div>
+    );
+  }
+
+  const DenoGlobal = (globalThis as unknown as { Deno?: { KvU64?: unknown } })
+    .Deno;
+  if (
+    DenoGlobal?.KvU64 &&
+    value instanceof (DenoGlobal.KvU64 as { new (...args: unknown[]): unknown })
+  ) {
+    return (
+      <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+        <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+          KvU64
+        </span>
+        <span class="text-info font-mono font-bold text-xs">
+          {String(value)}
+        </span>
+      </div>
     );
   }
 
@@ -243,6 +311,26 @@ export function ValueDisplay(
       return <span class="text-error font-mono font-bold">null</span>;
     }
 
+    // Types that we have specialized rendering for at the top of this function
+    if (
+      ["date", "URL", "regexp", "bigint"].includes(rich.type)
+    ) {
+      return <ValueDisplay value={ValueCodec.decode(rich as RichValue)} />;
+    }
+
+    if (rich.type === "KvU64") {
+      return (
+        <div class="inline-flex items-center border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1.5">
+          <span class="text-[10px] font-bold opacity-50 uppercase tracking-wider">
+            KvU64
+          </span>
+          <span class="text-info font-mono font-bold text-xs">
+            {String(rich.value)}
+          </span>
+        </div>
+      );
+    }
+
     if (rich.type === "number") {
       if (
         rich.value === "NaN" || rich.value === "Infinity" ||
@@ -252,36 +340,6 @@ export function ValueDisplay(
       }
       // For normal numbers, just show the number without a tag
       return <ValueDisplay value={rich.value} />;
-    }
-
-    if (rich.type === "date") {
-      const date = new Date(rich.value as string);
-      return (
-        <span class="text-secondary font-mono font-bold">
-          {date.toLocaleString()}
-          <span class="text-base-content/50 text-[10px] ml-1">
-            ({rich.value})
-          </span>
-        </span>
-      );
-    }
-
-    if (rich.type === "bigint") {
-      return (
-        <span class="text-info font-mono">
-          {rich.value}
-          <span class="text-primary font-bold">n</span>
-        </span>
-      );
-    }
-
-    if (rich.type === "KvU64") {
-      return (
-        <span class="text-info font-mono">
-          {rich.value}
-          <span class="text-primary font-bold ml-1 text-[10px]">U64</span>
-        </span>
-      );
     }
 
     if (rich.type === "string" || rich.type === "boolean") {
@@ -326,43 +384,24 @@ export function ValueDisplay(
       );
     }
 
-    if (rich.type === "URL") {
-      return (
-        <a
-          href={rich.value as string}
-          target="_blank"
-          class="text-info underline hover:text-primary font-mono text-xs break-all"
-        >
-          {rich.value as string}
-        </a>
-      );
-    }
-
-    if (rich.type === "regexp") {
-      const v = rich.value as { source: string; flags: string };
-      return (
-        <span class="text-secondary font-mono font-bold">
-          /{v.source}/{v.flags}
-        </span>
-      );
-    }
-
     if (rich.type === "Error") {
       const v = rich.value as { name: string; message: string; stack?: string };
       return (
-        <div class="inline-block border border-error/50 rounded px-1 bg-error/10 align-top">
+        <div class="inline-flex flex-col border border-base-300 rounded px-1.5 py-0.5 bg-base-200/50 align-top leading-none gap-1">
           <div
-            class="cursor-pointer hover:bg-error/20 inline-flex items-center px-1 rounded text-error select-none gap-1"
+            class="cursor-pointer hover:bg-base-300 inline-flex items-center px-1 rounded text-base-content select-none gap-1.5"
             onClick={toggleExpanded}
           >
-            <span class="text-xs font-bold mr-1">Error</span>
-            <span class="font-mono text-xs">
+            <span class="text-[10px] font-bold text-error uppercase tracking-wider">
+              Error
+            </span>
+            <span class="font-mono text-xs font-bold">
               {v.name}: {v.message}
             </span>
-            <span>{expanded ? "▼" : "▶"}</span>
+            <span class="text-[10px] opacity-50">{expanded ? "▼" : "▶"}</span>
           </div>
           {expanded && v.stack && (
-            <pre class="mt-1 text-[10px] opacity-70 whitespace-pre-wrap break-all bg-base-200 p-2 rounded max-w-2xl font-mono">
+            <pre class="mt-1 text-[10px] opacity-70 whitespace-pre-wrap break-all bg-base-300/30 p-2 rounded max-w-2xl font-mono leading-relaxed">
               {v.stack}
             </pre>
           )}

@@ -369,30 +369,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
     }
   };
 
-  const handleIncrement = async (key: ApiKvKeyPart[], amount: bigint) => {
-    if (!activeDatabase) return;
-    const dbId = activeDatabase.slug || activeDatabase.id;
-    try {
-      await api.saveRecord(
-        dbId,
-        KeyCodec.toNative(key),
-        null,
-        null,
-        undefined,
-        {
-          action: "increment",
-          amount: amount.toString(),
-        },
-      );
-      // Refresh only the affected record if possible, but handleRefresh is safer for now
-      await handleRefresh();
-    } catch (err: unknown) {
-      alert(
-        `Increment failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
-
   if (!activeDatabase) {
     if (databases.value.length > 0 && selectedDatabase.value) {
       return (
@@ -612,7 +588,6 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             moveMode.value = "copy";
             moveRef.current?.showModal();
           }}
-          onIncrement={handleIncrement}
           onExport={handleExport}
         />
       </div>

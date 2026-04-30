@@ -2,7 +2,7 @@ import { ValueCodec } from "@/codec/mod.ts";
 import { Command } from "@cliffy/command";
 import { db as coreDb } from "@/kv/db.ts";
 import { DatabaseRepository } from "../../lib/Database.ts";
-import { resolvePath } from "../utils.ts";
+import { formatValue, resolvePath } from "../utils.ts";
 import { doGet } from "../actions.ts";
 
 /**
@@ -44,15 +44,7 @@ export const get: Command<any> = new Command()
         console.log(JSON.stringify(ValueCodec.encode(res.value), null, 2));
       } else {
         // Human readable
-        if (typeof res.value === "bigint") {
-          console.log(`${res.value}n`);
-        } else if (res.value instanceof Uint8Array) {
-          console.log(`u8[${Array.from(res.value).join(",")}]`);
-        } else if (typeof res.value === "object" && res.value !== null) {
-          console.log(JSON.stringify(res.value, null, 2));
-        } else {
-          console.log(res.value);
-        }
+        console.log(formatValue(res.value));
       }
       kv.close();
     } catch (e) {

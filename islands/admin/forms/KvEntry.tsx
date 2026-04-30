@@ -38,7 +38,10 @@ export default function KvEntryForm({
   );
 
   const toRichValue = (val: unknown): RichValue => {
-    if (val && typeof val === "object" && "type" in val && "value" in val) {
+    if (
+      val && typeof val === "object" && "type" in val &&
+      ("value" in val || val.type === "undefined" || val.type === "null")
+    ) {
       return val as RichValue;
     }
     return ValueCodec.encode(val);
