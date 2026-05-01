@@ -118,10 +118,10 @@ export default function UsersTable(
               <tr key={user.id}>
                 <td class="font-bold">{user.email}</td>
                 <td class="text-sm opacity-70">
-                  {new Date(user.createdAt).toLocaleString()}
+                  {new Date(user.createdAt!).toLocaleString()}
                 </td>
                 <td class="text-sm opacity-70">
-                  {new Date(user.lastLoginAt).toLocaleString()}
+                  {new Date(user.lastLoginAt!).toLocaleString()}
                 </td>
                 <td>
                   <div class="flex gap-1 flex-wrap">

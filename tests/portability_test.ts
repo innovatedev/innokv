@@ -30,9 +30,9 @@ class TestDatabaseRepository extends DatabaseRepository {
   override async getDatabaseBySlugOrId(id: string) {
     const mode = id === "readonly" ? "r" : "rw";
     return await Promise.resolve({
-      flat: () => ({ id, type: "memory", mode }),
+      flat: () => ({ id, name: id, type: "memory", mode }),
       id,
-      value: { id, type: "memory", mode },
+      value: { id, name: id, type: "memory", mode },
       // deno-lint-ignore no-explicit-any
     } as any);
   }

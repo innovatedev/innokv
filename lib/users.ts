@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { db } from "@/kv/db.ts";
 import { hash, verify } from "@felix/argon2";
 import { type User, type UserValue } from "@/kv/models.ts";
@@ -53,7 +54,7 @@ export async function createUser(
 
 export async function getAllUsers(): Promise<User[]> {
   const { result } = await db.users.getMany();
-  return result.map((doc) => ({ ...doc.value, id: doc.id }) as User);
+  return result.map((doc: any) => ({ ...doc.value, id: doc.id }) as User);
 }
 
 export async function updateUserPermissions(

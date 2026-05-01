@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { define } from "@/utils.ts";
 import { db } from "@/kv/db.ts";
 import { HttpError } from "fresh";
@@ -24,7 +25,7 @@ export const handler = define.handlers({
     const kvId = userDoc.id; // This is the ULID
     const currentSettings = userDoc.value.settings || {};
 
-    const newSettings = deepMerge(currentSettings, body);
+    const newSettings = deepMerge(currentSettings as any, body as any);
 
     await db.users.update(kvId, {
       settings: newSettings,

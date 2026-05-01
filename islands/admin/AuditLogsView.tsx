@@ -269,7 +269,7 @@ export default function AuditLogsView(
             {filteredLogs.map((log) => (
               <tr key={log.id} class="hover:bg-base-300 transition-colors">
                 <td class="text-xs opacity-70 whitespace-nowrap">
-                  {new Date(log.timestamp).toLocaleString()}
+                  {new Date(log.timestamp!).toLocaleString()}
                 </td>
                 <td>
                   <span
@@ -350,7 +350,7 @@ export default function AuditLogsView(
                   Timestamp
                 </span>
                 <span class="text-sm font-bold">
-                  {new Date(selectedLog.timestamp).toLocaleString()}
+                  {new Date(selectedLog.timestamp!).toLocaleString()}
                 </span>
               </div>
               <div>

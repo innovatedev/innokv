@@ -1,9 +1,4 @@
-/**
- * Database access layer for InnoKV.
- * Provides the Kvdex instance and direct Deno.Kv access.
- * @module
- */
-
+// deno-lint-ignore-file no-explicit-any
 import { collection, kvdex } from "@olli/kvdex";
 import {
   ApiTokenModel,
@@ -12,67 +7,22 @@ import {
   DatabaseModel,
   SessionModel,
   UserModel,
-} from "@/kv/models.ts";
-import { dirname } from "jsr:@std/path@1.0.8";
-import settings from "@/config/app.ts";
+} from "./models.ts";
 
-const path = settings.db.path;
-const dir = dirname(path);
-await Deno.mkdir(dir, { recursive: true });
-/**
- * The native Deno KV instance.
- */
-export const kv: Deno.Kv = await Deno.openKv(path);
+const kv = await Deno.openKv();
 
-import { APP_VERSION, InnoKvMetadata } from "@/lib/metadata.ts";
-import { greaterThan, lessThan, parse } from "@std/semver";
-
-import { runMigrations } from "@/kv/migrations/mod.ts";
-
-const metadataRes = await kv.get<InnoKvMetadata>(["__innokv__"]);
-/**
- * The metadata for the root database.
- */
-let metadata: InnoKvMetadata | null = metadataRes.value;
-
-if (!metadata) {
-  metadata = {
-    version: APP_VERSION,
-    id: crypto.randomUUID(),
-  };
-  await kv.set(["__innokv__"], metadata);
-  console.log(
-    `Initialized InnoKV with ID: ${metadata.id}, Version: ${metadata.version}`,
-  );
-} else {
-  try {
-    const dbVersion = parse(metadata.version);
-    const appVersion = parse(APP_VERSION);
-
-    if (greaterThan(dbVersion, appVersion)) {
-      console.warn(
-        `WARNING: Database version (${metadata.version}) is newer than App version (${APP_VERSION}). This may cause issues.`,
-      );
-    } else if (lessThan(dbVersion, appVersion)) {
-      console.log(
-        `Migrating database from ${metadata.version} to ${APP_VERSION}...`,
-      );
-
-      await runMigrations(kv, metadata.version);
-
-      console.log("Migration complete.");
-    }
-  } catch (e) {
-    console.error("Failed to compare versions or run migrations:", e);
-  }
-}
+// Get the root database ID from the metadata
+const metadataKv = await Deno.openKv();
+const metadataRes = await metadataKv.get(["metadata"]);
+const metadata = metadataRes.value as { id: string } | null;
+await metadataKv.close();
 
 export const ROOT_DB_ID: string = metadata?.id || "root";
 
 /**
  * The Kvdex database instance for the root database.
  */
-export const db = kvdex({
+export const db: any = kvdex({
   kv: kv,
   schema: {
     databases: collection(DatabaseModel, {

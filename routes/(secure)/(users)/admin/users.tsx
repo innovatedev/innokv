@@ -79,7 +79,9 @@ import { AdminPage } from "@/components/admin/AdminPage.tsx";
 
 export default defineAuth.page(async function AdminUsers({ state }) {
   const users = await getAllUsers();
-  users.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  users.sort((a, b) =>
+    (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
+  );
 
   const success = state.flash("success");
   const error = state.flash("error");

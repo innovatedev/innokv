@@ -1,19 +1,30 @@
+// deno-lint-ignore-file no-explicit-any
 import { type Type, type } from "arktype";
 import type { KvValue, Model } from "@olli/kvdex";
 
 // --- Helper Types ---
 
-// deno-lint-ignore no-explicit-any
+/**
+ * A wrapper for Kvdex models with an additional assert method.
+ */
 export type KvModel<T> = Model<T, any> & {
   assert: (data: unknown) => T;
 };
 
-// deno-lint-ignore no-explicit-any
-export const KvValueType = type("unknown") as Type<KvValue | any>;
+/**
+ * A type representing any valid KV value.
+ */
+export const KvValueType: Type<KvValue> = type("unknown") as unknown as Type<
+  KvValue
+>;
 
-// DateModel handles Date objects, ISO strings, and numbers (timestamps).
-// It also allows null and undefined for optional fields.
-export const DateModel = type("string | number | Date | null | undefined").pipe(
+/**
+ * Model for Date-like values (Date object, timestamp, or ISO string).
+ * Automatically converts to Date object.
+ */
+export const DateModel: Type<Date | null | undefined> = type(
+  "string | number | Date | null | undefined",
+).pipe(
   (
     v,
   ) => (v === null || v === undefined
@@ -21,77 +32,183 @@ export const DateModel = type("string | number | Date | null | undefined").pipe(
     : v instanceof Date
     ? v
     : new Date(v)),
-);
+) as unknown as Type<Date | null | undefined>;
 
-export const KvKeyPartModel: Type<Deno.KvKeyPart> = type(
+/**
+ * Model for a single part of a KV key.
+ */
+export const KvKeyPartModel: Type<any> = type(
   "string | number | boolean | bigint",
 ).or(
   type("unknown").narrow((data): data is Uint8Array =>
     data instanceof Uint8Array
   ),
-);
+) as unknown as Type<any>;
 
-export const KvKeyModel: Type<Deno.KvKey> = KvKeyPartModel.array();
+/**
+ * Model for a complete KV key (array of key parts).
+ */
+export const KvKeyModel: Type<any[]> = KvKeyPartModel
+  .array() as unknown as Type<
+    any[]
+  >;
 
 // --- Base / Shared Models ---
 
-const Timestamps = type({
+/**
+ * Shared timestamp fields for models.
+ */
+export interface Timestamps {
+  createdAt?: Date;
+  updatedAt?: Date;
+  [key: string]: any;
+}
+
+/**
+ * Model for shared timestamp fields.
+ */
+export const Timestamps: Type<Timestamps> = type({
   "createdAt?": DateModel,
   "updatedAt?": DateModel,
-});
+}) as unknown as Type<Timestamps>;
 
 // --- User Models ---
 
-export const UserSettingsModel = type({
+/**
+ * Settings for a user.
+ */
+export interface UserSettings {
+  databases?: any;
+  theme?: string;
+  prettyPrintDates?: boolean;
+  hideEmail?: boolean;
+  [key: string]: any;
+}
+
+/**
+ * Model for user settings.
+ */
+export const UserSettingsModel: Type<UserSettings> = type({
   "databases?": KvValueType,
   "theme?": "string",
   "prettyPrintDates?": "boolean",
   "hideEmail?": "boolean",
-}).and({ "[string]": KvValueType });
+}).and({ "[string]": KvValueType }) as unknown as Type<UserSettings>;
 
-export type UserSettings = typeof UserSettingsModel.infer;
+/**
+ * The value of a user record in KV.
+ */
+export type UserValue = {
+  username?: string;
+  email: string;
+  passwordHash: string;
+  lastLoginAt: Date | null | undefined;
+  permissions: string[];
+  settings?: UserSettings;
+} & Timestamps;
 
-export const UserModel = type({
+/**
+ * Model for a user record.
+ */
+export const UserModel: Type<UserValue> = type({
   "username?": "string",
   email: "string",
   passwordHash: "string",
   lastLoginAt: DateModel,
   permissions: "string[]",
   "settings?": UserSettingsModel,
-}).and(Timestamps).and({ "[string]": KvValueType });
+}).and(Timestamps).and({ "[string]": KvValueType }) as unknown as Type<
+  UserValue
+>;
 
-export type UserValue = typeof UserModel.infer;
+/**
+ * A user record with its ID.
+ */
 export type User = UserValue & { id: string };
 
 // --- Session Models ---
 
-export const SessionModel = type({
+/**
+ * The value of a session record in KV.
+ */
+export type SessionValue = {
+  userId?: string;
+  flash?: any;
+  lastSeenAt?: Date;
+  ua?: string;
+  ip?: string;
+} & Timestamps;
+
+/**
+ * Model for a session record.
+ */
+export const SessionModel: Type<SessionValue> = type({
   "userId?": "string",
   "flash?": KvValueType,
   "lastSeenAt?": DateModel,
   "ua?": "string",
   "ip?": "string",
-  // Note: Application-specific session data (the 'data' key) is handled
-  // by the index signature below to avoid double-nesting.
-}).and(Timestamps).and({ "[string]": KvValueType });
+}).and(Timestamps).and({ "[string]": KvValueType }) as unknown as Type<
+  SessionValue
+>;
 
-export type SessionValue = typeof SessionModel.infer;
+/**
+ * A session record with its ID.
+ */
 export type Session = SessionValue & { id: string };
-export type SessionData = SessionValue["data"];
+
+/**
+ * Application-specific session data.
+ */
+export type SessionData = Record<string, any>;
 
 // --- API Token Models ---
 
-const ApiTokenRule = type({
+/**
+ * A rule for an API token.
+ */
+export interface ApiTokenRule {
+  effect: "allow" | "deny";
+  scope: string;
+  permissions: {
+    read: boolean;
+    write: boolean;
+    manage?: boolean;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+/**
+ * Model for an API token rule.
+ */
+export const ApiTokenRule: Type<ApiTokenRule> = type({
   effect: "'allow' | 'deny'",
   scope: "string",
-  permissions: {
+  permissions: type({
     read: "boolean",
     write: "boolean",
     "manage?": "boolean",
-  },
-});
+  }).and({ "[string]": KvValueType }),
+}).and({ "[string]": KvValueType }) as unknown as Type<ApiTokenRule>;
 
-export const ApiTokenModel = type({
+/**
+ * The value of an API token record in KV.
+ */
+export type ApiTokenValue = {
+  name: string;
+  userId: string;
+  tokenHash: string;
+  type: "personal" | "scoped";
+  rules: ApiTokenRule[];
+  lastUsedAt?: Date;
+  expiresAt?: Date;
+} & Timestamps;
+
+/**
+ * Model for an API token record.
+ */
+export const ApiTokenModel: Type<ApiTokenValue> = type({
   name: "string",
   userId: "string",
   tokenHash: "string",
@@ -99,20 +216,58 @@ export const ApiTokenModel = type({
   rules: ApiTokenRule.array(),
   "lastUsedAt?": DateModel,
   "expiresAt?": DateModel,
-}).and(Timestamps).and({ "[string]": KvValueType });
+}).and(Timestamps).and({ "[string]": KvValueType }) as unknown as Type<
+  ApiTokenValue
+>;
 
-export type ApiTokenValue = typeof ApiTokenModel.infer;
+/**
+ * An API token record with its ID.
+ */
 export type ApiToken = ApiTokenValue & { id: string };
 
 // --- Database Models ---
 
-const DatabaseSettings = type({
+/**
+ * Settings for a managed database.
+ */
+export interface DatabaseSettings {
+  prettyPrintDates?: boolean;
+  batchSize: number;
+  scanTimeout: number;
+  [key: string]: any;
+}
+
+/**
+ * Model for database settings.
+ */
+export const DatabaseSettings: Type<DatabaseSettings> = type({
   "prettyPrintDates?": "boolean",
   batchSize: "number",
   scanTimeout: "number",
-});
+}).and({ "[string]": KvValueType }) as unknown as Type<DatabaseSettings>;
 
-const DatabaseStats = type({
+/**
+ * Statistics for a database.
+ */
+export interface DatabaseStats {
+  recordCount: number;
+  sizeBytes: number;
+  updatedAt?: Date;
+  isPartial?: boolean;
+  breakdown?: any;
+  topChildren?: {
+    key: any;
+    size: number;
+    count: number;
+    [key: string]: any;
+  }[];
+  [key: string]: any;
+}
+
+/**
+ * Model for database statistics.
+ */
+export const DatabaseStats: Type<DatabaseStats> = type({
   recordCount: "number",
   sizeBytes: "number",
   "updatedAt?": DateModel,
@@ -122,10 +277,30 @@ const DatabaseStats = type({
     key: KvValueType,
     size: "number",
     count: "number",
-  }).array(),
-});
+  }).and({ "[string]": KvValueType }).array(),
+}).and({ "[string]": KvValueType }) as unknown as Type<DatabaseStats>;
 
-export const DatabaseModel = type({
+/**
+ * The value of a database record in KV.
+ */
+export type DatabaseValue = {
+  slug: string;
+  name: string;
+  description?: string;
+  path: string;
+  type: "file" | "memory" | "remote";
+  lastAccessedAt?: Date;
+  accessToken?: string;
+  mode: "r" | "rw";
+  sort?: number;
+  settings?: DatabaseSettings;
+  stats?: DatabaseStats;
+} & Timestamps;
+
+/**
+ * Model for a database record.
+ */
+export const DatabaseModel: Type<DatabaseValue> = type({
   slug: "string",
   name: "string",
   "description?": "string",
@@ -137,24 +312,61 @@ export const DatabaseModel = type({
   "sort?": "number",
   "settings?": DatabaseSettings,
   "stats?": DatabaseStats,
-}).and(Timestamps).and({ "[string]": KvValueType });
+}).and(Timestamps).and({ "[string]": KvValueType }) as unknown as Type<
+  DatabaseValue
+>;
 
-export type DatabaseValue = typeof DatabaseModel.infer;
+/**
+ * A database record with its ID.
+ */
 export type Database = DatabaseValue & { id: string };
 
 // --- App Config Models ---
 
-export const AppConfigModel = type({
+/**
+ * The value of an application configuration record in KV.
+ */
+export type AppConfigValue = {
+  port?: number;
+  cookieName?: string;
+} & Timestamps;
+
+/**
+ * Model for application configuration.
+ */
+export const AppConfigModel: Type<AppConfigValue> = type({
   "port?": "number",
   "cookieName?": "string",
-}).and(Timestamps).and({ "[string]": KvValueType });
+}).and(Timestamps).and({ "[string]": KvValueType }) as unknown as Type<
+  AppConfigValue
+>;
 
-export type AppConfigValue = typeof AppConfigModel.infer;
+/**
+ * An application configuration record with its ID.
+ */
 export type AppConfig = AppConfigValue & { id: string };
 
 // --- Audit Log Models ---
 
-export const AuditLogModel = type({
+/**
+ * The value of an audit log entry in KV.
+ */
+export type AuditLogValue = {
+  userId?: string;
+  databaseId: string;
+  action: "set" | "delete" | "move" | "copy" | "import" | "increment";
+  key: any[];
+  oldValue?: any;
+  newValue?: any;
+  timestamp?: Date;
+  details?: any;
+  [key: string]: any;
+};
+
+/**
+ * Model for an audit log entry.
+ */
+export const AuditLogModel: Type<AuditLogValue> = type({
   "userId?": "string",
   databaseId: "string",
   action: "'set' | 'delete' | 'move' | 'copy' | 'import' | 'increment'",
@@ -163,7 +375,9 @@ export const AuditLogModel = type({
   "newValue?": KvValueType,
   "timestamp?": DateModel,
   "details?": KvValueType,
-}).and({ "[string]": KvValueType });
+}).and({ "[string]": KvValueType }) as unknown as Type<AuditLogValue>;
 
-export type AuditLogValue = typeof AuditLogModel.infer;
+/**
+ * An audit log entry with its ID.
+ */
 export type AuditLog = AuditLogValue & { id: string };

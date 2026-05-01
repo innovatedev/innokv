@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import {
   KeyCodec,
   KeySerialization,
@@ -17,6 +18,11 @@ import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "@/kv/db.ts";
 export { DatabaseError };
 export class DatabaseRepository extends BaseRepository {
+  protected explorer: KvExplorer;
+  constructor(kvdex: any) {
+    super(kvdex);
+    this.explorer = new KvExplorer(kvdex.kv);
+  }
   async addDatabase(data: Database) {
     const existingDatabase = await this.kvdex.databases.findByPrimaryIndex(
       "slug",
@@ -189,7 +195,18 @@ export class DatabaseRepository extends BaseRepository {
     );
   }
   private static activeScans = new Set<string>();
+  public static memoryInstances = new Map<string, Deno.Kv>();
   /**
+   * Calculates the approximate size of a value in bytes.
+   * @param value The value to calculate the size for.
+   * @returns The approximate size in bytes.
+   */
+  public calculateValueSize(value: unknown): number {
+    return this.explorer.calculateSize(value);
+  }
+
+  /**
+   * Finds a database by its path, or creates it if it doesn't exist.
    * Scans the database to calculate total record count and aggregate size.
    * This is an O(N) operation and should be used with caution on large databases.
    */
@@ -345,9 +362,9 @@ export class DatabaseRepository extends BaseRepository {
     try {
       await this.kvdex.audit_logs.add({
         ...log,
-        userId: log.userId || "system",
+        userId: (log.userId as string | undefined) || "system",
         timestamp: new Date(),
-      });
+      } as AuditLogValue);
     } catch (err) {
       console.error("Failed to add audit log:", err);
     }
@@ -394,7 +411,6 @@ export class DatabaseRepository extends BaseRepository {
   }
   async purgeAuditLogs(options: { before?: Date; databaseId?: string } = {}) {
     const result = await this.kvdex.audit_logs.deleteMany({
-      // deno-lint-ignore no-explicit-any
       filter: (doc: any) => {
         if (options.before && doc.value.timestamp >= options.before) {
           return false;
@@ -449,6 +465,15 @@ export class DatabaseRepository extends BaseRepository {
     const explorer = new KvExplorer(kv);
     const prefix = pathInfo ? explorer.parsePath(pathInfo) : [];
     return await explorer.getRecords(prefix, { cursor, limit, ...options });
+  }
+  async searchRecords(
+    databaseId: string,
+    options: any,
+  ) {
+    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
+    const kv = await this.connectDatabase(databaseDoc.flat());
+    const explorer = new KvExplorer(kv);
+    return await explorer.search([], options);
   }
   async saveRecord(
     databaseId: string,
@@ -543,15 +568,15 @@ export class DatabaseRepository extends BaseRepository {
         userId,
         databaseId: databaseDoc.id,
         action: oldKey ? "move" : "set",
-        key: [...key],
-        oldValue,
-        newValue: ValueCodec.encode(decodedValue),
-        details: oldKey
+        key: [...key] as any,
+        oldValue: oldValue as any,
+        newValue: ValueCodec.encode(decodedValue) as any,
+        details: (oldKey
           ? {
             oldKey: oldKey.map((p) => this.serializeKeyPart(p)),
             versionstamp,
           }
-          : { versionstamp },
+          : { versionstamp }) as any,
       });
     }
     return result;
@@ -571,9 +596,9 @@ export class DatabaseRepository extends BaseRepository {
         userId,
         databaseId: databaseDoc.id,
         action: "increment",
-        key: [...key],
-        newValue: ValueCodec.encode(amount),
-        details: { amount: String(amount) },
+        key: [...key] as any,
+        newValue: ValueCodec.encode(amount) as any,
+        details: { amount: String(amount) } as any,
       });
     }
     return result;
@@ -588,10 +613,10 @@ export class DatabaseRepository extends BaseRepository {
       userId,
       databaseId: databaseDoc.id,
       action: "delete",
-      key: [...key],
-      oldValue: existing.value !== null
+      key: [...key] as any,
+      oldValue: (existing.value !== null
         ? ValueCodec.encode(existing.value)
-        : undefined,
+        : undefined) as any,
     });
     return result;
   }
@@ -613,8 +638,9 @@ export class DatabaseRepository extends BaseRepository {
       userId,
       databaseId: databaseDoc.id,
       action: "delete",
-      key: options.pathInfo ? explorer.parsePath(options.pathInfo) : [],
-      details: { ...options },
+      key:
+        (options.pathInfo ? explorer.parsePath(options.pathInfo) : []) as any,
+      details: { ...options } as any,
     });
     if (options.all) {
       const prefix = options.pathInfo
@@ -649,8 +675,8 @@ export class DatabaseRepository extends BaseRepository {
       userId,
       databaseId: databaseDoc.id,
       action: "move",
-      key: options.newPath ? explorer.parsePath(options.newPath) : [],
-      details: { ...options },
+      key: (options.newPath ? explorer.parsePath(options.newPath) : []) as any,
+      details: { ...options } as any,
     });
     let targetKv: Deno.Kv | undefined;
     if (options.targetId && options.targetId !== databaseId) {
@@ -722,8 +748,8 @@ export class DatabaseRepository extends BaseRepository {
       userId,
       databaseId: databaseDoc.id,
       action: "copy",
-      key: options.newPath ? explorer.parsePath(options.newPath) : [],
-      details: { ...options },
+      key: (options.newPath ? explorer.parsePath(options.newPath) : []) as any,
+      details: { ...options } as any,
     });
     let targetKv: Deno.Kv | undefined;
     if (options.targetId && options.targetId !== databaseId) {
@@ -798,69 +824,34 @@ export class DatabaseRepository extends BaseRepository {
       }
       return results;
     }
-    const prefix = explorer.parsePath(options.pathInfo || "");
+    const prefix = options.pathInfo ? explorer.parsePath(options.pathInfo) : [];
     return await explorer.exportToJson(prefix, options.recursive ?? true);
   }
   async importRecords(
     databaseId: string,
-    entries: { key: ApiKvKeyPart[]; value: RichValue }[],
+    entries: any[],
     userId?: string,
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
     const kv = await this.connectDatabase(databaseDoc.flat());
     const explorer = new KvExplorer(kv);
-    let importedCount = 0;
-    const batchSize = databaseDoc.value.settings?.batchSize ?? 100;
-    const result = await explorer.importFromJson(entries, { batchSize });
-    importedCount = result.importedCount;
+    const result = await explorer.importFromJson(entries);
     this.addAuditLog({
       userId,
       databaseId: databaseDoc.id,
       action: "import",
       key: [],
-      details: { importedCount },
+      details: { count: result.importedCount } as any,
     });
-    return { ok: true, importedCount };
+    return result;
   }
-  private async ensureWritable(slugOrId: string) {
-    const databaseDoc = await this.getDatabaseBySlugOrId(slugOrId);
-    if (databaseDoc.value.mode === "r") {
-      throw new DatabaseError(`Database "${slugOrId}" is read-only`);
+  private async ensureWritable(slug: string) {
+    const dbDoc = await this.getDatabaseBySlugOrId(slug);
+    if (dbDoc.flat().mode === "r") {
+      throw new DatabaseError(
+        `Database "${dbDoc.flat().name || dbDoc.id}" is read-only`,
+      );
     }
   }
-  async searchRecords(
-    databaseId: string,
-    options: {
-      query: string;
-      target: "key" | "value" | "all";
-      pathInfo?: string;
-      recursive?: boolean;
-      regex?: boolean;
-      caseSensitive?: boolean;
-      limit?: number;
-      cursor?: string;
-    },
-  ) {
-    const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
-    const kv = await this.connectDatabase(databaseDoc.flat());
-    const explorer = new KvExplorer(kv);
-    const prefix = options.pathInfo ? explorer.parsePath(options.pathInfo) : [];
-    return await explorer.search(prefix, {
-      query: options.query,
-      target: options.target,
-      recursive: options.recursive,
-      regex: options.regex,
-      caseSensitive: options.caseSensitive,
-      limit: options.limit,
-      cursor: options.cursor,
-    });
-  }
-  calculateValueSize(value: RichValue): number {
-    const decoded = ValueCodec.decode(value);
-    // deno-lint-ignore no-explicit-any
-    const explorer = new KvExplorer(null as any);
-    return explorer.calculateSize(decoded);
-  }
-  static memoryInstances = new Map<string, Deno.Kv>();
 }

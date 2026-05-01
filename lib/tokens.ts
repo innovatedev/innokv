@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { db } from "@/kv/db.ts";
 import { type ApiToken, type ApiTokenValue } from "@/kv/models.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
@@ -35,7 +36,7 @@ export async function createToken(
     name: data.name,
     tokenHash,
     type: data.type,
-    rules: data.rules,
+    rules: data.rules as any,
     expiresAt: data.expiresAt,
     createdAt: new Date(),
   };
@@ -58,15 +59,15 @@ export async function createToken(
  */
 export async function listTokens(userId: string): Promise<ApiToken[]> {
   const { result } = await db.apiTokens.getMany({
-    filter: (doc) => doc.value.userId === userId,
+    filter: (doc: any) => doc.value.userId === userId,
   });
 
   // Sort by createdAt desc
   return result
-    .map((doc) => ({ ...doc.value, id: doc.id }) as ApiToken)
-    .sort((a, b) => {
-      const aTime = a.createdAt?.getTime() || 0;
-      const bTime = b.createdAt?.getTime() || 0;
+    .map((doc: any) => ({ ...doc.value, id: doc.id }) as ApiToken)
+    .sort((a: any, b: any) => {
+      const aTime = (a.createdAt as any)?.getTime() || 0;
+      const bTime = (b.createdAt as any)?.getTime() || 0;
       return bTime - aTime;
     });
 }

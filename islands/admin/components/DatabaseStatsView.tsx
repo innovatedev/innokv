@@ -288,8 +288,9 @@ export function DatabaseStatsView({
         </button>
         <div class="flex items-center gap-2 justify-center text-[10px] opacity-40 italic">
           <InfoIcon className="w-3 h-3" />
-          Last updated:{" "}
-          {stats ? new Date(stats.updatedAt).toLocaleString() : "Never"}
+          Last updated: {stats?.updatedAt
+            ? new Date(stats.updatedAt).toLocaleString()
+            : "Never"}
         </div>
       </div>
     </div>

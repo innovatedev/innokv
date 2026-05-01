@@ -220,7 +220,9 @@ export async function doUserLs() {
   // deno-lint-ignore no-explicit-any
   return (users as any[])
     .map((doc) => ({ ...doc.value, id: doc.id }) as User)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    .sort((a, b) =>
+      (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
+    );
 }
 export async function doUserResetPassword(email: string, password: string) {
   await checkUserManagePermission();

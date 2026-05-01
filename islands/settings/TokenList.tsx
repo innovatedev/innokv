@@ -68,7 +68,7 @@ export default function TokenList({
               <tr key={token.id}>
                 <td class="font-bold">
                   {token.name}
-                  {isNew(token.createdAt) && (
+                  {isNew(token.createdAt!) && (
                     <span class="badge badge-sm badge-success ml-2">
                       NEW
                     </span>
@@ -86,7 +86,7 @@ export default function TokenList({
                   </span>
                 </td>
                 <td class="text-sm">
-                  {new Date(token.createdAt).toLocaleDateString()}
+                  {new Date(token.createdAt!).toLocaleDateString()}
                 </td>
                 <td class="text-sm">
                   {token.lastUsedAt
