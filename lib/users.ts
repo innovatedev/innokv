@@ -4,6 +4,12 @@ import { hash, verify } from "@felix/argon2";
 import { type User, type UserValue } from "@/kv/models.ts";
 export type { User, UserValue };
 
+/**
+ * Finds a user by their email address.
+ *
+ * @param email - User's email address.
+ * @returns User document or null if not found.
+ */
 export async function findUserByEmail(email: string) {
   return await db.users.findByPrimaryIndex("email", email);
 }
@@ -15,6 +21,12 @@ export interface CreateUserOptions {
   permissions?: string[];
 }
 
+/**
+ * Creates a new user record.
+ *
+ * @param options - User creation details.
+ * @returns Object indicating success or failure with error details.
+ */
 export async function createUser(
   { username, email, password, permissions = [] }: CreateUserOptions,
 ): Promise<{ ok: boolean; user?: User; error?: string }> {
@@ -52,11 +64,23 @@ export async function createUser(
   }
 }
 
+/**
+ * Retrieves all registered users.
+ *
+ * @returns Array of user objects.
+ */
 export async function getAllUsers(): Promise<User[]> {
   const { result } = await db.users.getMany();
   return result.map((doc: any) => ({ ...doc.value, id: doc.id }) as User);
 }
 
+/**
+ * Updates the permissions for a specific user.
+ *
+ * @param id - User ID.
+ * @param newPermissions - Array of permission strings.
+ * @returns True if the update was successful.
+ */
 export async function updateUserPermissions(
   id: string,
   newPermissions: string[],
@@ -81,11 +105,25 @@ export async function updateUserPermissions(
   return result.ok;
 }
 
+/**
+ * Deletes a user record.
+ *
+ * @param id - User ID.
+ * @returns True if deletion was initiated.
+ */
 export async function deleteUser(id: string): Promise<boolean> {
   await db.users.delete(id);
   return true;
 }
 
+/**
+ * Authenticates a user by email and password.
+ * Updates the lastLoginAt timestamp on success.
+ *
+ * @param email - User email.
+ * @param password - Plain-text password.
+ * @returns Authentication result including user object and ID.
+ */
 export async function authenticateUser(
   email: string,
   password: string,
@@ -128,6 +166,13 @@ export async function authenticateUser(
   return { ok: true, user, id: userDoc.id };
 }
 
+/**
+ * Changes a user's password.
+ *
+ * @param userId - User ID.
+ * @param newPassword - New plain-text password.
+ * @returns True if the password was updated.
+ */
 export async function changePassword(
   userId: string,
   newPassword: string,
@@ -145,6 +190,13 @@ export async function changePassword(
   return result.ok;
 }
 
+/**
+ * Updates application settings for a specific user.
+ *
+ * @param userId - User ID.
+ * @param settings - Partial settings object.
+ * @returns True if settings were updated.
+ */
 export async function updateUserSettings(
   userId: string,
   settings: User["settings"],

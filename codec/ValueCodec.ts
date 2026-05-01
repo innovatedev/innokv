@@ -14,15 +14,12 @@ const TYPED_ARRAYS = [
   BigUint64Array,
 ];
 
-/**
- * ValueCodec provides utilities for encoding and decoding complex JavaScript
- * values into a JSON-serializable "RichValue" format. This allows transporting
- * and storing types that are natively supported by Deno KV (like BigInt, Date, Map, Set)
- * but not by standard JSON.
- */
 export class ValueCodec {
   /**
-   * Checks if a value is a RichValue.
+   * Validates if a value conforms to the RichValue transport format.
+   *
+   * @param v - Value to check.
+   * @returns True if the value is a valid RichValue.
    */
   static isRichValue(v: unknown): v is RichValue {
     if (!v || typeof v !== "object") return false;
@@ -32,7 +29,10 @@ export class ValueCodec {
   }
 
   /**
-   * Encodes a native value into a RichValue transport format.
+   * Encodes a native JavaScript value into a RichValue transport format.
+   *
+   * @param val - Native value to encode.
+   * @returns Encoded RichValue.
    */
   static encode(val: unknown): RichValue {
     if (this.isRichValue(val)) return val;
@@ -151,8 +151,11 @@ export class ValueCodec {
   }
 
   /**
-   * Decodes a RichValue into a native value, but preserves types
-   * that Deno KV (structuredClone) cannot handle natively (like URL).
+   * Decodes a RichValue into a native value, preserving types that
+   * structuredClone (and thus Deno KV) cannot handle natively (e.g., URL).
+   *
+   * @param encoded - RichValue to decode.
+   * @returns Decoded value suitable for KV storage.
    */
   static decodeForKv(encoded: RichValue): unknown {
     if (encoded.type === "URL") return encoded;
@@ -161,6 +164,9 @@ export class ValueCodec {
 
   /**
    * Decodes an encoded RichValue back into its native format.
+   *
+   * @param encoded - RichValue to decode.
+   * @returns Native JavaScript value.
    */
   static decode(encoded: RichValue): unknown {
     switch (encoded.type) {
@@ -268,7 +274,10 @@ export class ValueCodec {
   }
 
   /**
-   * Returns a default value for a given RichValueType.
+   * Returns a default value for a given RichValue type.
+   *
+   * @param type - Target RichValue type.
+   * @returns Default native value for the type.
    */
   // deno-lint-ignore no-explicit-any
   static getDefaultValue(type: RichValueType): any {

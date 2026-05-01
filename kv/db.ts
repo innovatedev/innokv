@@ -19,9 +19,6 @@ await metadataKv.close();
 
 export const ROOT_DB_ID: string = metadata?.id || "root";
 
-/**
- * The Kvdex database instance for the root database.
- */
 export const db: any = kvdex({
   kv: kv,
   schema: {

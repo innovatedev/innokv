@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.7
+
+- 
+- Fix slow types
+- Improve docs
+
 ## v0.4.6
 
 - support more types in value viewer/editor

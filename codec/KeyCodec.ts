@@ -1,13 +1,12 @@
 import { ApiKvKeyPart } from "./types.ts";
 
-/**
- * KeyCodec provides utilities for converting between Deno KV keys and their
- * human-readable string representations, as well as their JSON-serializable formats.
- */
 export class KeyCodec {
   /**
    * Encodes a list of API key parts into a human-readable path string.
-   * Example: [{type: "string", value: "a"}, {type: "number", value: 1}] -> "a/1"
+   *
+   * @param parts - List of key parts to encode.
+   * @returns Forward-slash separated string representation of the key.
+   * @example [{type: "string", value: "a"}, {type: "number", value: 1}] -> "a/1"
    */
   static encode(parts: ApiKvKeyPart[]): string {
     return parts.map((p) => this.encodePart(p)).join("/");
@@ -15,6 +14,9 @@ export class KeyCodec {
 
   /**
    * Converts a list of ApiKvKeyPart (transport format) to native Deno.KvKeyPart.
+   *
+   * @param parts - List of transport key parts.
+   * @returns Array of native Deno KV key parts.
    */
   static toNative(parts: ApiKvKeyPart[]): Deno.KvKeyPart[] {
     return parts.map((p) => {
@@ -48,14 +50,20 @@ export class KeyCodec {
   }
 
   /**
-   * Converts a native Deno.KvKey to ApiKvKeyPart[] format.
+   * Converts a native Deno.KvKey to ApiKvKeyPart[] transport format.
+   *
+   * @param key - Native Deno KV key.
+   * @returns List of transport key parts.
    */
   static fromNative(key: Deno.KvKey): ApiKvKeyPart[] {
     return key.map((p) => this.fromNativePart(p));
   }
 
   /**
-   * Converts a single native Deno.KvKeyPart to an ApiKvKeyPart.
+   * Converts a single native Deno.KvKeyPart to an ApiKvKeyPart transport format.
+   *
+   * @param part - Native Deno KV key part.
+   * @returns Transport key part.
    */
   static fromNativePart(part: Deno.KvKeyPart): ApiKvKeyPart {
     if (typeof part === "string") return { type: "string", value: part };
@@ -73,6 +81,9 @@ export class KeyCodec {
   /**
    * Decodes a path string into a list of ApiKvKeyParts.
    * Handles quoted strings, numbers, booleans, bigints, and Uint8Arrays.
+   *
+   * @param str - Human-readable path string.
+   * @returns List of decoded transport key parts.
    */
   static decode(str: string): ApiKvKeyPart[] {
     const parts: ApiKvKeyPart[] = [];
@@ -126,6 +137,9 @@ export class KeyCodec {
 
   /**
    * Encodes a single ApiKvKeyPart into its string representation.
+   *
+   * @param part - Transport key part to encode.
+   * @returns String representation of the part.
    */
   static encodePart(part: ApiKvKeyPart): string {
     if (!part) {

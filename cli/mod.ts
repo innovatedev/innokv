@@ -22,15 +22,15 @@ import { install } from "./commands/install.ts";
 import { APP_VERSION } from "../lib/metadata.ts";
 import settings from "../config/app.ts";
 
-// Re-export Command so it is part of the public API, fixing 'private-type-ref' errors.
 export { Command } from "@cliffy/command";
 
 /**
- * Start the InnoKV web server.
+ * Starts the InnoKV web server with environment detection.
  *
- * Detects whether running as a compiled binary or in dev mode:
- * - Compiled: Uses the pre-built _fresh/server.js handler (routes bundled by Vite)
- * - Dev: Uses the Fresh App from main.ts with runtime fsRoutes()
+ * In production (compiled), utilizes the pre-built Fresh server handler.
+ * In development, utilizes the Fresh application with runtime route discovery.
+ *
+ * @param options - Server configuration options including port and session cookie name.
  */
 async function startServer(
   options?: { port?: number; cookieName?: string },
@@ -57,9 +57,9 @@ async function startServer(
 }
 
 /**
- * The main entry point for the InnoKV CLI.
+ * Main entry point for the InnoKV CLI.
  *
- * This command groups all subcommands (install, db, ls, get, repl) and provides
+ * Groups all subcommands (install, db, ls, get, repl) and provides
  * version and help information.
  */
 // deno-lint-ignore no-explicit-any

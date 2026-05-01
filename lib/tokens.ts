@@ -1,3 +1,8 @@
+/**
+ * @module
+ * Logic for managing API tokens.
+ */
+
 // deno-lint-ignore-file no-explicit-any
 import { db } from "@/kv/db.ts";
 import { type ApiToken, type ApiTokenValue } from "@/kv/models.ts";
@@ -5,7 +10,13 @@ import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 /**
  * Creates a new API token for a user.
- * Returns the plain text token secret (only once!) and the created token object.
+ *
+ * Generates a random 32-byte secret, hashes it for storage, and returns
+ * both the plain-text secret (once) and the created token metadata.
+ *
+ * @param userId - ID of the user owning the token.
+ * @param data - Token configuration including name, type, and expiration.
+ * @returns Result object containing the secret and token metadata.
  */
 export async function createToken(
   userId: string,
@@ -56,6 +67,9 @@ export async function createToken(
 
 /**
  * Lists all API tokens for a specific user.
+ *
+ * @param userId - ID of the user.
+ * @returns Sorted array of API tokens (newest first).
  */
 export async function listTokens(userId: string): Promise<ApiToken[]> {
   const { result } = await db.apiTokens.getMany({
@@ -73,7 +87,11 @@ export async function listTokens(userId: string): Promise<ApiToken[]> {
 }
 
 /**
- * Revokes (deletes) an API token.
+ * Revokes an API token.
+ *
+ * @param userId - ID of the user owning the token (for authorization).
+ * @param tokenId - ID of the token to revoke.
+ * @returns True if the token was successfully revoked.
  */
 export async function revokeToken(
   userId: string,

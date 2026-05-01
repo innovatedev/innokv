@@ -4,7 +4,9 @@
 
 **Development workspace and admin tool for Deno KV.**
 
-<img src="./static/logo.png" height="256" style="display: block; margin: 0 auto 1em;" />
+<p align="center">
+  <img src="./static/logo.png" width="256" />
+</p>
 
 InnoKV is a professional management interface and CLI for working with real Deno
 KV systems across environments.

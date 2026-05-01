@@ -17,6 +17,11 @@ import { KvExplorer } from "./KvExplorer.ts";
 import { BaseRepository, DatabaseError } from "./BaseRepository.ts";
 import { ROOT_DB_ID } from "@/kv/db.ts";
 export { DatabaseError };
+
+/**
+ * Repository for managing multiple Deno KV databases.
+ * Handles connections, statistics calculation, and audit logging.
+ */
 export class DatabaseRepository extends BaseRepository {
   protected explorer: KvExplorer;
   constructor(kvdex: any) {
@@ -198,17 +203,24 @@ export class DatabaseRepository extends BaseRepository {
   public static memoryInstances = new Map<string, Deno.Kv>();
   /**
    * Calculates the approximate size of a value in bytes.
-   * @param value The value to calculate the size for.
-   * @returns The approximate size in bytes.
+   *
+   * @param value - Value to measure.
+   * @returns Approximate size in bytes.
    */
   public calculateValueSize(value: unknown): number {
     return this.explorer.calculateSize(value);
   }
 
   /**
-   * Finds a database by its path, or creates it if it doesn't exist.
-   * Scans the database to calculate total record count and aggregate size.
-   * This is an O(N) operation and should be used with caution on large databases.
+   * Calculates statistics for a database, including record count and size.
+   * Performs an O(N) scan of the database or a specific prefix.
+   *
+   * @param id - Database slug or ID.
+   * @param pathInfo - Optional path prefix to scan.
+   * @param userId - Optional user ID for scan concurrency tracking.
+   * @param timeoutMs - Optional scan timeout in milliseconds.
+   * @returns Calculated database statistics.
+   * @throws {DatabaseError} If a scan is already in progress or database connection fails.
    */
   async getDatabaseStats(
     id: string,

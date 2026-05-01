@@ -1,6 +1,6 @@
 /**
- * Encoding and decoding utilities for Deno KV keys and values.
  * @module
+ * Serialization and deserialization utilities for Deno KV keys and values.
  */
 
 export * from "./types.ts";
