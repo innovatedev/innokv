@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## v0.4.7
 
-- 
+- Fix session index records not being removed on session update (updated fresh-session)
 - Fix slow types
 - Improve docs
 
