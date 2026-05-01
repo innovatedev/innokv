@@ -83,6 +83,9 @@ export const handler = BaseRepository.handlers({
         oldKey,
         expiresAt as number | null,
         ctx.state.userId,
+        {
+          overwrite: data.overwrite !== false,
+        },
       );
     }),
   PATCH: (ctx) =>

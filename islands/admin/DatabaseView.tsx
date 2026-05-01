@@ -1,4 +1,4 @@
-import { KeyCodec } from "@/codec/mod.ts";
+import { KeyCodec, KeySerialization } from "@/codec/mod.ts";
 import { useContext, useEffect, useRef } from "preact/hooks";
 import { DatabaseContext } from "./contexts/DatabaseContext.tsx";
 import Dialog from "./Dialog.tsx";
@@ -738,27 +738,49 @@ export default function DatabaseView({ initialStructure }: DatabaseViewProps) {
             const key = data.key;
             const versionstamp = selectedEntry.value?.versionstamp || null;
 
-            if (!activeDatabase) return;
+            const dbId = activeDatabase.slug || activeDatabase.id;
 
-            api.saveRecord(
-              activeDatabase.slug || activeDatabase.id,
-              key,
-              data.value,
-              versionstamp,
-              oldKey,
-              { expiresAt: (data as { expiresAt?: number }).expiresAt },
-            ).then(() => {
-              createEntryRef.current?.close();
-              if (pathInfo.value) {
-                pathInfo.value = [...pathInfo.value];
-              }
-              api.getDatabase(
-                activeDatabase.slug || activeDatabase.id,
-              )
-                .then((s) => setDbStructure(s));
-            }).catch((e: Error | unknown) =>
-              alert(e instanceof Error ? e.message : String(e))
-            );
+            const doSave = (overwrite: boolean = false) => {
+              api.saveRecord(
+                dbId,
+                key,
+                data.value,
+                versionstamp,
+                oldKey,
+                {
+                  expiresAt: (data as { expiresAt?: number }).expiresAt,
+                  overwrite,
+                },
+              ).then(() => {
+                createEntryRef.current?.close();
+
+                // Navigate to the parent path of the new key so user can see their record
+                if (key.length > 0) {
+                  const parentPath = key.slice(0, -1);
+                  pathInfo.value = parentPath.map((p) =>
+                    KeySerialization.serialize(p)
+                  );
+                } else {
+                  pathInfo.value = [];
+                }
+
+                api.getDatabase(dbId).then((s) => setDbStructure(s));
+              }).catch((e: Error | unknown) => {
+                if (e instanceof Error && e.message.includes("exists")) {
+                  if (
+                    confirm(
+                      `A record already exists at this key. Do you want to overwrite it?`,
+                    )
+                  ) {
+                    doSave(true);
+                  }
+                } else {
+                  alert(e instanceof Error ? e.message : String(e));
+                }
+              });
+            };
+
+            doSave(false);
           }}
         />
       </Dialog>

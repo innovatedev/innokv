@@ -5,7 +5,7 @@ import RichValueEditor from "./RichValueEditor/index.tsx";
 
 import { KeyDisplay } from "../KeyDisplay.tsx";
 import JsonEditor from "./JsonEditor.tsx";
-import { NumberInput } from "./RichValueEditor/NumberInput.tsx";
+import KeyEditor from "./components/KeyEditor.tsx";
 
 interface KvEntryFormProps {
   onSubmit?: (
@@ -137,17 +137,6 @@ export default function KvEntryForm({
     if (entry && entry.key && confirm(`Are you sure?`) && onDelete) onDelete();
   };
 
-  const addPart = () =>
-    setKeyParts([...keyParts, { type: "string", value: "" }]);
-  const removePart = (index: number) =>
-    setKeyParts(keyParts.filter((_, i) => i !== index));
-  const updatePart = (index: number, field: "type" | "value", val: string) => {
-    const newParts = [...keyParts];
-    newParts[index] = { ...newParts[index], [field]: val };
-    if (field === "type" && val === "boolean") newParts[index].value = "true";
-    setKeyParts(newParts);
-  };
-
   const resetKey = () => {
     let initialParts: ApiKvKeyPart[] = [];
     if (entry && entry.key) {
@@ -271,110 +260,11 @@ export default function KvEntryForm({
                 </div>
               )
               : (
-                <div class="flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100">
-                  {keyParts.map((part, i) => (
-                    <div class="flex gap-2 items-center" key={i}>
-                      <select
-                        class="select select-bordered select-xs w-24"
-                        value={part.type}
-                        disabled={isReadOnly}
-                        onChange={(e) =>
-                          updatePart(
-                            i,
-                            "type",
-                            (e.target as HTMLSelectElement).value,
-                          )}
-                      >
-                        {[
-                          { label: "String", val: "string" },
-                          { label: "Number", val: "number" },
-                          { label: "BigInt", val: "bigint" },
-                          { label: "Boolean", val: "boolean" },
-                          { label: "Uint8Array", val: "Uint8Array" },
-                        ]
-                          .map((t) => (
-                            <option key={t.val} value={t.val}>{t.label}</option>
-                          ))}
-                      </select>
-                      {part.type === "boolean"
-                        ? (
-                          <div class="flex-1 max-w-xs flex items-center px-2">
-                            <input
-                              type="checkbox"
-                              class="toggle toggle-xs toggle-primary"
-                              checked={part.value === "true"}
-                              disabled={isReadOnly}
-                              onChange={(e) =>
-                                updatePart(
-                                  i,
-                                  "value",
-                                  (e.target as HTMLInputElement).checked
-                                    ? "true"
-                                    : "false",
-                                )}
-                            />
-                            <span class="ml-2 text-xs opacity-50">
-                              {part.value}
-                            </span>
-                          </div>
-                        )
-                        : part.type === "number"
-                        ? (
-                          <div class="flex-1 max-w-xs">
-                            <NumberInput
-                              value={part.value}
-                              disabled={isReadOnly}
-                              onChange={(v) =>
-                                updatePart(i, "value", String(v))}
-                            />
-                          </div>
-                        )
-                        : (
-                          <input
-                            type="text"
-                            class="input input-bordered input-xs flex-1"
-                            value={part.value}
-                            readOnly={isReadOnly}
-                            onInput={(e) =>
-                              updatePart(
-                                i,
-                                "value",
-                                (e.target as HTMLInputElement).value,
-                              )}
-                          />
-                        )}
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          class="btn btn-square btn-sm btn-ghost"
-                          onClick={() => removePart(i)}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {!isReadOnly && (
-                    <div class="flex gap-2 mt-2 justify-between items-center">
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-outline"
-                        onClick={addPart}
-                      >
-                        + Add Key Part
-                      </button>
-                      {entry && (
-                        <button
-                          type="button"
-                          class="btn btn-xs btn-ghost text-error"
-                          onClick={() => setIsEditingKey(false)}
-                        >
-                          Cancel Edit
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <KeyEditor
+                  keyParts={keyParts}
+                  onChange={setKeyParts}
+                  isReadOnly={isReadOnly}
+                />
               )
           )
           : (

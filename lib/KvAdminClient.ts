@@ -113,8 +113,12 @@ export default class KvAdminClient {
     value: unknown,
     versionstamp: string | null = null,
     oldKey?: unknown[],
-    options: { expiresAt?: number | null; action?: string; amount?: string } =
-      {},
+    options: {
+      expiresAt?: number | null;
+      action?: string;
+      amount?: string;
+      overwrite?: boolean;
+    } = {},
   ): Promise<unknown> {
     const wireKey = key.map((k) => this.stringifyKeyPart(k));
     const payload: Record<string, unknown> = {

@@ -2,6 +2,7 @@ import { KeyCodec } from "@/codec/mod.ts";
 import { useSignal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import Dialog from "../Dialog.tsx";
+import KeyEditor from "./components/KeyEditor.tsx";
 import { ApiKvKeyPart } from "@/lib/types.ts";
 
 import { KeyDisplay } from "../KeyDisplay.tsx";
@@ -58,33 +59,6 @@ export default function MoveRecords(
       }));
     }
   }, [currentPath]);
-
-  const addPart = () => {
-    setKeyParts([...keyParts, { type: "string", value: "" }]);
-  };
-
-  const removePart = (index: number) => {
-    setKeyParts(keyParts.filter((_, i) => i !== index));
-  };
-
-  const movePart = (index: number, direction: -1 | 1) => {
-    const newParts = [...keyParts];
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= newParts.length) return;
-    const temp = newParts[index];
-    newParts[index] = newParts[targetIndex];
-    newParts[targetIndex] = temp;
-    setKeyParts(newParts);
-  };
-
-  const updatePart = (index: number, field: "type" | "value", val: string) => {
-    const newParts = [...keyParts];
-    newParts[index] = { ...newParts[index], [field]: val };
-    if (field === "type") {
-      if (val === "boolean") newParts[index].value = "true";
-    }
-    setKeyParts(newParts);
-  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -194,106 +168,10 @@ export default function MoveRecords(
             <span class="label-text font-bold">Destination Path</span>
           </label>
           <div class="flex flex-col gap-2 p-2 border border-base-200 rounded-md bg-base-100 shadow-inner">
-            {keyParts.map((part, i) => (
-              <div class="flex gap-2 items-center" key={i}>
-                <select
-                  class="select select-bordered select-xs w-24"
-                  value={part.type}
-                  onChange={(e) =>
-                    updatePart(
-                      i,
-                      "type",
-                      (e.target as HTMLSelectElement).value,
-                    )}
-                >
-                  <option value="string">String</option>
-                  <option value="number">Number</option>
-                  <option value="bigint">BigInt</option>
-                  <option value="boolean">Boolean</option>
-                  <option value="Uint8Array">Uint8Array</option>
-                </select>
-
-                {part.type === "boolean"
-                  ? (
-                    <select
-                      class="select select-bordered select-xs flex-1 max-w-xs"
-                      value={part.value}
-                      onChange={(e) =>
-                        updatePart(
-                          i,
-                          "value",
-                          (e.target as HTMLSelectElement).value,
-                        )}
-                    >
-                      <option value="true">true</option>
-                      <option value="false">false</option>
-                    </select>
-                  )
-                  : (
-                    <input
-                      type={part.type === "number" ? "number" : "text"}
-                      class={`input input-bordered input-xs flex-1 max-w-xs`}
-                      value={part.value}
-                      onInput={(e) =>
-                        updatePart(
-                          i,
-                          "value",
-                          (e.target as HTMLInputElement).value,
-                        )}
-                      placeholder={part.type === "uint8array"
-                        ? "e.g. 1, 2, 255"
-                        : "Key part value"}
-                    />
-                  )}
-
-                <div class="flex flex-col shrink-0">
-                  <button
-                    type="button"
-                    class="btn btn-square btn-xs btn-ghost h-4 min-h-0"
-                    disabled={i === 0}
-                    onClick={() =>
-                      movePart(i, -1)}
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-square btn-xs btn-ghost h-4 min-h-0"
-                    disabled={i === keyParts.length - 1}
-                    onClick={() =>
-                      movePart(i, 1)}
-                  >
-                    ▼
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-square btn-xs btn-ghost shrink-0"
-                  onClick={() => removePart(i)}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <div class="flex gap-2 mt-2 justify-between items-center">
-              <div class="flex gap-1">
-                <button
-                  type="button"
-                  class="btn btn-sm btn-ghost gap-1 text-[10px] uppercase h-7 min-h-0"
-                  onClick={() =>
-                    setKeyParts([{ type: "string", value: "" }, ...keyParts])}
-                >
-                  + At Start
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-ghost gap-1 text-[10px] uppercase h-7 min-h-0"
-                  onClick={addPart}
-                >
-                  + At End
-                </button>
-              </div>
-            </div>
+            <KeyEditor
+              keyParts={keyParts}
+              onChange={setKeyParts}
+            />
           </div>
         </div>
 

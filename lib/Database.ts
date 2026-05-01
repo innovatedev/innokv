@@ -1,4 +1,9 @@
-import { KeySerialization, RichValue, ValueCodec } from "@/codec/mod.ts";
+import {
+  KeyCodec,
+  KeySerialization,
+  RichValue,
+  ValueCodec,
+} from "@/codec/mod.ts";
 import {
   AuditLogValue,
   Database,
@@ -237,7 +242,9 @@ export class DatabaseRepository extends BaseRepository {
         if (entry.key.length > prefix.length) {
           const childPart = entry.key[prefix.length];
           // Use native JSON stringify for the key part to ensure absolute stability in the map
-          const childKeyStr = JSON.stringify(childPart);
+          const childKeyStr = KeyCodec.encode([
+            this.serializeKeyPart(childPart),
+          ]);
           if (!childStats[childKeyStr]) {
             childStats[childKeyStr] = {
               count: 0,
@@ -285,6 +292,10 @@ export class DatabaseRepository extends BaseRepository {
   }
   serializeKeyPart(part: Deno.KvKeyPart): ApiKvKeyPart {
     return KeySerialization.serialize(part);
+  }
+
+  private serializeKey(key: Deno.KvKey): ApiKvKeyPart[] {
+    return key.map((p) => this.serializeKeyPart(p));
   }
   parseKeyPart(part: ApiKvKeyPart): Deno.KvKeyPart {
     return KeySerialization.parse(part);
@@ -447,6 +458,7 @@ export class DatabaseRepository extends BaseRepository {
     oldKey?: Deno.KvKey,
     expiresAt?: number | null,
     userId?: string,
+    options: { overwrite?: boolean } = {},
   ) {
     await this.ensureWritable(databaseId);
     const databaseDoc = await this.getDatabaseBySlugOrId(databaseId);
@@ -467,17 +479,56 @@ export class DatabaseRepository extends BaseRepository {
     const expireIn = expiresAt
       ? Math.max(1, expiresAt - Date.now())
       : undefined;
-    if (oldKey && JSON.stringify(oldKey) !== JSON.stringify(key)) {
+
+    const overwrite = options.overwrite !== false;
+
+    // Check if target key exists if we are moving or creating and overwrite is false
+    if (!overwrite) {
+      const target = await kv.get(key);
+      if (target.versionstamp !== null) {
+        // If we are editing the SAME record (oldKey matches key), this is fine
+        const isEditingSame = oldKey &&
+          KeyCodec.encode(this.serializeKey(oldKey)) ===
+            KeyCodec.encode(this.serializeKey(key));
+        if (!isEditingSame) {
+          throw new DatabaseError("Target record already exists", {
+            existing: {
+              key: key.map((p) => this.serializeKeyPart(p)),
+              value: ValueCodec.encode(target.value),
+              versionstamp: target.versionstamp,
+            },
+          });
+        }
+      }
+    }
+
+    if (
+      oldKey &&
+      KeyCodec.encode(this.serializeKey(oldKey)) !==
+        KeyCodec.encode(this.serializeKey(key))
+    ) {
       // Move record atomically
       const atomic = kv.atomic();
       if (versionstamp) {
+        // Check versionstamp of the SOURCE record
         atomic.check({ key: oldKey, versionstamp });
       }
-      return await atomic
+      if (!overwrite) {
+        // Double check target doesn't exist in the same transaction
+        atomic.check({ key: key, versionstamp: null });
+      }
+
+      const result = await atomic
         .delete(oldKey)
         .set(key, decodedValue, { expireIn })
         .commit();
+
+      if (!result.ok) {
+        throw new DatabaseError("Transaction failed (likely version conflict)");
+      }
+      return result;
     }
+
     if (versionstamp) {
       // Check for conflict on existing key
       const existing = await kv.get(key);
@@ -485,6 +536,7 @@ export class DatabaseRepository extends BaseRepository {
         throw new DatabaseError("Versionstamp conflict");
       }
     }
+
     const result = await kv.set(key, decodedValue, { expireIn });
     if (result.ok) {
       this.addAuditLog({
@@ -627,9 +679,11 @@ export class DatabaseRepository extends BaseRepository {
         let relativeKey = [key[key.length - 1]];
         if (
           key.length > sourcePrefix.length &&
-          key.slice(0, sourcePrefix.length).every((p, i) =>
-            JSON.stringify(p) === JSON.stringify(sourcePrefix[i])
-          )
+          key.slice(0, sourcePrefix.length).every((p, i) => {
+            const partA = KeySerialization.serialize(p);
+            const partB = KeySerialization.serialize(sourcePrefix[i]);
+            return KeyCodec.encode([partA]) === KeyCodec.encode([partB]);
+          })
         ) {
           relativeKey = key.slice(sourcePrefix.length);
         }
@@ -698,9 +752,11 @@ export class DatabaseRepository extends BaseRepository {
         let relativeKey = [key[key.length - 1]];
         if (
           key.length > sourcePrefix.length &&
-          key.slice(0, sourcePrefix.length).every((p, i) =>
-            JSON.stringify(p) === JSON.stringify(sourcePrefix[i])
-          )
+          key.slice(0, sourcePrefix.length).every((p, i) => {
+            const partA = KeySerialization.serialize(p);
+            const partB = KeySerialization.serialize(sourcePrefix[i]);
+            return KeyCodec.encode([partA]) === KeyCodec.encode([partB]);
+          })
         ) {
           relativeKey = key.slice(sourcePrefix.length);
         }
