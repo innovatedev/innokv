@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4.6
+
+- support more types in value viewer/editor
+- standardize key editor
+- improved create/move functions
+- switch to arctype
+
 ## v0.4.5
 
 - Fix session validation errors by purging legacy sessions
