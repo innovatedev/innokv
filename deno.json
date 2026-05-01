@@ -77,7 +77,7 @@
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",
     "@olli/kvdex": "jsr:@olli/kvdex@^3.6.5",
     "arktype": "npm:arktype@^2.2.0",
-    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.5.1"
+    "@innovatedev/fresh-session": "jsr:@innovatedev/fresh-session@^0.5.2"
   },
   "compilerOptions": {
     "lib": [
